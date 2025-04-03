@@ -41,34 +41,31 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //*************************************************************************
 
 module confreg
-(
-    input  wire        clk,
-    input  wire        resetn,
-    // read and write from cpu
-    input  wire        conf_we,
-    input  wire [31:0] conf_wdata,
-    // read and write to device on board
-    output wire [15:0] led
-);
+    (
+        input  wire        clk,
+        input  wire        resetn,
+        // read and write from cpu
+        input  wire        conf_we,
+        input  wire [31:0] conf_wdata,
+        // read and write to device on board
+        output wire [15:0] led
+    );
 
-reg  [31:0] led_data;
+    reg  [31:0] led_data;
 
-//--------------------------------{led}begin-----------------------------//
-//led display
-//led_data[31:0]
-wire write_led = conf_we;
-assign led = led_data[15:0];
-always @(posedge clk)
-begin
-    if(!resetn)
-    begin
-        led_data <= 32'h0;
+    //--------------------------------{led}begin-----------------------------//
+    //led display
+    //led_data[31:0]
+    wire write_led = conf_we;
+    assign led = led_data[15:0];
+    always @(posedge clk)begin
+        if(!resetn)begin
+            led_data <= 32'h0;
+        end
+        else if(write_led)begin
+            led_data <= conf_wdata[31:0];
+        end
     end
-    else if(write_led)
-    begin
-        led_data <= conf_wdata[31:0];
-    end
-end
-//---------------------------------{led}end------------------------------//
+    //---------------------------------{led}end------------------------------//
 
 endmodule
