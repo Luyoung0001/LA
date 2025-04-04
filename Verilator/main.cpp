@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stdint.h>
+#include <main.h>
 #include "Vsoc_mini_top.h"
 #include "Vsoc_mini_top___024root.h"
 
@@ -48,7 +49,15 @@ int cpu_exec(uint64_t n) {
     return ret;
 }
 
+int init_system(){
+    // 分配内存
+    init_mem();
+    // 加载镜像
+    load_inst();
+}
+
 int main(int argc, char* argv[]) {
+    init_system();
     Verilated::traceEverOn(true);  //导出 FST 波形需要加此语句
     top->trace(tfp, 99);
     tfp->open("wave.vcd");

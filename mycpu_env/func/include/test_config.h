@@ -7,7 +7,7 @@
 // exp12        : n1~n47  SHORT_TEST1 0 NOP_INSERT 0 TEST1 1 TEST2 1 TEST3 1 TEST4 1 TEST5 0 TEST6 0 TEST7 0 TEST8 0 TEST9 0
 // exp13~16     : n1~n58  SHORT_TEST1 0 NOP_INSERT 0 TEST1 1 TEST2 1 TEST3 1 TEST4 1 TEST5 1 TEST6 0 TEST7 0 TEST8 0 TEST9 0
 // exp18        : n1~n70  SHORT_TEST1 0 NOP_INSERT 0 TEST1 1 TEST2 1 TEST3 1 TEST4 1 TEST5 1 TEST6 1 TEST7 0 TEST8 0 TEST9 0
-// exp19, 21~22 : n1~n72  SHORT_TEST1 0 NOP_INSERT 0 TEST1 1 TEST2 1 TEST3 1 TEST4 1 TEST5 1 TEST6 1 TEST7 1 TEST8 0 TEST9 0 
+// exp19, 21~22 : n1~n72  SHORT_TEST1 0 NOP_INSERT 0 TEST1 1 TEST2 1 TEST3 1 TEST4 1 TEST5 1 TEST6 1 TEST7 1 TEST8 0 TEST9 0
 // exp23        : n1~n79  SHORT_TEST1 0 NOP_INSERT 0 TEST1 1 TEST2 1 TEST3 1 TEST4 1 TEST5 1 TEST6 1 TEST7 1 TEST8 1 TEST9 0
 // ==========================================================================================================================
 
@@ -17,13 +17,13 @@
   //             Only set for exp6.
   //==================================================================
   #define SHORT_TEST1 0
-  
+
   //==================================================================
   //NOP_INSERT: Insert 4 nop insts between every alu operation.
   //            Only set for exp7.
   //==================================================================
   #define NOP_INSERT 0
-  
+
   #define TEST1 1
   #define TEST2 1
   #define TEST3 1
@@ -128,7 +128,7 @@
   #define TEST6 1
   #define TEST7 0
   #define TEST8 0
-  #define TEST9 0  
+  #define TEST9 0
 #elif  (EXP==19 || EXP==21 || EXP==22)
   #define SHORT_TEST1 0
   #define NOP_INSERT 0
@@ -140,7 +140,7 @@
   #define TEST6 1
   #define TEST7 1
   #define TEST8 0
-  #define TEST9 0  
+  #define TEST9 0
 #elif  EXP==23
   #define SHORT_TEST1 0
   #define NOP_INSERT 0
@@ -152,7 +152,7 @@
   #define TEST6 1
   #define TEST7 1
   #define TEST8 1
-  #define TEST9 0  
+  #define TEST9 0
 #else
   #error: please do "make EXP=N"(N={0,6-16,18-19,21-23})
 #endif

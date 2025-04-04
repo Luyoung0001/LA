@@ -52,12 +52,12 @@
       "-Os",
       "-c",
       "-o",
-      "main.o",
-      "/home/luyoung/LA/Verilator/main.cpp"
+      "verilated_fst_c.o",
+      "/usr/local/share/verilator/include/verilated_fst_c.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/Verilator/main.cpp",
-    "output": "/home/luyoung/LA/obj_dir/main.o"
+    "file": "/usr/local/share/verilator/include/verilated_fst_c.cpp",
+    "output": "/home/luyoung/LA/obj_dir/verilated_fst_c.o"
   },
   {
     "arguments": [
@@ -82,12 +82,12 @@
       "-Os",
       "-c",
       "-o",
-      "verilated_fst_c.o",
-      "/usr/local/share/verilator/include/verilated_fst_c.cpp"
+      "main.o",
+      "/home/luyoung/LA/Verilator/main.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/usr/local/share/verilator/include/verilated_fst_c.cpp",
-    "output": "/home/luyoung/LA/obj_dir/verilated_fst_c.o"
+    "file": "/home/luyoung/LA/Verilator/main.cpp",
+    "output": "/home/luyoung/LA/obj_dir/main.o"
   },
   {
     "arguments": [
