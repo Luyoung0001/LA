@@ -9,7 +9,6 @@ module data_ram(
 // 初始化 memory
 
     initial begin
-    memory[0] = 32'h10;
     end
 
     // 同步写操作（需时钟）
@@ -19,7 +18,11 @@ module data_ram(
         end
     end
     always @(*) begin
-        spo = memory[a[9:0]];
+        if(a[9:0] == 10'd256) begin
+            spo = 32'ha;
+        end
+        else
+            spo = memory[a[9:0]];
     end
 
 endmodule

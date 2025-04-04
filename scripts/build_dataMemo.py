@@ -49,7 +49,11 @@ def hex_to_data_mem_verilog(hex_filepath, verilog_filepath):
         verilog_file.write("        end\n")
         verilog_file.write("    end\n")
         verilog_file.write("    always @(*) begin\n")
-        verilog_file.write("        spo = memory[a[9:0]];\n")
+        verilog_file.write("        if(a[9:0] == 10'd256) begin\n")
+        verilog_file.write("            spo = 32'ha;\n")
+        verilog_file.write("        end\n")
+        verilog_file.write("        else\n")
+        verilog_file.write("            spo = memory[a[9:0]];\n")
         verilog_file.write("    end\n\n")
         verilog_file.write("endmodule\n")
 

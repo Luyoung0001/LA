@@ -44,7 +44,7 @@ ${obj_path}/main.bin: ${obj_path}/main.elf
 	loongarch32r-linux-gnusf-objcopy -O binary -j .text ${obj_path}/main.elf ${obj_path}/main.bin
 
 ${obj_path}/main.data: ${obj_path}/main.elf
-	loongarch32r-linux-gnusf-objcopy -O binary -j .data ${obj_path}/main.elf ${obj_path}/main.data
+	loongarch32r-linux-gnusf-objcopy -O binary -j .data -j .bss ${obj_path}/main.elf ${obj_path}/main.data
 
 ${obj_path}/main.elf: ${obj_path}/start.o
 	loongarch32r-linux-gnusf-ld ${obj_path}/start.o -T bin.lds -o ${obj_path}/main.elf

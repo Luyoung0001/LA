@@ -52,12 +52,12 @@
       "-Os",
       "-c",
       "-o",
-      "verilated_fst_c.o",
-      "/usr/local/share/verilator/include/verilated_fst_c.cpp"
+      "main.o",
+      "/home/luyoung/LA/Verilator/main.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/usr/local/share/verilator/include/verilated_fst_c.cpp",
-    "output": "/home/luyoung/LA/obj_dir/verilated_fst_c.o"
+    "file": "/home/luyoung/LA/Verilator/main.cpp",
+    "output": "/home/luyoung/LA/obj_dir/main.o"
   },
   {
     "arguments": [
@@ -82,12 +82,12 @@
       "-Os",
       "-c",
       "-o",
-      "main.o",
-      "/home/luyoung/LA/Verilator/main.cpp"
+      "verilated_fst_c.o",
+      "/usr/local/share/verilator/include/verilated_fst_c.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/Verilator/main.cpp",
-    "output": "/home/luyoung/LA/obj_dir/main.o"
+    "file": "/usr/local/share/verilator/include/verilated_fst_c.cpp",
+    "output": "/home/luyoung/LA/obj_dir/verilated_fst_c.o"
   },
   {
     "arguments": [
@@ -141,37 +141,6 @@
       "-Wno-shadow",
       "-Os",
       "-c",
-      "-o",
-      "Vsoc_mini_top__ALL.o",
-      "Vsoc_mini_top__ALL.cpp"
-    ],
-    "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vsoc_mini_top__ALL.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vsoc_mini_top__ALL.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/g++",
-      "-faligned-new",
-      "-fcf-protection=none",
-      "-Wno-bool-operation",
-      "-Wno-sign-compare",
-      "-Wno-uninitialized",
-      "-Wno-unused-but-set-variable",
-      "-Wno-unused-parameter",
-      "-Wno-unused-variable",
-      "-Wno-shadow",
-      "-Os",
-      "-I.",
-      "-I/usr/local/share/verilator/include",
-      "-I/usr/local/share/verilator/include/vltstd",
-      "-DVM_COVERAGE=0",
-      "-DVM_SC=0",
-      "-DVM_TRACE=1",
-      "-DVM_TRACE_FST=1",
-      "-DVM_TRACE_VCD=0",
-      "-c",
-      "-fdiagnostics-color",
       "-o",
       "Vsoc_mini_top__ALL.o",
       "Vsoc_mini_top__ALL.cpp"
