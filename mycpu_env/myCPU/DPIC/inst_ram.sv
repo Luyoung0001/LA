@@ -7,7 +7,7 @@ module inst_ram(
 );
     // dpi-c
     import "DPI-C" function int inst_ram_read(input int addr);
-    
-assign spo = inst_ram_read(a);
+
+        assign spo = inst_ram_read(a);
 
 endmodule

@@ -1,15 +1,16 @@
+#include <main.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <main.h>
-#include "Vsoc_mini_top.h"
-#include "Vsoc_mini_top___024root.h"
+#include "Vverilator_top.h"
+#include "Vverilator_top___024root.h"
+#include "Vverilator_top_verilator_top.h"
 
 #include "verilated_fst_c.h"
 VerilatedFstC* tfp = new VerilatedFstC;
 
 vluint64_t main_time = 0;  // initial 仿真时间
 
-Vsoc_mini_top* top = new Vsoc_mini_top;
+Vverilator_top* top = new Vverilator_top;
 
 void step() {
     top->clk = 0;
@@ -37,23 +38,90 @@ void stepi() {
     step();
 }
 
-// 执行 CPU
-int cpu_exec(uint64_t n) {
-    int ret = 0;
+typedef struct diff {
+    uint32_t we;
+    uint32_t wnum;
+    uint32_t pc;
+    uint32_t value;
+
+} diff;
+// 打开文件
+
+FILE* fp;
+void op_file() {
+    fp = fopen("/home/luyoung/LA/mycpu_env/gettrace/golden_trace.txt", "r");
+}
+// 读取 ref
+
+diff ref_struct;
+
+void read_ref() {
+    fscanf(fp, "%x%x%x%x", &ref_struct.we, &ref_struct.pc, &ref_struct.wnum,
+           &ref_struct.value);
+
+    printf("-->REF %d %08x %02x %08x\n", ref_struct.we, ref_struct.pc,
+           ref_struct.wnum, ref_struct.value);
+}
+
+// 读取 trace，与拉到的信号进行比对
+int difftest() {
+    uint32_t we = top->rootp->verilator_top->debug_wb_rf_we;
+    uint32_t wnum = top->rootp->verilator_top->debug_wb_rf_wnum;
+    uint32_t pc = top->rootp->verilator_top->debug_wb_pc;
+    uint32_t value = top->rootp->verilator_top->debug_wb_rf_wdata;
+    if (we)
+        printf("-->CPU %d %08x %02x %08x\n", we == 15, pc, wnum, value);
+
+    int temp_we = (we == 15 ? 1 : 0);
+    if (temp_we == 1) {
+        // 只有当
+        read_ref();
+        return wnum == ref_struct.wnum && pc == ref_struct.pc &&
+               value == ref_struct.value;
+    }
+    return -1;
+}
+
+void run(int n) {
     while (n) {
+        stepi();
+        n--;
+    }
+}
+
+// 执行 CPU
+int i = 0;
+void cpu_exec(uint64_t n) {
+    while (n) {
+        i++;
+        printf("i:%d\n",i);
+
+        // 如果为 0 说明不一致，应该打印一些信息
+        if (difftest() == 0) {
+            printf("Error!\n");
+            // break;
+        }
+
+        // 停机信号
+        uint32_t pc = top->rootp->verilator_top->__PVT__cpu__DOT__pc;
+        uint32_t stop_pc = 0x1c000100;
+        if (pc == stop_pc) {
+            break;
+        }
         stepi();
         n--;
     }
     top->final();
     tfp->close();
-    return ret;
 }
 
-int init_system(){
+void init_system() {
     // 分配内存
     init_mem();
     // 加载镜像
     load_inst();
+    // 打开文件
+    op_file();
 }
 
 int main(int argc, char* argv[]) {
@@ -62,6 +130,6 @@ int main(int argc, char* argv[]) {
     top->trace(tfp, 99);
     tfp->open("wave.vcd");
     reset(1);
-    int ret = cpu_exec(500);
-    return ret;
+    cpu_exec(286);
+    return 0;
 }

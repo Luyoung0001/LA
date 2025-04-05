@@ -8,7 +8,7 @@ extern "C" {
 #endif
 
 int data_ram_read(int addr);
-void inst_ram_read(int addr);
+int inst_ram_read(int addr);
 
 void data_ram_write(int addr, int wdata);
 
