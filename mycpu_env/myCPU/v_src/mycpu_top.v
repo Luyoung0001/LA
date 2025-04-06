@@ -220,6 +220,7 @@ module mycpu_top(
     // assign gr_we         = ~inst_st_w & ~inst_beq & ~inst_bne & ~inst_b & inst_bl;
     assign gr_we         = inst_bl |
            inst_add_w |
+           inst_sub_w |
            inst_slt |
            inst_sltu|
            inst_nor |
@@ -228,6 +229,7 @@ module mycpu_top(
            inst_xor |
            inst_slli_w|
            inst_srli_w|
+           inst_srai_w|
            inst_addi_w|
            inst_ld_w|
            inst_lu12i_w

@@ -74,7 +74,6 @@ int difftest() {
 
     int temp_we = (we == 15 ? 1 : 0);
     if (temp_we == 1) {
-        // 只有当
         read_ref();
         return wnum == ref_struct.wnum && pc == ref_struct.pc &&
                value == ref_struct.value;
@@ -99,7 +98,7 @@ void cpu_exec(uint64_t n) {
         // 如果为 0 说明不一致，应该打印一些信息
         if (difftest() == 0) {
             printf("Error!\n");
-            // break;
+            break;
         }
 
         // 停机信号
@@ -130,6 +129,6 @@ int main(int argc, char* argv[]) {
     top->trace(tfp, 99);
     tfp->open("wave.vcd");
     reset(1);
-    cpu_exec(286);
+    cpu_exec(-1);
     return 0;
 }
