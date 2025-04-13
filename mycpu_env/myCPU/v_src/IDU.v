@@ -1,54 +1,75 @@
-module mycpu_top(
-        input  wire        clk,
-        input  wire        resetn,
-        // inst sram interface
-        output wire        inst_sram_we,
-        output wire [31:0] inst_sram_addr,
-        output wire [31:0] inst_sram_wdata,
-        input  wire [31:0] inst_sram_rdata,
-        // data sram interface
-        output wire        data_sram_we,
-        output wire [31:0] data_sram_addr,
-        output wire [31:0] data_sram_wdata,
-        input  wire [31:0] data_sram_rdata,
-        // trace debug interface
-        output wire [31:0] debug_wb_pc,
-        output wire [ 3:0] debug_wb_rf_we,
-        output wire [ 4:0] debug_wb_rf_wnum,
-        output wire [31:0] debug_wb_rf_wdata
-    );
-    reg         reset;
-    always @(posedge clk) reset <= ~resetn;
+module IDU (
+        // from top
+        input wire clk,
+        input wire rst,
+        input wire valid,
+        // to ifu
+        output wire br_taken,
+        output wire [31:0] br_target,
+        // from ifu
+        input wire [31:0] in_pc,
 
-    reg         valid;
-    always @(posedge clk) begin
-        if (reset) begin
-            valid <= 1'b0;
+        // to rf
+        output wire [4:0] rf_raddr1,
+        output wire [4:0] rf_raddr2,
+
+        // from rf
+        input wire [31:0] rf_rdata1,
+        input wire [31:0] rf_rdata2,
+
+        // from inst_ram
+        input [31:0] inst_sram_rdata,
+
+        // to exu
+        output wire [11:0] alu_op,
+        output wire [31:0] alu_src1,
+        output wire [31:0] alu_src2,
+
+        // to mem
+        output wire mem_we,
+        output wire [4:0] dest,
+        output wire res_from_mem,
+        output wire [31:0] rkd_value,
+
+        // to wb
+        output wire [4:0] rf_waddr,
+        output wire [31:0] rf_wdata,
+        output wire gr_we,
+        output wire rf_we,
+        output wire [31:0] pc
+    );
+
+    // 暂存上一级来的数据
+    reg [31:0] inst_sram_rdata_reg;
+    reg [31:0] pc_reg;
+
+    always @(posedge clk or posedge rst) begin
+        if(rst) begin
+            inst_sram_rdata_reg <= 32'd0;
+            pc_reg <= 32'd0;
+
         end
         else begin
-            valid <= 1'b1;
+            pc_reg <= in_pc;
+            // 如果当前是跳转，那么下一条指令置空
+            // inst_sram_rdata_reg <= br_taken ? 32'd0 :inst_sram_rdata;
+            inst_sram_rdata_reg <= inst_sram_rdata;
         end
     end
 
-    wire [31:0] seq_pc;
-    wire [31:0] nextpc;
-    wire        br_taken;
-    wire [31:0] br_target;
-    wire [31:0] inst;
-    reg  [31:0] pc;
+    assign idu_inst            = inst_sram_rdata_reg;
+    assign idu_pc              = pc_reg;
+    assign pc = idu_pc;
 
-    wire [11:0] alu_op;
-    wire        load_op;
+
+
+    wire [31:0] idu_inst;
+    wire [31:0] idu_pc;
     wire        src1_is_pc;
     wire        src2_is_imm;
-    wire        res_from_mem;
     wire        dst_is_r1;
-    wire        gr_we;
-    wire        mem_we;
     wire        src_reg_is_rd;
-    wire [4: 0] dest;
     wire [31:0] rj_value;
-    wire [31:0] rkd_value;
     wire [31:0] imm;
     wire        rj_eq_rd;
     wire [31:0] br_offs;
@@ -99,51 +120,23 @@ module mycpu_top(
     wire        need_si26;
     wire        src2_is_4;
 
-    wire [ 4:0] rf_raddr1;
-    wire [31:0] rf_rdata1;
-    wire [ 4:0] rf_raddr2;
-    wire [31:0] rf_rdata2;
-    wire        rf_we   ;
-    wire [ 4:0] rf_waddr;
-    wire [31:0] rf_wdata;
 
-    wire [31:0] alu_src1   ;
-    wire [31:0] alu_src2   ;
-    wire [31:0] alu_result ;
 
-    wire [31:0] mem_result;
-    wire [31:0] final_result;
 
-    assign seq_pc       = pc + 32'h4;
-    assign nextpc       = br_taken ? br_target : seq_pc;
 
-    always @(posedge clk) begin
-        if (reset) begin
-            pc <= 32'h1bfffffc;     //trick: to make nextpc be 0x1c000000 during reset
-        end
-        else begin
-            pc <= nextpc;
-        end
-    end
+    assign op_31_26  = idu_inst[31:26];
+    assign op_25_22  = idu_inst[25:22];
+    assign op_21_20  = idu_inst[21:20];
+    assign op_19_15  = idu_inst[19:15];
 
-    assign inst_sram_we    = 1'b0;
-    assign inst_sram_addr  = pc;
-    assign inst_sram_wdata = 32'b0;
-    assign inst            = inst_sram_rdata;
+    assign rd   = idu_inst[ 4: 0];
+    assign rj   = idu_inst[ 9: 5];
+    assign rk   = idu_inst[14:10];
 
-    assign op_31_26  = inst[31:26];
-    assign op_25_22  = inst[25:22];
-    assign op_21_20  = inst[21:20];
-    assign op_19_15  = inst[19:15];
-
-    assign rd   = inst[ 4: 0];
-    assign rj   = inst[ 9: 5];
-    assign rk   = inst[14:10];
-
-    assign i12  = inst[21:10];
-    assign i20  = inst[24: 5];
-    assign i16  = inst[25:10];
-    assign i26  = {inst[ 9: 0], inst[25:10]};
+    assign i12  = idu_inst[21:10];
+    assign i20  = idu_inst[24: 5];
+    assign i16  = idu_inst[25:10];
+    assign i26  = {idu_inst[ 9: 0], idu_inst[25:10]};
 
     decoder_6_64 u_dec0(.in(op_31_26 ), .out(op_31_26_d ));
     decoder_4_16 u_dec1(.in(op_25_22 ), .out(op_25_22_d ));
@@ -169,7 +162,7 @@ module mycpu_top(
     assign inst_bl     = op_31_26_d[6'h15];
     assign inst_beq    = op_31_26_d[6'h16];
     assign inst_bne    = op_31_26_d[6'h17];
-    assign inst_lu12i_w= op_31_26_d[6'h05] & ~inst[25];
+    assign inst_lu12i_w= op_31_26_d[6'h05] & ~idu_inst[25];
 
     assign alu_op[ 0] = inst_add_w | inst_addi_w | inst_ld_w | inst_st_w
            | inst_jirl | inst_bl;
@@ -217,7 +210,6 @@ module mycpu_top(
 
     assign res_from_mem  = inst_ld_w;
     assign dst_is_r1     = inst_bl;
-    // assign gr_we         = ~inst_st_w & ~inst_beq & ~inst_bne & ~inst_b & inst_bl;
     assign gr_we         = inst_bl |
            inst_add_w |
            inst_sub_w |
@@ -239,16 +231,7 @@ module mycpu_top(
 
     assign rf_raddr1 = rj;
     assign rf_raddr2 = src_reg_is_rd ? rd :rk;
-    regfile u_regfile(
-                .clk    (clk      ),
-                .raddr1 (rf_raddr1),
-                .rdata1 (rf_rdata1),
-                .raddr2 (rf_raddr2),
-                .rdata2 (rf_rdata2),
-                .we     (rf_we    ),
-                .waddr  (rf_waddr ),
-                .wdata  (rf_wdata )
-            );
+
 
     assign rj_value  = rf_rdata1;
     assign rkd_value = rf_rdata2;
@@ -260,34 +243,11 @@ module mycpu_top(
                           || inst_bl
                           || inst_b
                       ) && valid;
-    assign br_target = (inst_beq || inst_bne || inst_bl || inst_b) ? (pc + br_offs) :
+    assign br_target = (inst_beq || inst_bne || inst_bl || inst_b) ? (idu_pc + br_offs) :
            /*inst_jirl*/ (rj_value + jirl_offs);
 
-    assign alu_src1 = src1_is_pc  ? pc[31:0] : rj_value;
+    assign alu_src1 = src1_is_pc  ? idu_pc[31:0] : rj_value;
     assign alu_src2 = src2_is_imm ? imm : rkd_value;
 
-    alu u_alu(
-            .alu_op     (alu_op    ),
-            .alu_src1   (alu_src1  ),
-            .alu_src2   (alu_src2  ),
-            .alu_result (alu_result)
-        );
-
-    assign data_sram_we    = mem_we && valid;
-    assign data_sram_addr  = alu_result;
-    assign data_sram_wdata = rkd_value;
-
-    assign mem_result   = data_sram_rdata;
-    assign final_result = res_from_mem ? mem_result : alu_result;
-
-    assign rf_we    = gr_we && valid;
-    assign rf_waddr = dest;
-    assign rf_wdata = final_result;
-
-    // debug info generate
-    assign debug_wb_pc       = pc;
-    assign debug_wb_rf_we   = {4{rf_we}};
-    assign debug_wb_rf_wnum  = dest;
-    assign debug_wb_rf_wdata = final_result;
 
 endmodule

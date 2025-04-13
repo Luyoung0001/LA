@@ -1,6 +1,7 @@
 module inst_ram(
     input clk,
-    input we,
+    input [3:0] we,
+    input en,
     input  [31:0] a,
     input  [31:0] d,
     output [31:0] spo

@@ -73,7 +73,7 @@ int difftest() {
         printf("-->CPU %d %08x %02x %08x\n", we == 15, pc, wnum, value);
 
     int temp_we = (we == 15 ? 1 : 0);
-    if (temp_we == 1) {
+    if (temp_we == 1 && wnum != 0) {
         read_ref();
         return wnum == ref_struct.wnum && pc == ref_struct.pc &&
                value == ref_struct.value;
@@ -93,7 +93,10 @@ int i = 0;
 void cpu_exec(uint64_t n) {
     while (n) {
         i++;
-        printf("i:%d\n",i);
+        printf("i:%d\n", i);
+
+        // 停机信号
+        uint32_t pc = top->rootp->verilator_top->debug_wb_pc;
 
         // 如果为 0 说明不一致，应该打印一些信息
         if (difftest() == 0) {
@@ -101,8 +104,6 @@ void cpu_exec(uint64_t n) {
             break;
         }
 
-        // 停机信号
-        uint32_t pc = top->rootp->verilator_top->__PVT__cpu__DOT__pc;
         uint32_t stop_pc = 0x1c000100;
         if (pc == stop_pc) {
             break;

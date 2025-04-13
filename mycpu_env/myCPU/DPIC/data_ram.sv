@@ -1,6 +1,7 @@
 module data_ram(
     input clk,
-    input we,
+    input [3:0] we,
+    input  en,
     input  [31:0] a,
     input  [31:0] d,
     output [31:0] spo
@@ -13,7 +14,7 @@ module data_ram(
     import "DPI-C" function void data_ram_write(input int addr, input int wdata);
 
     always @(clk) begin
-        if (we) begin
+        if (we[3]) begin
             data_ram_write(a, d);
         end
     end

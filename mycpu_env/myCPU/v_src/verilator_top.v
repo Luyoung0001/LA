@@ -9,12 +9,14 @@ module verilator_top(
     end
 
     //cpu inst sram
-    wire        cpu_inst_we;
+    wire        cpu_inst_en;
+    wire [3:0]       cpu_inst_we;
     wire [31:0] cpu_inst_addr;
     wire [31:0] cpu_inst_wdata;
     wire [31:0] cpu_inst_rdata;
     //cpu data sram
-    wire        cpu_data_we;
+    wire        cpu_data_en;
+    wire  [3:0]      cpu_data_we;
     wire [31:0] cpu_data_addr;
     wire [31:0] cpu_data_wdata;
     wire [31:0] cpu_data_rdata;
@@ -47,16 +49,18 @@ module verilator_top(
                   .clk              (clk       ),
                   .resetn           (cpu_resetn    ),  //low active
 
+                  .inst_sram_en     (cpu_inst_en   ),
                   .inst_sram_we     (cpu_inst_we   ),
                   .inst_sram_addr   (cpu_inst_addr ),
                   .inst_sram_wdata  (cpu_inst_wdata),
                   .inst_sram_rdata  (cpu_inst_rdata),
 
+                  .data_sram_en     (cpu_data_en   ),
                   .data_sram_we     (cpu_data_we   ),
                   .data_sram_addr   (cpu_data_addr ),
                   .data_sram_wdata  (cpu_data_wdata),
                   .data_sram_rdata  (cpu_data_rdata),
-                  
+
                   .debug_wb_pc      (debug_wb_pc),
                   .debug_wb_rf_we   (debug_wb_rf_we),
                   .debug_wb_rf_wnum (debug_wb_rf_wnum),
@@ -68,9 +72,10 @@ module verilator_top(
 
     //inst ram
     inst_ram inst_ram
-             (
+                (
                  .clk   (clk            ),
                  .we    (cpu_inst_we        ),
+                 .en    (cpu_inst_en),
                  .a     (cpu_inst_addr),
                  .d     (cpu_inst_wdata     ),
                  .spo   (cpu_inst_rdata     )
@@ -79,6 +84,7 @@ module verilator_top(
              (
                  .clk   (clk            ),
                  .we    (cpu_data_we        ),
+                 .en    (cpu_data_en        ),
                  .a     (cpu_data_addr),
                  .d     (cpu_data_wdata     ),
                  .spo   (cpu_data_rdata     )
