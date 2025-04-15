@@ -123,68 +123,52 @@ module IDU (
     // 判断是否数据相关
     // 越靠近 idu 越优先
 
-    // 记录当前指令的上一条指令是否是 load 指令，可以借助 res_from_mem 信号
-    // reg is_load;
-    // always @(posedge clk or posedge rst) begin
-    //     if (rst) begin
-    //         is_load <= 1'b0;
-    //     end
-    //     else begin
-    //         is_load <= res_from_mem;
-    //     end
-    // end
+    // 检测上一条指令是否是 load 指令
+    reg is_load;
+    always @(posedge clk) begin
+        if (rst) begin
+            is_load <= 1'b0;
+        end
+        else if (fs_to_ds_valid && ds_allowin) begin
+            is_load <= inst_ld_w;
+        end
+    end
+    // 检测 load-use 数据相关
+    wire load_use_conflict;
+    assign load_use_conflict = is_load && exu_regWr && (rf_raddr1 == exu_regAddr) && rf_raddr1 != 5'd0;
 
-    // 如果上一条指令是 load 指令，那么就检测围绕寄存器的写后读
-    // wire load_use_conflict;
-    // assign load_use_conflict = is_load && (rf_raddr1 == dest || rf_raddr2 == dest);
-
-
-    reg conflict_regaData_tag;
-    reg conflict_regbData_tag;
     reg [31:0] conflict_regaData;
     reg [31:0] conflict_regbData;
-
-    wire conflict; // 冲突信号
-    assign conflict = conflict_regaData_tag || conflict_regbData_tag;
 
     // 当检测到冲突以后，就得阻塞
 
     always @(*) begin
         if (exu_regWr && (rf_raddr1 == exu_regAddr)) begin
             conflict_regaData = exu_data;
-            conflict_regaData_tag = 1'b1;
         end
         else if (mem_regWr && (rf_raddr1 == mem_regAddr)) begin
             conflict_regaData = mem_data;
-            conflict_regaData_tag = 1'b1;
         end
         else if (wbu_regWr && (rf_raddr1 == wbu_regAddr)) begin
             conflict_regaData = wbu_data;
-            conflict_regaData_tag = 1'b1;
         end
         else begin
             conflict_regaData = rf_rdata1;  // 默认值
-            conflict_regaData_tag = 1'b0;
         end
     end
 
     always @(*) begin
         if (exu_regWr && (rf_raddr2 == exu_regAddr)) begin
             conflict_regbData = exu_data;
-            conflict_regbData_tag = 1'b1;
         end
         else if (mem_regWr && (rf_raddr2 == mem_regAddr)) begin
             conflict_regbData = mem_data;
-            conflict_regbData_tag = 1'b1;
         end
         else if (wbu_regWr && (rf_raddr2 == wbu_regAddr)) begin
             conflict_regbData = wbu_data;
-            conflict_regbData_tag = 1'b1;
         end
-
         else begin
             conflict_regbData = rf_rdata2;  // 默认值
-            conflict_regbData_tag = 1'b0;
         end
     end
 
@@ -192,26 +176,11 @@ module IDU (
     reg [31:0] inst_sram_rdata_reg;
     reg [31:0] pc_reg;
 
-    // always @(posedge clk or posedge rst) begin
-    //     if(rst) begin
-    //         inst_sram_rdata_reg <= 32'd0;
-    //         pc_reg <= 32'd0;
-
-    //     end
-    //     else begin
-    //         pc_reg <= in_pc;
-    //         // 如果当前是跳转，那么下一条指令置空
-    //         inst_sram_rdata_reg <= br_taken ? 32'd0 :inst_sram_rdata;
-    //         // inst_sram_rdata_reg <= inst_sram_rdata;
-    //     end
-    // end
-
-
     // 握手信号
     reg   ds_valid;    // 表示当前流水级是否在处理指令
     wire  ds_ready_go; // 是否需要阻塞
 
-    assign ds_ready_go    =  ds_valid  & !conflict;
+    assign ds_ready_go    =  ds_valid  & !load_use_conflict;
     assign ds_allowin     = !ds_valid || ds_ready_go && es_allowin; // 表示当前阶段是否允许上游进入
     assign ds_to_es_valid = ds_valid && ds_ready_go;
 
@@ -234,9 +203,6 @@ module IDU (
 
         end
     end
-
-    // 如果发生 load-use 数据相关，那么延迟一个周期，将当前指令置空
-
     assign idu_inst            = inst_sram_rdata_reg;
     assign idu_pc              = pc_reg;
     assign pc = idu_pc;
@@ -351,7 +317,7 @@ module IDU (
 
     assign rf_raddr1 = rj;
     assign rf_raddr2 = src_reg_is_rd ? rd :rk;
-    
+
     assign rj_value  = conflict_regaData;
     assign rkd_value = conflict_regbData;
 

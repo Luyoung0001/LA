@@ -113,11 +113,10 @@ module MEM(
     assign mem_data = final_result;
     assign mem_regAddr = wire_dest;
 
-
-
     assign ms_ready_go    = 1'b1;
     assign ms_allowin     = !ms_valid || ms_ready_go && ws_allowin;
     assign ms_to_ws_valid =  ms_valid && ms_ready_go;
+
     always @(posedge clk) begin
         if (rst) begin
             ms_valid <= 1'b0;

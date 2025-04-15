@@ -29,7 +29,7 @@ module IFU (
     // IF stage
     assign fs_ready_go    = 1'b1; // 不需要阻塞
     assign fs_allowin     = !fs_valid || (fs_ready_go && ds_allowin); // 表示当前阶段是否允许上游进入
-    assign fs_to_ds_valid = fs_valid && fs_ready_go; // 如果不阻塞且当前在处理指令（事实上，
+    assign fs_to_ds_valid = fs_valid && fs_ready_go; // 如果不阻塞且当前处理指令（事实上，
                                                     // 当fs_valid有效，数据已经处理完成，可以提前发射fs_to_ds_valid）完成
 
 

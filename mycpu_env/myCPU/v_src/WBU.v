@@ -56,7 +56,7 @@ module WBU(
     assign wire_dest = dest_reg;
     assign wire_final_result = final_result_reg;
 
-    assign rf_we    = wire_gr_we && ws_valid;
+    assign rf_we    = wire_gr_we & ws_valid;
     assign rf_waddr = wire_dest;
     assign rf_wdata = wire_final_result;
     assign pc       = pc_reg;
