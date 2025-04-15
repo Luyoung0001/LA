@@ -58,6 +58,7 @@ module mycpu_top(
     wire        idu_rf_we;
     wire [31:0] idu_pc;
     wire idu_ds_allowin;
+    wire idu_ds_to_es_valid;
 
     // exu
     wire exu_mem_we;
@@ -72,6 +73,8 @@ module mycpu_top(
     wire exu_regWr;
     wire [31:0] exu_data;
     wire [4:0] exu_regAddr;
+    wire exe_es_allowin;
+    wire exe_es_to_ms_valid;
 
 
 
@@ -86,6 +89,9 @@ module mycpu_top(
     wire [31:0] mem_data;
     wire [4:0] mem_regAddr;
 
+    wire mem_ms_allowin;
+    wire mem_ms_to_ws_valid;
+
     // wbu
     wire        wbu_rf_we;
     wire [4:0]  wbu_rf_waddr;
@@ -95,6 +101,8 @@ module mycpu_top(
     wire wbu_regWr;
     wire [31:0] wbu_data;
     wire [4:0] wbu_regAddr;
+
+    wire wbu_ws_allowin;
 
     //  regfile
     wire [31:0] rf_rdata1;
@@ -190,8 +198,12 @@ module mycpu_top(
             .wbu_regWr  (wbu_regWr),
             .wbu_data   (wbu_data),
             .wbu_regAddr(wbu_regAddr),
+
+            .es_allowin (exe_es_allowin),
+            .ds_allowin (idu_ds_allowin),
             .fs_to_ds_valid(ifu_fs_to_ds_valid),
-            .ds_allowin (idu_ds_allowin)
+            .ds_to_es_valid(idu_ds_to_es_valid)
+
         );
 
     // exu
@@ -228,7 +240,12 @@ module mycpu_top(
             // 数据相关
             .exu_regWr  (exu_regWr),
             .exu_data   (exu_data),
-            .exu_regAddr(exu_regAddr)
+            .exu_regAddr(exu_regAddr),
+
+            .ms_allowin(mem_ms_allowin),
+            .es_allowin(exe_es_allowin),
+            .ds_to_es_valid(idu_ds_to_es_valid),
+            .es_to_ms_valid(exe_es_to_ms_valid)
 
         );
 
@@ -266,7 +283,12 @@ module mycpu_top(
             // 数据相关
             .mem_regWr  (mem_regWr),
             .mem_data   (mem_data),
-            .mem_regAddr(mem_regAddr)
+            .mem_regAddr(mem_regAddr),
+
+            .ws_allowin(wbu_ws_allowin),
+            .ms_allowin(mem_ms_allowin),
+            .es_to_ms_valid(exe_es_to_ms_valid),
+            .ms_to_ws_valid(mem_ms_to_ws_valid)
         );
 
     // wbu
@@ -288,7 +310,10 @@ module mycpu_top(
             // 数据相关
             .wbu_regWr  (wbu_regWr),
             .wbu_data   (wbu_data),
-            .wbu_regAddr(wbu_regAddr)
+            .wbu_regAddr(wbu_regAddr),
+
+            .ws_allowin(wbu_ws_allowin),
+            .ms_to_ws_valid(mem_ms_to_ws_valid)
         );
 
     // debug info generate

@@ -55,8 +55,12 @@ module IDU (
         input wire [4:0] wbu_regAddr,
 
         // 握手信号
-        input wire fs_to_ds_valid,
-        output wire ds_allowin // 是否准备好接收来自 Fetch Stage 的新的指令
+        //allowin
+        input    es_allowin, // 下游发来的 allowin
+        output   ds_allowin, // 发给上游的 allowin
+
+        input    fs_to_ds_valid,    // 上游发来的空闲信号
+        output   ds_to_es_valid     // 发给下游的空闲信号
     );
 
     wire [31:0] idu_inst;
@@ -120,26 +124,33 @@ module IDU (
     // 越靠近 idu 越优先
 
     // 记录当前指令的上一条指令是否是 load 指令，可以借助 res_from_mem 信号
-    reg is_load;
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            is_load <= 1'b0;
-        end
-        else begin
-            is_load <= res_from_mem;
-        end
-    end
+    // reg is_load;
+    // always @(posedge clk or posedge rst) begin
+    //     if (rst) begin
+    //         is_load <= 1'b0;
+    //     end
+    //     else begin
+    //         is_load <= res_from_mem;
+    //     end
+    // end
 
     // 如果上一条指令是 load 指令，那么就检测围绕寄存器的写后读
-    wire load_use_conflict;
-    assign load_use_conflict = is_load && (rf_raddr1 == dest || rf_raddr2 == dest);
+    // wire load_use_conflict;
+    // assign load_use_conflict = is_load && (rf_raddr1 == dest || rf_raddr2 == dest);
+
 
     reg conflict_regaData_tag;
     reg conflict_regbData_tag;
     reg [31:0] conflict_regaData;
     reg [31:0] conflict_regbData;
+
+    wire conflict; // 冲突信号
+    assign conflict = conflict_regaData_tag || conflict_regbData_tag;
+
+    // 当检测到冲突以后，就得阻塞
+
     always @(*) begin
-        if (exu_regWr && (rf_raddr1 == exu_regAddr) && !is_load) begin
+        if (exu_regWr && (rf_raddr1 == exu_regAddr)) begin
             conflict_regaData = exu_data;
             conflict_regaData_tag = 1'b1;
         end
@@ -151,10 +162,6 @@ module IDU (
             conflict_regaData = wbu_data;
             conflict_regaData_tag = 1'b1;
         end
-        else if (exu_regWr && (rf_raddr1 == exu_regAddr) && is_load) begin
-            conflict_regaData = 32'haaaa;
-            conflict_regaData_tag = 1'b1;
-        end
         else begin
             conflict_regaData = rf_rdata1;  // 默认值
             conflict_regaData_tag = 1'b0;
@@ -162,7 +169,7 @@ module IDU (
     end
 
     always @(*) begin
-        if (exu_regWr && (rf_raddr2 == exu_regAddr) && !is_load) begin
+        if (exu_regWr && (rf_raddr2 == exu_regAddr)) begin
             conflict_regbData = exu_data;
             conflict_regbData_tag = 1'b1;
         end
@@ -174,24 +181,39 @@ module IDU (
             conflict_regbData = wbu_data;
             conflict_regbData_tag = 1'b1;
         end
-        else if (exu_regWr && (rf_raddr2 == exu_regAddr) && is_load) begin
-            conflict_regbData = 32'haaaa;
-            conflict_regbData_tag = 1'b1;
-        end
+
         else begin
             conflict_regbData = rf_rdata2;  // 默认值
             conflict_regbData_tag = 1'b0;
         end
     end
 
+    // 暂存上一级来的数据
+    reg [31:0] inst_sram_rdata_reg;
+    reg [31:0] pc_reg;
+
+    // always @(posedge clk or posedge rst) begin
+    //     if(rst) begin
+    //         inst_sram_rdata_reg <= 32'd0;
+    //         pc_reg <= 32'd0;
+
+    //     end
+    //     else begin
+    //         pc_reg <= in_pc;
+    //         // 如果当前是跳转，那么下一条指令置空
+    //         inst_sram_rdata_reg <= br_taken ? 32'd0 :inst_sram_rdata;
+    //         // inst_sram_rdata_reg <= inst_sram_rdata;
+    //     end
+    // end
+
 
     // 握手信号
-    reg   ds_valid;
-    wire  ds_ready_go; // 是否准备好接受指令
+    reg   ds_valid;    // 表示当前流水级是否在处理指令
+    wire  ds_ready_go; // 是否需要阻塞
 
-    assign ds_ready_go    = ds_valid;
-
-    assign ds_allowin     = !ds_valid || ds_ready_go;
+    assign ds_ready_go    =  ds_valid  & !conflict;
+    assign ds_allowin     = !ds_valid || ds_ready_go && es_allowin; // 表示当前阶段是否允许上游进入
+    assign ds_to_es_valid = ds_valid && ds_ready_go;
 
     always @(posedge clk ) begin
         if (rst) begin
@@ -202,28 +224,14 @@ module IDU (
         end
     end
 
-    // always @(posedge clk) begin
-    //     if (fs_to_ds_valid && ds_allowin) begin
-    //         fs_to_ds_bus_r <= fs_to_ds_bus;
-    //     end
-    // end
-
-
-    // 暂存上一级来的数据
-    reg [31:0] inst_sram_rdata_reg;
-    reg [31:0] pc_reg;
-
-    always @(posedge clk or posedge rst) begin
-        if(rst) begin
-            inst_sram_rdata_reg <= 32'd0;
-            pc_reg <= 32'd0;
-
-        end
-        else begin
+    always @(posedge clk) begin
+        if (fs_to_ds_valid && ds_allowin) begin
+            // 卸货，暂时不使用 bus
             pc_reg <= in_pc;
             // 如果当前是跳转，那么下一条指令置空
             inst_sram_rdata_reg <= br_taken ? 32'd0 :inst_sram_rdata;
             // inst_sram_rdata_reg <= inst_sram_rdata;
+
         end
     end
 
@@ -343,10 +351,7 @@ module IDU (
 
     assign rf_raddr1 = rj;
     assign rf_raddr2 = src_reg_is_rd ? rd :rk;
-
-
-
-
+    
     assign rj_value  = conflict_regaData;
     assign rkd_value = conflict_regbData;
 
