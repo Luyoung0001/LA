@@ -1,22 +1,53 @@
 module IFU (
         input wire clk,             // 时钟信号
         input wire rst,             // 复位信号
-        
+
         input wire br_taken,        // 分支跳转信号
         input [31:0] br_target,       // 分支跳转地址
-        output reg [31:0] pc
+        output reg [31:0] pc,
+
+        // 握手信号
+        input wire ds_allowin,           // idu 阶段允许接收数据
+        output wire fs_to_ds_valid       // ifu 阶段有效信号
     );
 
     wire [31:0] seq_pc;
     wire [31:0] nextpc;
+
+    // IFU 阶段有效信号
+    reg fs_valid;     // 表示当前流水级是否在处理指令
+    wire fs_ready_go; // 表示流水级是否需要被阻塞
+    wire fs_allowin;  // 表示当前流水级是否允许上一级流水进入，该信号传递至上一级，
+                      // 与上一级流水交互，两种情况下该信号置起，当前流水无正在处理的指令
+    wire to_fs_valid; // 一般情况下，表示上游的数据是否有效，这里没有上游，因此命名为 to_fs_valid
+
+
+    // pre-IF stage
+    assign to_fs_valid  = ~rst; // 复位时，IFU 阶段无效 这里表示上游数据信号有效
     assign seq_pc       = pc + 32'h4;
     assign nextpc       = br_taken ? br_target : seq_pc;
+
+    // IF stage
+    assign fs_ready_go    = 1'b1; // 不需要阻塞
+    assign fs_allowin     = !fs_valid || (fs_ready_go && ds_allowin); // 是否可以给下游发射信号
+    assign fs_to_ds_valid = fs_valid && fs_ready_go;
+
+
+    always @(posedge clk) begin
+        if(rst) begin
+            fs_valid <= 1'b0; // 复位时，IFU 阶段无效
+        end
+        else if(fs_allowin) begin
+            fs_valid <= to_fs_valid; // 上游数据有效时，IFU 阶段有效
+        end
+    end
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             pc <= 32'h1bfffffc;
         end
-        else begin
+        // 数据准备好且下游准备好接受数据
+        else if(to_fs_valid && fs_allowin) begin
             pc <= nextpc;  // 跳转时，直接使用跳转地址
         end
     end

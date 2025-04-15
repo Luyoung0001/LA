@@ -12,7 +12,12 @@ module WBU(
         output wire rf_we,
         output wire [4:0] rf_waddr,
         output wire [31:0] rf_wdata,
-        output wire [31:0] pc
+        output wire [31:0] pc,
+
+        // 数据相关
+        output wire wbu_regWr,
+        output wire [31:0] wbu_data,
+        output wire [4:0] wbu_regAddr
 
     );
 
@@ -47,6 +52,11 @@ module WBU(
     assign rf_waddr = wire_dest;
     assign rf_wdata = wire_final_result;
     assign pc       = pc_reg;
+
+    // 解决数据相关
+    assign wbu_regWr = rf_we;
+    assign wbu_data = wire_final_result;
+    assign wbu_regAddr = wire_dest;
 
 
 endmodule

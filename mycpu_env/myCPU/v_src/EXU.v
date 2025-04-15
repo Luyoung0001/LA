@@ -25,7 +25,12 @@ module EXU (
 
         output wire gr_we,
         output wire [4:0] dest,
-        output wire [31:0] pc
+        output wire [31:0] pc,
+
+        // 数据相关
+        output wire exu_regWr,
+        output wire [31:0] exu_data,
+        output wire [4:0] exu_regAddr
     );
 
 
@@ -101,5 +106,10 @@ module EXU (
             .alu_src2   (wire_alu_src2  ),
             .alu_result (alu_result)
         );
+
+    // 解决数据相关
+    assign exu_regWr = wire_in_gr_we;
+    assign exu_data = alu_result;
+    assign exu_regAddr = wire_in_dest;
 
 endmodule

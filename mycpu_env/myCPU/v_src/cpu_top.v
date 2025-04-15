@@ -37,6 +37,7 @@ module mycpu_top(
 
     // ifu
     wire [31:0] ifu_pc;
+    wire ifu_fs_to_ds_valid;
 
     // idu
     wire        idu_br_taken;
@@ -56,6 +57,7 @@ module mycpu_top(
     wire        idu_gr_we;
     wire        idu_rf_we;
     wire [31:0] idu_pc;
+    wire idu_ds_allowin;
 
     // exu
     wire exu_mem_we;
@@ -67,17 +69,32 @@ module mycpu_top(
     wire [4:0] exu_dest;
     wire [31:0] exu_pc;
 
+    wire exu_regWr;
+    wire [31:0] exu_data;
+    wire [4:0] exu_regAddr;
+
+
+
     // mem
     wire mem_gr_we;
     wire [4:0] mem_dest;
     wire [31:0] mem_final_result;
     wire [31:0] mem_pc;
 
+
+    wire mem_regWr;
+    wire [31:0] mem_data;
+    wire [4:0] mem_regAddr;
+
     // wbu
     wire        wbu_rf_we;
     wire [4:0]  wbu_rf_waddr;
     wire [31:0] wbu_rf_wdata;
     wire [31:0] wbu_pc;
+
+    wire wbu_regWr;
+    wire [31:0] wbu_data;
+    wire [4:0] wbu_regAddr;
 
     //  regfile
     wire [31:0] rf_rdata1;
@@ -93,7 +110,9 @@ module mycpu_top(
             .br_target  (idu_br_target),
 
             // from idu
-            .pc         (ifu_pc)
+            .pc         (ifu_pc),
+            .ds_allowin (idu_ds_allowin),
+            .fs_to_ds_valid(ifu_fs_to_ds_valid)
         );
 
 
@@ -157,7 +176,22 @@ module mycpu_top(
             .rf_wdata   (idu_rf_wdata),
             .gr_we      (idu_gr_we),
             .rf_we      (idu_rf_we),
-            .pc         (idu_pc)
+            .pc         (idu_pc),
+            // 直通解决数据相关
+            // 从 EXU 窃取
+            .exu_regWr  (exu_regWr),
+            .exu_data   (exu_data),
+            .exu_regAddr(exu_regAddr),
+            // 从 MEM 窃取
+            .mem_regWr  (mem_regWr),
+            .mem_data   (mem_data),
+            .mem_regAddr(mem_regAddr),
+            // 从 WBU 窃取
+            .wbu_regWr  (wbu_regWr),
+            .wbu_data   (wbu_data),
+            .wbu_regAddr(wbu_regAddr),
+            .fs_to_ds_valid(ifu_fs_to_ds_valid),
+            .ds_allowin (idu_ds_allowin)
         );
 
     // exu
@@ -189,7 +223,12 @@ module mycpu_top(
             // to wb
             .gr_we      (exu_gr_we),
             .dest       (exu_dest),
-            .pc         (exu_pc)
+            .pc         (exu_pc),
+
+            // 数据相关
+            .exu_regWr  (exu_regWr),
+            .exu_data   (exu_data),
+            .exu_regAddr(exu_regAddr)
 
         );
 
@@ -223,7 +262,11 @@ module mycpu_top(
 
             // to wb
             .final_result(mem_final_result),
-            .pc        (mem_pc)
+            .pc        (mem_pc),
+            // 数据相关
+            .mem_regWr  (mem_regWr),
+            .mem_data   (mem_data),
+            .mem_regAddr(mem_regAddr)
         );
 
     // wbu
@@ -241,7 +284,11 @@ module mycpu_top(
             .rf_we      (wbu_rf_we),
             .rf_waddr   (wbu_rf_waddr),
             .rf_wdata   (wbu_rf_wdata),
-            .pc(wbu_pc)
+            .pc         (wbu_pc),
+            // 数据相关
+            .wbu_regWr  (wbu_regWr),
+            .wbu_data   (wbu_data),
+            .wbu_regAddr(wbu_regAddr)
         );
 
     // debug info generate

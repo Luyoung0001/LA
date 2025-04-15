@@ -25,7 +25,13 @@ module MEM(
 
         // to wb
         output wire [31:0] final_result,
-        output wire [31:0] pc
+        output wire [31:0] pc,
+
+
+        // 数据相关
+        output wire mem_regWr,
+        output wire [31:0] mem_data,
+        output wire [4:0] mem_regAddr
     );
 
     reg mem_we_reg;
@@ -89,6 +95,12 @@ module MEM(
     wire [31:0] mem_result;
     assign mem_result   = data_sram_rdata;
     assign final_result = wire_res_from_mem ? mem_result : wire_alu_result;
+
+
+        // 解决数据相关
+    assign mem_regWr = wire_gr_we;
+    assign mem_data = final_result;
+    assign mem_regAddr = wire_dest;
 
 
 
