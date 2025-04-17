@@ -42,7 +42,7 @@ module mycpu_top(
     wire [4:0] idu_rf_raddr1;
     wire [4:0] idu_rf_raddr2;
 
-    wire [147:0] idu_bus_ds_to_es_data;
+    wire [177:0] idu_bus_ds_to_es_data;
 
     wire idu_ds_allowin;
     wire idu_ds_to_es_valid;

@@ -30,7 +30,7 @@ module MEM(
     reg     ms_valid;
     wire    ms_ready_go;
 
-    wire    [31:0] wire_alu_result;
+    wire    [31:0] wire_exu_result;
     wire    wire_res_from_mem;
     wire    [4:0] wire_dest;
     wire    wire_gr_we;
@@ -43,7 +43,7 @@ module MEM(
 
     assign {
             wire_res_from_mem,
-            wire_alu_result,
+            wire_exu_result,
             wire_gr_we,
             wire_dest,
             wire_pc
@@ -63,7 +63,7 @@ module MEM(
 
     wire [31:0] mem_result;
     assign mem_result   = data_sram_rdata;
-    assign final_result = wire_res_from_mem ? mem_result : wire_alu_result;
+    assign final_result = wire_res_from_mem ? mem_result : wire_exu_result;
 
 
     // 解决数据相关
