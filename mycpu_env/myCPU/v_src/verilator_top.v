@@ -3,10 +3,11 @@ module verilator_top(
         input  wire        clk
     );
 
-    reg cpu_resetn;
-    always @(posedge clk)begin
-        cpu_resetn <= ~rst;
-    end
+    wire cpu_resetn;
+    assign cpu_resetn = ~rst;
+    // always @(posedge clk)begin
+    //     cpu_resetn <= ~rst;
+    // end
 
     //cpu inst sram
     wire        cpu_inst_en;

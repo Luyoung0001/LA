@@ -22,75 +22,54 @@ module mycpu_top(
         output wire [31:0] debug_wb_rf_wdata
     );
 
-    reg         reset;
-    always @(posedge clk) reset <= ~resetn;
+    // reg         reset;
+    // always @(posedge clk) reset <= ~resetn;
+    wire reset;
+    assign reset = ~resetn;
 
-    reg         valid;
-    always @(posedge clk) begin
-        if (reset) begin
-            valid <= 1'b0;
-        end
-        else begin
-            valid <= 1'b1;
-        end
-    end
+    // pre_IFU
+    wire [31:0] preifu_inst_addr;
+    wire [31:0] preifu_next_pc;
 
     // ifu
-    wire [31:0] ifu_pc;
+    wire [31:0] ifu_fs_pc;
+    wire ifu_fs_allowin;
     wire ifu_fs_to_ds_valid;
 
     // idu
-    wire        idu_br_taken;
-    wire [31:0] idu_br_target;
+    wire [32:0] idu_bus_br_data;
+
     wire [4:0] idu_rf_raddr1;
     wire [4:0] idu_rf_raddr2;
-    wire [11:0] idu_alu_op;
-    wire [31:0] idu_alu_src1;
-    wire [31:0] idu_alu_src2;
-    wire        idu_mem_we;
-    wire [4:0] idu_dest;
 
-    wire        idu_res_from_mem;
-    wire [31:0] idu_rkd_value;
-    wire [4:0] idu_rf_waddr;
-    wire [31:0] idu_rf_wdata;
-    wire        idu_gr_we;
-    wire        idu_rf_we;
-    wire [31:0] idu_pc;
+    wire [147:0] idu_bus_ds_to_es_data;
+
     wire idu_ds_allowin;
     wire idu_ds_to_es_valid;
 
     // exu
-    wire exu_mem_we;
-    wire [31:0] exu_rkd_value;
-    wire        exu_res_from_mem;
-    wire [31:0] exu_alu_result;
 
-    wire exu_gr_we;
-    wire [4:0] exu_dest;
-    wire [31:0] exu_pc;
+    wire [70:0] exu_bus_exu_to_mem_data;
 
     wire exu_regWr;
     wire [31:0] exu_data;
     wire [4:0] exu_regAddr;
     wire exe_es_allowin;
     wire exe_es_to_ms_valid;
+    wire [37:0] exu_bus_exu_bypass_data;
 
 
 
     // mem
-    wire mem_gr_we;
-    wire [4:0] mem_dest;
-    wire [31:0] mem_final_result;
-    wire [31:0] mem_pc;
-
-
+    wire [69:0] mem_bus_mem_to_wbu_data;
     wire mem_regWr;
     wire [31:0] mem_data;
     wire [4:0] mem_regAddr;
 
     wire mem_ms_allowin;
     wire mem_ms_to_ws_valid;
+
+    wire [37:0] mem_bus_mem_bypass_data;
 
     // wbu
     wire        wbu_rf_we;
@@ -104,32 +83,40 @@ module mycpu_top(
 
     wire wbu_ws_allowin;
 
+    wire [37:0] wbu_bus_wbu_bypass_data;
+
     //  regfile
     wire [31:0] rf_rdata1;
     wire [31:0] rf_rdata2;
+
+    pre_IFU pre_ifu(
+                .clk        (clk),
+                .rst        (reset),
+                .fs_pc      (ifu_fs_pc),
+                .bus_br_data    (idu_bus_br_data),
+                .next_pc    (preifu_next_pc),
+                .inst_addr  (preifu_inst_addr),
+                .fs_allowin (ifu_fs_allowin)
+            );
 
     // ifu
     IFU ifu(
             .clk        (clk),
             .rst        (reset),
-
-            // to idu
-            .br_taken   (idu_br_taken),
-            .br_target  (idu_br_target),
-
-            // from idu
-            .pc         (ifu_pc),
+            .next_pc    (preifu_next_pc),
+            .fs_pc      (ifu_fs_pc),
             .ds_allowin (idu_ds_allowin),
+            .fs_allowin (ifu_fs_allowin),
             .fs_to_ds_valid(ifu_fs_to_ds_valid)
         );
 
-
     // inst_ram
-
     assign inst_sram_en = 1'b1;
     assign inst_sram_we = 4'b0;
-    assign inst_sram_addr = ifu_pc;
+    assign inst_sram_addr = preifu_inst_addr;
     assign inst_sram_wdata = 32'b0;
+
+    assign data_sram_en = 1'b1;
 
     // regfile
     regfile u_regfile(
@@ -149,13 +136,12 @@ module mycpu_top(
     IDU idu(
             .clk        (clk),
             .rst        (reset),
-            .valid      (valid),
-            // to ifu
-            .br_taken   (idu_br_taken),
-            .br_target  (idu_br_target),
+
+            // to pre_IFU
+            .bus_br_data(idu_bus_br_data),
 
             // from ifu
-            .in_pc         (ifu_pc),
+            .in_pc         (ifu_fs_pc),
 
             // to rf
             .rf_raddr1  (idu_rf_raddr1),
@@ -166,38 +152,12 @@ module mycpu_top(
             .rf_rdata2  (rf_rdata2),
 
             // from inst_ram
-            .inst_sram_rdata(inst_sram_rdata),
-
-            // to exu
-            .alu_op     (idu_alu_op),
-            .alu_src1   (idu_alu_src1),
-            .alu_src2   (idu_alu_src2),
-
-            // to mem
-            .mem_we     (idu_mem_we),
-            .dest       (idu_dest),
-            .res_from_mem(idu_res_from_mem),
-            .rkd_value  (idu_rkd_value),
-
-            // to wb
-            .rf_waddr   (idu_rf_waddr),
-            .rf_wdata   (idu_rf_wdata),
-            .gr_we      (idu_gr_we),
-            .rf_we      (idu_rf_we),
-            .pc         (idu_pc),
+            .inst_sram_data    (inst_sram_rdata),
+            .bus_ds_to_es_data(idu_bus_ds_to_es_data),
             // 直通解决数据相关
-            // 从 EXU 窃取
-            .exu_regWr  (exu_regWr),
-            .exu_data   (exu_data),
-            .exu_regAddr(exu_regAddr),
-            // 从 MEM 窃取
-            .mem_regWr  (mem_regWr),
-            .mem_data   (mem_data),
-            .mem_regAddr(mem_regAddr),
-            // 从 WBU 窃取
-            .wbu_regWr  (wbu_regWr),
-            .wbu_data   (wbu_data),
-            .wbu_regAddr(wbu_regAddr),
+            .bus_exu_bypass_data(exu_bus_exu_bypass_data),
+            .bus_mem_bypass_data(mem_bus_mem_bypass_data),
+            .bus_wbu_bypass_data(wbu_bus_wbu_bypass_data),
 
             .es_allowin (exe_es_allowin),
             .ds_allowin (idu_ds_allowin),
@@ -211,36 +171,16 @@ module mycpu_top(
             .clk        (clk),
             .rst        (reset),
 
-            // for exu
-            .alu_op     (idu_alu_op),
-            .alu_src1   (idu_alu_src1),
-            .alu_src2   (idu_alu_src2),
+            .bus_ds_to_es_data(idu_bus_ds_to_es_data),
+            .bus_exu_to_mem_data(exu_bus_exu_to_mem_data),
 
-            // for mem
-            .in_mem_we  (idu_mem_we),
-            .in_rkd_value(idu_rkd_value),
-            .in_res_from_mem(idu_res_from_mem),
-            .in_pc     (idu_pc),
+            // to mem_sram
+            .data_sram_addr(data_sram_addr),
+            .data_sram_wdata(data_sram_wdata),
+            .data_sram_we(data_sram_we),
 
-            // to mem
-            .mem_we     (exu_mem_we),
-            .rkd_value  (exu_rkd_value),
-            .res_from_mem(exu_res_from_mem),
-
-            // to wb
-            .alu_result (exu_alu_result),
-            .in_gr_we   (idu_gr_we),
-            .in_dest    (idu_dest),
-
-            // to wb
-            .gr_we      (exu_gr_we),
-            .dest       (exu_dest),
-            .pc         (exu_pc),
-
-            // 数据相关
-            .exu_regWr  (exu_regWr),
-            .exu_data   (exu_data),
-            .exu_regAddr(exu_regAddr),
+            //  bus
+            .bus_exu_bypass_data(exu_bus_exu_bypass_data),
 
             .ms_allowin(mem_ms_allowin),
             .es_allowin(exe_es_allowin),
@@ -254,36 +194,11 @@ module mycpu_top(
     MEM mem(
             .clk        (clk),
             .rst        (reset),
-            .mem_we     (exu_mem_we),
-            .valid      (valid),
-            .alu_result (exu_alu_result),
-            .rkd_value  (exu_rkd_value),
-            .res_from_mem(exu_res_from_mem),
-
-            // to mem_sram
-            .data_sram_addr(data_sram_addr),
-            .data_sram_wdata(data_sram_wdata),
-            .data_sram_we(data_sram_we),
-
+            .bus_exu_to_mem_data(exu_bus_exu_to_mem_data),
+            .bus_mem_to_wbu_data(mem_bus_mem_to_wbu_data),
             // from mem_sram
             .data_sram_rdata(data_sram_rdata),
-
-            // for wb
-            .in_gr_we   (exu_gr_we),
-            .in_dest    (exu_dest),
-            .in_pc      (exu_pc),
-
-            // to wb
-            .gr_we      (mem_gr_we),
-            .dest       (mem_dest),
-
-            // to wb
-            .final_result(mem_final_result),
-            .pc        (mem_pc),
-            // 数据相关
-            .mem_regWr  (mem_regWr),
-            .mem_data   (mem_data),
-            .mem_regAddr(mem_regAddr),
+            .bus_mem_bypass_data(mem_bus_mem_bypass_data),
 
             .ws_allowin(wbu_ws_allowin),
             .ms_allowin(mem_ms_allowin),
@@ -296,11 +211,8 @@ module mycpu_top(
     WBU wbu(
             .clk        (clk),
             .rst        (reset),
-            .valid      (valid),
-            .gr_we      (mem_gr_we),
-            .dest       (mem_dest),
-            .final_result(mem_final_result),
-            .in_pc      (mem_pc),
+
+            .bus_mem_to_wbu_data(mem_bus_mem_to_wbu_data),
 
             // to rf
             .rf_we      (wbu_rf_we),
@@ -308,9 +220,7 @@ module mycpu_top(
             .rf_wdata   (wbu_rf_wdata),
             .pc         (wbu_pc),
             // 数据相关
-            .wbu_regWr  (wbu_regWr),
-            .wbu_data   (wbu_data),
-            .wbu_regAddr(wbu_regAddr),
+            .bus_wbu_bypass_data(wbu_bus_wbu_bypass_data),
 
             .ws_allowin(wbu_ws_allowin),
             .ms_to_ws_valid(mem_ms_to_ws_valid)

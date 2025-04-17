@@ -2,10 +2,8 @@ module IDU (
         // from top
         input wire clk,
         input wire rst,
-        input wire valid,
         // to ifu
-        output wire br_taken,
-        output wire [31:0] br_target,
+        output wire [32:0] bus_br_data,
         // from ifu
         input wire [31:0] in_pc,
 
@@ -18,41 +16,15 @@ module IDU (
         input wire [31:0] rf_rdata2,
 
         // from inst_ram
-        input [31:0] inst_sram_rdata,
+        input [31:0] inst_sram_data,
 
-        // to exu
-        output wire [11:0] alu_op,
-        output wire [31:0] alu_src1,
-        output wire [31:0] alu_src2,
-
-        // to mem
-        output wire mem_we,
-        output wire [4:0] dest,
-        output wire res_from_mem,
-        output wire [31:0] rkd_value,
-
-        // to wb
-        output wire [4:0] rf_waddr,
-        output wire [31:0] rf_wdata,
-        output wire gr_we,
-        output wire rf_we,
-        output wire [31:0] pc,
+        // bus
+        output wire [147:0] bus_ds_to_es_data,
 
         // 直通解决数据相关
-        // 从 EXU 窃取
-        input wire exu_regWr,
-        input wire [31:0] exu_data,
-        input wire [4:0] exu_regAddr,
-
-        // 从 MEM 窃取
-        input wire mem_regWr,
-        input wire [31:0] mem_data,
-        input wire [4:0] mem_regAddr,
-
-        // 从 WBU 窃取
-        input wire wbu_regWr,
-        input wire [31:0] wbu_data,
-        input wire [4:0] wbu_regAddr,
+        input wire [37:0] bus_exu_bypass_data,
+        input wire [37:0] bus_mem_bypass_data,
+        input wire [37:0] bus_wbu_bypass_data,
 
         // 握手信号
         //allowin
@@ -62,6 +34,53 @@ module IDU (
         input    fs_to_ds_valid,    // 上游发来的空闲信号
         output   ds_to_es_valid     // 发给下游的空闲信号
     );
+
+    // 数据相关
+
+    wire exu_regWr;
+    wire [31:0] exu_data;
+    wire [4:0] exu_regAddr;
+
+    wire mem_regWr;
+    wire [31:0] mem_data;
+    wire [4:0] mem_regAddr;
+
+    wire wbu_regWr;
+    wire [31:0] wbu_data;
+    wire [4:0] wbu_regAddr;
+
+    assign {
+            exu_regWr,
+            exu_data,
+            exu_regAddr
+        } = bus_exu_bypass_data;
+    assign {
+            mem_regWr,
+            mem_data,
+            mem_regAddr
+        } = bus_mem_bypass_data;
+    assign {
+            wbu_regWr,
+            wbu_data,
+            wbu_regAddr
+        } = bus_wbu_bypass_data;
+
+
+    wire [11:0] alu_op;
+    wire [31:0] alu_src1;
+    wire [31:0] alu_src2;
+    wire        mem_we;
+    wire [31:0] rkd_value;
+    wire        res_from_mem;
+    wire        gr_we;
+    wire [4:0]  dest;
+    wire [31:0] pc;
+
+    wire br_taken;
+    wire [31:0] br_target;
+
+    assign bus_br_data = {br_taken, br_target};
+    assign bus_ds_to_es_data = {alu_op, alu_src1, alu_src2, mem_we, rkd_value, res_from_mem, gr_we, dest, idu_pc};
 
     wire [31:0] idu_inst;
     wire [31:0] idu_pc;
@@ -191,14 +210,11 @@ module IDU (
         else if (ds_allowin) begin
             ds_valid <= fs_to_ds_valid;
         end
-    end
-
-    always @(posedge clk) begin
         if (fs_to_ds_valid && ds_allowin) begin
             // 卸货，暂时不使用 bus
             pc_reg <= in_pc;
             // 如果当前是跳转，那么下一条指令置空
-            inst_sram_rdata_reg <= br_taken ? 32'd0 :inst_sram_rdata;
+            inst_sram_rdata_reg <= br_taken ? 32'd0 :inst_sram_data;
             // inst_sram_rdata_reg <= inst_sram_rdata;
 
         end
@@ -322,17 +338,19 @@ module IDU (
     assign rkd_value = conflict_regbData;
 
     assign rj_eq_rd = (rj_value == rkd_value);
-    assign br_taken = (   inst_beq  &&  rj_eq_rd
-                          || inst_bne  && !rj_eq_rd
-                          || inst_jirl
-                          || inst_bl
-                          || inst_b
-                      ) && valid;
+    assign br_taken = (inst_beq  &&  rj_eq_rd
+                       || inst_bne  && !rj_eq_rd
+                       || inst_jirl
+                       || inst_bl
+                       || inst_b
+                      ) && ds_valid;
     assign br_target = (inst_beq || inst_bne || inst_bl || inst_b) ? (idu_pc + br_offs) :
            /*inst_jirl*/  (rj_value + jirl_offs);
 
     assign alu_src1 = src1_is_pc  ? idu_pc[31:0] : rj_value;
     assign alu_src2 = src2_is_imm ? imm : rkd_value;
+
+
 
 
 endmodule

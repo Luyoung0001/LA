@@ -2,35 +2,16 @@ module EXU (
         input wire clk,
         input wire rst,
 
-        // for exu
-        input wire [11:0] alu_op,
-        input wire [31:0] alu_src1,
-        input wire [31:0] alu_src2,
+        // bus
+        input wire [147:0] bus_ds_to_es_data,
+        output wire [70:0] bus_exu_to_mem_data,
 
-        // for mem
-        input wire in_mem_we,
-        input wire [31:0] in_rkd_value,
-        input wire in_res_from_mem,
+        // to mem_sram
+        output wire [31:0] data_sram_addr,
+        output wire [31:0] data_sram_wdata,
+        output wire [3:0] data_sram_we,
 
-        output wire mem_we,
-        output wire [31:0] rkd_value,
-        output wire res_from_mem,
-
-        output wire [31:0] alu_result,
-
-        // for wb
-        input wire in_gr_we,
-        input wire [4:0] in_dest,
-        input wire [31:0] in_pc,
-
-        output wire gr_we,
-        output wire [4:0] dest,
-        output wire [31:0] pc,
-
-        // 数据相关
-        output wire exu_regWr,
-        output wire [31:0] exu_data,
-        output wire [4:0] exu_regAddr,
+        output wire [37:0] bus_exu_bypass_data,
 
         // 握手信号
         // allowin
@@ -41,75 +22,62 @@ module EXU (
         output    es_to_ms_valid  // 发给下游的 valid 信号
     );
 
+    // 数据相关
+    wire exu_regWr;
+    wire [31:0] exu_data;
+    wire [4:0] exu_regAddr;
 
-    reg [11:0] alu_op_reg;
-    reg [31:0] alu_src1_reg;
-    reg [31:0] alu_src2_reg;
-    reg in_mem_we_reg;
+    reg [147:0] ds_to_es_bus_data_r;
 
-    reg [31:0] in_rkd_value_reg;
-    reg in_res_from_mem_reg;
-    reg in_gr_we_reg;
-    reg [4:0] in_dest_reg;
-    reg [31:0] in_pc_reg;
 
     reg         es_valid      ;
     wire        es_ready_go   ;
 
-    // always @(posedge clk or posedge rst) begin
-    //     if (rst) begin
-    //         alu_op_reg <= 12'd0;
-    //         alu_src1_reg <= 32'd0;
-    //         alu_src2_reg <= 32'd0;
-    //         in_mem_we_reg <= 1'b0;
-
-    //         in_rkd_value_reg <= 32'd0;
-    //         in_res_from_mem_reg <= 1'b0;
-    //         in_gr_we_reg <= 1'b0;
-    //         in_dest_reg <= 5'd0;
-    //         in_pc_reg <= 32'd0;
-    //     end
-    //     else begin
-    //         alu_op_reg <= alu_op;
-    //         alu_src1_reg <= alu_src1;
-    //         alu_src2_reg <= alu_src2;
-    //         in_mem_we_reg <= in_mem_we;
-
-    //         in_rkd_value_reg <= in_rkd_value;
-    //         in_res_from_mem_reg <= in_res_from_mem;
-    //         in_gr_we_reg <= in_gr_we;
-    //         in_dest_reg <= in_dest;
-    //         in_pc_reg <= in_pc;
-    //     end
-    // end
-
     wire [11:0] wire_alu_op;
     wire [31:0] wire_alu_src1;
     wire [31:0] wire_alu_src2;
+
     wire wire_in_mem_we;
     wire [31:0] wire_in_rkd_value;
     wire wire_in_res_from_mem;
+
     wire wire_in_gr_we;
     wire [4:0] wire_in_dest;
+    wire [31:0] wire_in_pc;
+
+    wire res_from_mem;
+    wire [31:0] alu_result;
+    wire gr_we;
+    wire [4:0] dest;
+    wire [31:0] pc;
+
+    assign {
+            wire_alu_op,
+            wire_alu_src1,
+            wire_alu_src2,
+
+            wire_in_mem_we,
+            wire_in_rkd_value,
+            wire_in_res_from_mem,
+
+            wire_in_gr_we,
+            wire_in_dest,
+            wire_in_pc
+        } = ds_to_es_bus_data_r;
+
+    assign bus_exu_to_mem_data = {
+               res_from_mem,
+               alu_result,
+               gr_we,
+               dest,
+               pc
+           };
 
 
-    assign wire_alu_op = alu_op_reg;
-    assign wire_alu_src1 = alu_src1_reg;
-    assign wire_alu_src2 = alu_src2_reg;
-
-    assign wire_in_mem_we = in_mem_we_reg;
-
-    assign wire_in_rkd_value = in_rkd_value_reg;
-    assign wire_in_res_from_mem = in_res_from_mem_reg;
-    assign wire_in_gr_we = in_gr_we_reg;
-    assign wire_in_dest = in_dest_reg;
-
-    assign mem_we = wire_in_mem_we;
-    assign rkd_value = wire_in_rkd_value;
     assign res_from_mem = wire_in_res_from_mem;
     assign gr_we = wire_in_gr_we & es_valid;
     assign dest = wire_in_dest;
-    assign pc = in_pc_reg;
+    assign pc = wire_in_pc;
 
     alu u_alu(
             .alu_op     (wire_alu_op    ),
@@ -123,9 +91,12 @@ module EXU (
     assign exu_data = alu_result;
     assign exu_regAddr = wire_in_dest;
 
+    assign bus_exu_bypass_data = {
+               exu_regWr,
+               exu_data,
+               exu_regAddr};
+
     // 握手信号
-
-
     assign es_ready_go    = 1'b1;
     assign es_allowin     = !es_valid || es_ready_go && ms_allowin;
     assign es_to_ms_valid =  es_valid && es_ready_go;
@@ -137,20 +108,19 @@ module EXU (
             es_valid <= ds_to_es_valid;
         end
         if (ds_to_es_valid && es_allowin) begin
-            // ds_to_es_bus_r <= ds_to_es_bus;
-            // 卸货
-            alu_op_reg <= alu_op;
-            alu_src1_reg <= alu_src1;
-            alu_src2_reg <= alu_src2;
-            in_mem_we_reg <= in_mem_we;
-
-            in_rkd_value_reg <= in_rkd_value;
-            in_res_from_mem_reg <= in_res_from_mem;
-            in_gr_we_reg <= in_gr_we;
-            in_dest_reg <= in_dest;
-            in_pc_reg <= in_pc;
+            ds_to_es_bus_data_r <= bus_ds_to_es_data;
 
         end
     end
+
+    // 提前发射访存信号，必须在 es 阶段有效
+    assign data_sram_we = {wire_in_mem_we && es_valid,
+                           wire_in_mem_we && es_valid,
+                           wire_in_mem_we && es_valid,
+                           wire_in_mem_we && es_valid};
+    assign data_sram_addr  = alu_result;
+    assign data_sram_wdata = wire_in_rkd_value;
+
+
 
 endmodule

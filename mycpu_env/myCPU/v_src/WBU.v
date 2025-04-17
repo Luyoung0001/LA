@@ -2,11 +2,8 @@ module WBU(
         // from mem
         input wire clk,
         input wire rst,
-        input wire valid,
-        input wire gr_we,
-        input wire [4:0] dest,
-        input wire [31:0] final_result,
-        input wire [31:0] in_pc,
+
+        input wire [69:0] bus_mem_to_wbu_data,
 
         // to rf
         output wire rf_we,
@@ -14,10 +11,8 @@ module WBU(
         output wire [31:0] rf_wdata,
         output wire [31:0] pc,
 
-        // 数据相关
-        output wire wbu_regWr,
-        output wire [31:0] wbu_data,
-        output wire [4:0] wbu_regAddr,
+        // bus
+        output wire [37:0] bus_wbu_bypass_data,
 
         // 握手信号
         //allowin
@@ -25,48 +20,27 @@ module WBU(
         input    ms_to_ws_valid // 来自的上游的 valid 信号
 
     );
-
-    reg gr_we_reg;
-    reg [4:0] dest_reg;
-    reg [31:0] final_result_reg;
-    reg [31:0] pc_reg;
-
-    reg         ws_valid;
-    wire        ws_ready_go;
-
-    // always @(posedge clk or posedge rst) begin
-    //     if (rst) begin
-    //         gr_we_reg <= 1'b0;
-    //         dest_reg <= 5'd0;
-    //         final_result_reg <= 32'd0;
-    //         pc_reg <= 32'd0;
-    //     end
-    //     else begin
-    //         gr_we_reg <= gr_we;
-    //         dest_reg <= dest;
-    //         final_result_reg <= final_result;
-    //         pc_reg <= in_pc;
-    //     end
-    // end
+    // 数据相关
+    wire wbu_regWr;
+    wire [31:0] wbu_data;
+    wire [4:0] wbu_regAddr;
 
     wire wire_gr_we;
     wire [4:0] wire_dest;
     wire [31:0] wire_final_result;
-    assign wire_gr_we = gr_we_reg;
-    assign wire_dest = dest_reg;
-    assign wire_final_result = final_result_reg;
+    wire [31:0] wire_pc;
 
-    assign rf_we    = wire_gr_we & ws_valid;
-    assign rf_waddr = wire_dest;
-    assign rf_wdata = wire_final_result;
-    assign pc       = pc_reg;
+    reg [69:0] bus_mem_to_wbu_data_r;
 
-    // 解决数据相关
-    assign wbu_regWr = rf_we;
-    assign wbu_data = wire_final_result;
-    assign wbu_regAddr = wire_dest;
+    assign {
+            wire_gr_we,
+            wire_dest,
+            wire_final_result,
+            wire_pc
+        } = bus_mem_to_wbu_data_r;
 
-
+    reg         ws_valid;
+    wire        ws_ready_go;
 
     assign ws_ready_go = 1'b1;
     assign ws_allowin  = !ws_valid || ws_ready_go;
@@ -79,15 +53,21 @@ module WBU(
         end
 
         if (ms_to_ws_valid && ws_allowin) begin
-            // ms_to_ws_bus_r <= ms_to_ws_bus;
-            // 卸货
-            // gr_we_reg <= gr_we;
-            gr_we_reg <= gr_we;
-            dest_reg <= dest;
-            final_result_reg <= final_result;
-            pc_reg <= in_pc;
+            bus_mem_to_wbu_data_r <= bus_mem_to_wbu_data;
         end
     end
+    assign rf_we    = wire_gr_we & ws_valid;
+    assign rf_waddr = wire_dest;
+    assign rf_wdata = wire_final_result;
+    assign pc       = wire_pc;
 
+    // 解决数据相关
+    assign wbu_regWr = rf_we;
+    assign wbu_data = wire_final_result;
+    assign wbu_regAddr = wire_dest;
 
+    assign bus_wbu_bypass_data = {
+               wbu_regWr,
+               wbu_data,
+               wbu_regAddr};
 endmodule
