@@ -10,7 +10,7 @@ extern "C" {
 int data_ram_read(int addr);
 int inst_ram_read(int addr);
 
-void data_ram_write(int addr, int wdata);
+void data_ram_write(int addr, int wdata, unsigned char wmask);
 
 #ifdef __cplusplus
 }

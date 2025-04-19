@@ -21,6 +21,8 @@ module IDU (
         // bus
         output wire [177:0] bus_ds_to_es_data,
 
+        output wire [7:0] out_mem_op,
+
         // 直通解决数据相关
         input wire [37:0] bus_exu_bypass_data,
         input wire [37:0] bus_mem_bypass_data,
@@ -70,7 +72,7 @@ module IDU (
     wire [31:0] alu_src1;
     wire [31:0] alu_src2;
 
-    wire [9:0] mul_div_op;
+    wire [9:0]  mul_div_op;
     wire        mem_we;
     wire [31:0] rkd_value;
     wire        res_from_mem;
@@ -271,6 +273,7 @@ module IDU (
                              0], idu_inst[25:
                                           10]};
 
+
     decoder_6_64 u_dec0(.in(op_31_26 ), .out(op_31_26_d ));
     decoder_4_16 u_dec1(.in(op_25_22 ), .out(op_25_22_d ));
     decoder_2_4  u_dec2(.in(op_21_20 ), .out(op_21_20_d ));
@@ -296,13 +299,26 @@ module IDU (
     assign inst_sra    = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h1] & op_19_15_d[5'h10];
     assign inst_srai_w = op_31_26_d[6'h00] & op_25_22_d[4'h1] & op_21_20_d[2'h0] & op_19_15_d[5'h11];
     assign inst_addi_w = op_31_26_d[6'h00] & op_25_22_d[4'ha];
+
     assign inst_ld_w   = op_31_26_d[6'h0a] & op_25_22_d[4'h2];
+    assign inst_ld_b   = op_31_26_d[6'h0a] & op_25_22_d[4'h0];
+    assign inst_ld_bu  = op_31_26_d[6'h0a] & op_25_22_d[4'h8];
+    assign inst_ld_h   = op_31_26_d[6'h0a] & op_25_22_d[4'h1];
+    assign inst_ld_hu  = op_31_26_d[6'h0a] & op_25_22_d[4'h9];
     assign inst_st_w   = op_31_26_d[6'h0a] & op_25_22_d[4'h6];
+    assign inst_st_b   = op_31_26_d[6'h0a] & op_25_22_d[4'h4];
+    assign inst_st_h   = op_31_26_d[6'h0a] & op_25_22_d[4'h5];
+
     assign inst_jirl   = op_31_26_d[6'h13];
     assign inst_b      = op_31_26_d[6'h14];
     assign inst_bl     = op_31_26_d[6'h15];
+    assign inst_blt    = op_31_26_d[6'h18];
+    assign inst_bltu   = op_31_26_d[6'h1a];
     assign inst_beq    = op_31_26_d[6'h16];
     assign inst_bne    = op_31_26_d[6'h17];
+    assign inst_bge    = op_31_26_d[6'h19];
+    assign inst_bgeu   = op_31_26_d[6'h1b];
+
     assign inst_lu12i_w= op_31_26_d[6'h05] & ~idu_inst[25];
     assign inst_pcaddu12i = op_31_26_d[6'h07] & ~idu_inst[25];
 
@@ -314,8 +330,9 @@ module IDU (
     assign inst_mod_w   = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h2] & op_19_15_d[5'h1];
     assign inst_mod_wu  = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h2] & op_19_15_d[5'h3];
 
-    assign alu_op[ 0] = inst_add_w | inst_addi_w | inst_ld_w | inst_st_w
-           | inst_jirl | inst_bl | inst_pcaddu12i;
+    assign alu_op[ 0] = inst_add_w | inst_addi_w | inst_ld_w | inst_st_w |
+           | inst_jirl | inst_bl | inst_pcaddu12i | inst_ld_b | inst_ld_bu |
+           inst_ld_h | inst_ld_hu | inst_st_b | inst_st_h;
     assign alu_op[ 1] = inst_sub_w;
     assign alu_op[ 2] = inst_slt | inst_slti;
     assign alu_op[ 3] = inst_sltu| inst_sltui;
@@ -340,7 +357,9 @@ module IDU (
 
     assign need_ui5   =  inst_slli_w | inst_srli_w | inst_srai_w;
 
-    assign need_si12  =  inst_addi_w | inst_ld_w | inst_st_w | inst_slti | inst_sltui;
+    assign need_si12  =  inst_addi_w | inst_ld_w | inst_st_w | inst_slti | inst_sltui | inst_ld_b | inst_ld_bu |
+           inst_ld_h | inst_ld_hu | inst_st_b | inst_st_h;
+
     assign need_si16  =  inst_jirl | inst_beq | inst_bne;
     assign need_si20  =  inst_lu12i_w | inst_pcaddu12i;
     assign need_si26  =  inst_b | inst_bl;
@@ -353,9 +372,9 @@ module IDU (
     //        /*need_ui5 || need_si12*/{{20{i12[11]}}, i12[11:0]} ;
 
     assign imm =    src2_is_4 ? 32'h4:
-                    need_ui12 ? {20'b0, i12[11:0]}: // 12位零扩展立即数
-                    need_si20 ? {i20[19:0], 12'b0}:
-                    {{20{i12[11]}}, i12[11:0]} ;    // 12位符号扩展立即数
+           need_ui12 ? {20'b0, i12[11:0]}: // 12位零扩展立即数
+           need_si20 ? {i20[19:0], 12'b0}:
+           {{20{i12[11]}}, i12[11:0]} ;    // 12位符号扩展立即数
 
 
     assign br_offs = need_si26 ? {{ 4{i26[25]}}, i26[25:0], 2'b0} :
@@ -364,7 +383,8 @@ module IDU (
     assign jirl_offs = {{14{i16[15]}}, i16[15:
                                            0], 2'b0};
 
-    assign src_reg_is_rd = inst_beq | inst_bne | inst_st_w;
+    assign src_reg_is_rd = inst_beq | inst_bne | inst_st_w | inst_st_h | inst_st_b | inst_blt | inst_bltu |
+           inst_bge | inst_bgeu;
 
     assign src1_is_pc    = inst_jirl | inst_bl | inst_pcaddu12i;
 
@@ -372,8 +392,6 @@ module IDU (
            inst_srli_w |
            inst_srai_w |
            inst_addi_w |
-           inst_ld_w   |
-           inst_st_w   |
            inst_lu12i_w|
            inst_jirl   |
            inst_bl     |
@@ -382,9 +400,21 @@ module IDU (
            inst_andi   |
            inst_ori    |
            inst_xori   |
-           inst_pcaddu12i;
+           inst_pcaddu12i |
 
-    assign res_from_mem  = inst_ld_w;
+           inst_st_b   |
+           inst_st_h   |
+           inst_st_w   |
+           inst_ld_b   |
+           inst_ld_bu  |
+           inst_ld_h   |
+           inst_ld_hu  |
+           inst_ld_w;
+
+    assign out_mem_op = {inst_ld_w, inst_ld_hu, inst_ld_h, inst_ld_bu, inst_ld_b, inst_st_w, inst_st_h, inst_st_b};
+
+
+    assign res_from_mem  = inst_ld_w | inst_ld_b | inst_ld_bu | inst_ld_h | inst_ld_hu;
     assign dst_is_r1     = inst_bl;
     assign gr_we         = inst_bl |
            inst_add_w |
@@ -400,6 +430,10 @@ module IDU (
            inst_srai_w|
            inst_addi_w|
            inst_ld_w|
+           inst_ld_b|
+           inst_ld_bu|
+           inst_ld_h|
+           inst_ld_hu|
            inst_lu12i_w|
            inst_slti|
            inst_sltui|
@@ -418,7 +452,7 @@ module IDU (
            inst_mod_w|
            inst_mod_wu;
 
-    assign mem_we        = inst_st_w;
+    assign mem_we        = inst_st_w | inst_st_b | inst_st_h;
     assign dest          = dst_is_r1 ? 5'd1 : rd;
 
     assign rf_raddr1 = rj;
@@ -427,20 +461,30 @@ module IDU (
     assign rj_value  = conflict_regaData;
     assign rkd_value = conflict_regbData;
 
+    wire rj_lt_rd;
+    wire rj_ltu_rd;
+    wire rj_gt_rd;
+    wire rj_gtu_rd;
+
     assign rj_eq_rd = (rj_value == rkd_value);
+    assign rj_lt_rd = ($signed(rj_value) < $signed(rkd_value));
+    assign rj_ltu_rd = ($unsigned(rj_value) < $unsigned(rkd_value));
+    assign rj_gt_rd = ($signed(rj_value) >= $signed(rkd_value));
+    assign rj_gtu_rd = ($unsigned(rj_value) >= $unsigned(rkd_value));
+
     assign br_taken = (inst_beq  &&  rj_eq_rd
                        || inst_bne  && !rj_eq_rd
                        || inst_jirl
                        || inst_bl
                        || inst_b
+                       || inst_blt  && rj_lt_rd
+                       || inst_bltu && rj_ltu_rd
+                       || inst_bge  && rj_gt_rd
+                       || inst_bgeu && rj_gtu_rd
                       ) && ds_valid;
-    assign br_target = (inst_beq || inst_bne || inst_bl || inst_b) ? (idu_pc + br_offs) :
+    assign br_target = (inst_beq || inst_bne || inst_bl || inst_b || inst_blt || inst_bltu || inst_bge || inst_bgeu) ? (idu_pc + br_offs) :
            /*inst_jirl*/  (rj_value + jirl_offs);
 
     assign alu_src1 = src1_is_pc  ? idu_pc[31:0] : rj_value;
     assign alu_src2 = src2_is_imm ? imm : rkd_value;
-
-
-
-
 endmodule

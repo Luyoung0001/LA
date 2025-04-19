@@ -3,6 +3,8 @@ module MEM(
         input wire clk,
         input wire rst,
 
+        input wire [7:0] in_mem_op,
+        input wire [3:0] in_mem_mask,
 
         input wire [70:0] bus_exu_to_mem_data,
         output wire [69:0] bus_mem_to_wbu_data,
@@ -41,6 +43,9 @@ module MEM(
     wire [31:0] pc;
     wire [31:0] final_result;
 
+    reg [7:0] mem_op_reg;
+    reg [3:0] mem_mask_reg;
+
     assign {
             wire_res_from_mem,
             wire_exu_result,
@@ -62,7 +67,49 @@ module MEM(
 
 
     wire [31:0] mem_result;
-    assign mem_result   = data_sram_rdata;
+
+    wire [7:0] mem_op;
+    wire [3:0] mem_mask;
+    assign mem_op = mem_op_reg;
+    assign mem_mask = mem_mask_reg;
+
+    wire st_b;
+    wire st_h;
+    wire st_w;
+    wire ld_b;
+    wire ld_bu;
+    wire ld_h;
+    wire ld_hu;
+    wire ld_w;
+
+    assign st_b = mem_op[0];
+    assign st_h = mem_op[1];
+    assign st_w = mem_op[2];
+
+    assign ld_b = mem_op[3];
+    assign ld_bu = mem_op[4];
+    assign ld_h = mem_op[5];
+    assign ld_hu = mem_op[6];
+    assign ld_w = mem_op[7];
+
+    // 这里读出来的数据也很讲究
+    // assign mem_result   = data_sram_rdata;
+    assign mem_result = ld_b && mem_mask[0] ? {{24{data_sram_rdata[7]}}, data_sram_rdata[7:0]}:
+                        ld_b && mem_mask[1] ? {{24{data_sram_rdata[15]}}, data_sram_rdata[15:8]}:
+                        ld_b && mem_mask[2] ? {{24{data_sram_rdata[23]}}, data_sram_rdata[23:16]}:
+                        ld_b && mem_mask[3] ? {{24{data_sram_rdata[31]}}, data_sram_rdata[31:24]}:
+                        ld_bu && mem_mask[0] ? {24'b0, data_sram_rdata[7:0]}:
+                        ld_bu && mem_mask[1] ? {24'b0, data_sram_rdata[15:8]}:
+                        ld_bu && mem_mask[2] ? {24'b0, data_sram_rdata[23:16]}:
+                        ld_bu && mem_mask[3] ? {24'b0, data_sram_rdata[31:24]}:
+                        ld_h && mem_mask == 4'b0011 ? {{16{data_sram_rdata[15]}}, data_sram_rdata[15:0]}:
+                        ld_h && mem_mask == 4'b0110 ? {{16{data_sram_rdata[23]}}, data_sram_rdata[23:8]}:
+                        ld_h && mem_mask == 4'b1100 ? {{16{data_sram_rdata[31]}}, data_sram_rdata[31:16]}:
+                        ld_hu && mem_mask == 4'b0011 ? {16'b0, data_sram_rdata[15:0]}:
+                        ld_hu && mem_mask == 4'b0110 ? {16'b0, data_sram_rdata[23:8]}:
+                        ld_hu && mem_mask == 4'b1100 ? {16'b0, data_sram_rdata[31:16]}:
+                        data_sram_rdata;
+
     assign final_result = wire_res_from_mem ? mem_result : wire_exu_result;
 
 
@@ -90,6 +137,8 @@ module MEM(
 
         if (es_to_ms_valid && ms_allowin) begin
             bus_exu_to_mem_data_r <= bus_exu_to_mem_data;
+            mem_op_reg <= in_mem_op;
+            mem_mask_reg <= in_mem_mask;
 
         end
     end

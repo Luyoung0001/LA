@@ -43,6 +43,7 @@ module mycpu_top(
     wire [4:0] idu_rf_raddr2;
 
     wire [177:0] idu_bus_ds_to_es_data;
+    wire [7:0] idu_out_mem_op;
 
     wire idu_ds_allowin;
     wire idu_ds_to_es_valid;
@@ -57,6 +58,8 @@ module mycpu_top(
     wire exe_es_allowin;
     wire exe_es_to_ms_valid;
     wire [37:0] exu_bus_exu_bypass_data;
+    wire [7:0] exu_out_mem_op;
+    wire [3:0] exu_out_mem_mask;
 
 
 
@@ -116,7 +119,7 @@ module mycpu_top(
     assign inst_sram_addr = preifu_inst_addr;
     assign inst_sram_wdata = 32'b0;
 
-    assign data_sram_en = 1'b1;
+    // assign data_sram_en = 1'b1;
 
     // regfile
     regfile u_regfile(
@@ -154,6 +157,7 @@ module mycpu_top(
             // from inst_ram
             .inst_sram_data    (inst_sram_rdata),
             .bus_ds_to_es_data(idu_bus_ds_to_es_data),
+            .out_mem_op       (idu_out_mem_op),
             // 直通解决数据相关
             .bus_exu_bypass_data(exu_bus_exu_bypass_data),
             .bus_mem_bypass_data(mem_bus_mem_bypass_data),
@@ -174,13 +178,18 @@ module mycpu_top(
             .bus_ds_to_es_data(idu_bus_ds_to_es_data),
             .bus_exu_to_mem_data(exu_bus_exu_to_mem_data),
 
+            .in_mem_op(idu_out_mem_op),
+
             // to mem_sram
             .data_sram_addr(data_sram_addr),
             .data_sram_wdata(data_sram_wdata),
             .data_sram_we(data_sram_we),
+            .data_sram_en(data_sram_en),
 
             //  bus
             .bus_exu_bypass_data(exu_bus_exu_bypass_data),
+            .out_mem_op(exu_out_mem_op),
+            .out_mem_mask(exu_out_mem_mask),
 
             .ms_allowin(mem_ms_allowin),
             .es_allowin(exe_es_allowin),
@@ -194,6 +203,8 @@ module mycpu_top(
     MEM mem(
             .clk        (clk),
             .rst        (reset),
+            .in_mem_op  (exu_out_mem_op),
+            .in_mem_mask(exu_out_mem_mask),
             .bus_exu_to_mem_data(exu_bus_exu_to_mem_data),
             .bus_mem_to_wbu_data(mem_bus_mem_to_wbu_data),
             // from mem_sram

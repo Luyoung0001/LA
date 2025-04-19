@@ -6,12 +6,18 @@ module EXU (
         input wire [177:0] bus_ds_to_es_data,
         output wire [70:0] bus_exu_to_mem_data,
 
+        input wire [7:0] in_mem_op,
+
         // to mem_sram
         output wire [31:0] data_sram_addr,
         output wire [31:0] data_sram_wdata,
         output wire [3:0] data_sram_we,
+        output wire data_sram_en,
 
         output wire [37:0] bus_exu_bypass_data,
+
+        output wire [7:0] out_mem_op,
+        output wire [3:0] out_mem_mask,
 
         // 握手信号
         // allowin
@@ -32,6 +38,8 @@ module EXU (
 
     reg         es_valid      ;
     wire        es_ready_go   ;
+
+    reg [7:0] mem_op_reg;
 
     wire [9:0] mul_div_op;
     wire [31:0] wire_alu_op;
@@ -103,12 +111,88 @@ module EXU (
 
 
     // 提前发射访存信号，必须在 es 阶段有效
-    assign data_sram_we = {wire_in_mem_we && es_valid,
-                           wire_in_mem_we && es_valid,
-                           wire_in_mem_we && es_valid,
-                           wire_in_mem_we && es_valid};
+    // 写使能信号，根据地址生成
+
+    wire [7:0] mem_op;
+    assign mem_op = mem_op_reg;
+    assign out_mem_op = mem_op_reg;
+
+
+    wire st_b;
+    wire st_h;
+    wire st_w;
+    wire ld_b;
+    wire ld_bu;
+    wire ld_h;
+    wire ld_hu;
+    wire ld_w;
+
+    assign st_b = mem_op[0];
+    assign st_h = mem_op[1];
+    assign st_w = mem_op[2];
+
+    assign ld_b = mem_op[3];
+    assign ld_bu = mem_op[4];
+    assign ld_h = mem_op[5];
+    assign ld_hu = mem_op[6];
+    assign ld_w = mem_op[7];
+
+
+    wire [3:0] st_b_we;
+    wire [3:0] st_h_we;
+    wire [3:0] st_w_we;
+
+    wire [3:0] ld_mask;
+
+    assign out_mem_mask = ld_mask;
+
+    assign ld_mask = ld_b && (alu_result[1:0] == 2'b00) ? 4'b0001 :
+           ld_b && (alu_result[1:0] == 2'b01) ? 4'b0010 :
+           ld_b && (alu_result[1:0] == 2'b10) ? 4'b0100 :
+           ld_b && (alu_result[1:0] == 2'b11) ? 4'b1000 :
+           ld_bu && (alu_result[1:0] == 2'b00) ? 4'b0001 :
+           ld_bu && (alu_result[1:0] == 2'b01) ? 4'b0010 :
+           ld_bu && (alu_result[1:0] == 2'b10) ? 4'b0100 :
+           ld_bu && (alu_result[1:0] == 2'b11) ? 4'b1000 :
+           ld_h && (alu_result[1:0] == 2'b00) ? 4'b0011 :
+           ld_h && (alu_result[1:0] == 2'b01) ? 4'b0110 :
+           ld_h && (alu_result[1:0] == 2'b10) ? 4'b1100 :
+           ld_h && (alu_result[1:0] == 2'b11) ? 4'b0000 :
+           ld_hu && (alu_result[1:0] == 2'b00) ? 4'b0011 :
+           ld_hu && (alu_result[1:0] == 2'b01) ? 4'b0110 :
+           ld_hu && (alu_result[1:0] == 2'b10) ? 4'b1100 :
+           ld_hu && (alu_result[1:0] == 2'b11) ? 4'b0000 :
+           ld_w && (alu_result[1:0] == 2'b00) ? 4'b1111 :
+           ld_w && (alu_result[1:0] == 2'b01) ? 4'b1111 :
+           ld_w && (alu_result[1:0] == 2'b10) ? 4'b1111 :
+           ld_w && (alu_result[1:0] == 2'b11) ? 4'b1111 :
+           4'b0000;
+
+
+    assign st_b_we = alu_result[1:0] == 2'b00 ? 4'b0001 :
+           alu_result[1:0] == 2'b01 ? 4'b0010 :
+           alu_result[1:0] == 2'b10 ? 4'b0100 :
+           4'b1000;
+    assign st_h_we = alu_result[1:0] == 2'b00 ? 4'b0011 :
+           alu_result[1:0] == 2'b01 ? 4'b0110 :
+           alu_result[1:0] == 2'b10 ? 4'b1100 :
+           4'b0000;
+    assign st_w_we = 4'b1111;
+
+    // 使能信号必须借助 alu_result 进行计算
+    // 因此，在 alu_result 计算完成后，才能发出访存信号
+    // 访存信号
+    assign data_sram_we = st_b && es_valid ? st_b_we :
+           st_h && es_valid ? st_h_we :
+           st_w && es_valid ? st_w_we:
+           4'b0000 ;
     assign data_sram_addr  = alu_result; // 访存地址
-    assign data_sram_wdata = wire_in_rkd_value;
+    assign data_sram_en = st_b || st_h || st_w || ld_b || ld_bu || ld_h || ld_hu || ld_w;
+
+    // 写入的数据很讲究
+    assign data_sram_wdata = st_b ? {4{wire_in_rkd_value[7:0]}} :
+           st_h ? {2{wire_in_rkd_value[15:0]}} :
+           st_w ? wire_in_rkd_value : 32'b0;
 
     // 乘除法
     wire op_div;   //signed divide operation low
@@ -185,9 +269,10 @@ module EXU (
            | ({32{wire_alu_op[10]}} & alu_result)
            | ({32{wire_alu_op[11]}} & alu_result);
 
-
     // 握手信号
-    assign es_ready_go    = complete & div ? 1'b1 : (div ? 1'b0 : 1'b1);
+    assign es_ready_go    = complete & div ? 1'b1 :
+           div ? 1'b0 :
+           1'b1;
     assign es_allowin     = !es_valid || es_ready_go && ms_allowin;
     assign es_to_ms_valid =  es_valid && es_ready_go;
 
@@ -200,7 +285,10 @@ module EXU (
         end
         if (ds_to_es_valid && es_allowin) begin
             ds_to_es_bus_data_r <= bus_ds_to_es_data;
+            mem_op_reg <= in_mem_op;
 
         end
     end
+
+
 endmodule

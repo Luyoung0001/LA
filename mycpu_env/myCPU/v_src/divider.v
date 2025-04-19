@@ -77,7 +77,9 @@ always @(posedge div_clk) begin  //33位除法计算
     end
 
 end
-
+// complete 信号为 1 之后的下一个周期，r 信号才会出来
+// 同时，s、r 信号出来的时机不一致，r 信号落后一个周期
+// 因此，当外部模块检测到 complete 信号为 1 的时候，应该延迟一个周期再停止阻塞信号，这时候， s、r 信号都会出来
 assign complete = (count == 8'hff);//chenji
 
 assign result_r = {tmp_r[31:0], UnsignX[count[5:0]]};

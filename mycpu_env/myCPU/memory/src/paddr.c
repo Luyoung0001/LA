@@ -27,7 +27,13 @@ uint8_t* padd2host(uint32_t paddr) {
 }
 
 uint32_t pmem_read(uint8_t* paddr) {
-    return *((uint32_t*)paddr);
+    uintptr_t addr_val = (uintptr_t)paddr;  // 将指针转换为整数类型
+    uintptr_t aligned_addr_val =
+        addr_val & ~3;  // 确保地址是 4 字节对齐的起始地址
+    uint8_t* aligned_addr =
+        (uint8_t*)aligned_addr_val;  // 将整数类型转换回指针类型
+
+    return *((uint32_t*)aligned_addr);
 }
 
 void pmem_write(uint8_t* paddr, uint32_t data) {
