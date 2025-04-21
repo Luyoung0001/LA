@@ -2,9 +2,14 @@ module EXU (
         input wire clk,
         input wire rst,
 
+        input wire ds_excp,
+        input wire [15:0] ds_excp_num,
+        output wire es_excp_out,
+        output wire [15:0] es_excp_num_out,
+
         // bus
-        input wire [177:0] bus_ds_to_es_data,
-        output wire [70:0] bus_exu_to_mem_data,
+        input wire [258:0] bus_ds_to_es_data,
+        output wire [118:0] bus_exu_to_mem_data,
 
         input wire [7:0] in_mem_op,
 
@@ -14,10 +19,19 @@ module EXU (
         output wire [3:0] data_sram_we,
         output wire data_sram_en,
 
-        output wire [37:0] bus_exu_bypass_data,
+        output wire [84:0] bus_exu_bypass_data,
 
         output wire [7:0] out_mem_op,
         output wire [3:0] out_mem_mask,
+
+        // exception
+        input wire ertn_flush,
+        input wire excp_flush,
+
+        input wire mem_excp,
+
+        output wire exu_excp, // 发射到上游的异常信号
+
 
         // 握手信号
         // allowin
@@ -28,12 +42,41 @@ module EXU (
         output    es_to_ms_valid  // 发给下游的 valid 信号
     );
 
+    // 异常信号
+    reg [15:0] ds_excp_num_r; // 从上一级接收
+    reg ds_excp_r;
+
+    wire [15:0] wire_ds_excp_num;
+    wire wire_ds_excp;
+
+    assign wire_ds_excp_num = ds_excp_num_r;
+    assign wire_ds_excp = ds_excp_r;
+
+    wire [15:0] es_excp_num;
+    wire es_excp;
+
+    assign es_excp_num = wire_ds_excp_num;
+    assign es_excp = wire_ds_excp;
+
+    // 输出
+    assign es_excp_out = es_excp;
+    assign es_excp_num_out = es_excp_num;
+
+    assign exu_excp = es_excp | mem_excp; // 收集下游的信号，向上传递
+
+
+    wire flush_sign;
+    assign flush_sign = ertn_flush | excp_flush;
     // 数据相关
     wire exu_regWr;
     wire [31:0] exu_data;
     wire [4:0] exu_regAddr;
 
-    reg [177:0] ds_to_es_bus_data_r;
+    wire exu_csr_we;
+    wire [13:0] exu_csr_idx;
+    wire [31:0] exu_csr_wdata;
+
+    reg [258:0] ds_to_es_bus_data_r;
 
 
     reg         es_valid      ;
@@ -53,12 +96,20 @@ module EXU (
     wire wire_in_gr_we;
     wire [4:0] wire_in_dest;
     wire [31:0] wire_in_pc;
+    wire res_from_csr;
+    wire [31:0] wire_csr_data;
+    wire wire_csr_we;
+    wire [13:0] wire_csr_idx;
+    wire [31:0] wire_csr_wdata;
+    wire wire_is_inst_ertn;
 
     wire res_from_mem;
     wire [31:0] exu_result;
     wire gr_we;
     wire [4:0] dest;
     wire [31:0] pc;
+
+
 
     assign {
             mul_div_op,
@@ -72,7 +123,13 @@ module EXU (
 
             wire_in_gr_we,
             wire_in_dest,
-            wire_in_pc
+            wire_in_pc,
+            res_from_csr,
+            wire_csr_data,
+            wire_csr_we,
+            wire_csr_idx,
+            wire_csr_wdata,
+            wire_is_inst_ertn
         } = ds_to_es_bus_data_r;
 
     assign bus_exu_to_mem_data = {
@@ -80,7 +137,11 @@ module EXU (
                exu_result,
                gr_we,
                dest,
-               pc
+               pc,
+               wire_csr_we,
+               wire_csr_idx,
+               wire_csr_wdata,
+               wire_is_inst_ertn
            };
 
 
@@ -103,12 +164,18 @@ module EXU (
     assign exu_data = exu_result;
     assign exu_regAddr = wire_in_dest;
 
+    assign exu_csr_we = wire_csr_we;
+    assign exu_csr_idx = wire_csr_idx;
+    assign exu_csr_wdata = wire_csr_wdata;
+
     assign bus_exu_bypass_data = {
                exu_regWr,
                exu_data,
-               exu_regAddr};
-
-
+               exu_regAddr,
+               exu_csr_we,
+               exu_csr_idx,
+               exu_csr_wdata
+           };
 
     // 提前发射访存信号，必须在 es 阶段有效
     // 写使能信号，根据地址生成
@@ -182,7 +249,8 @@ module EXU (
     // 使能信号必须借助 alu_result 进行计算
     // 因此，在 alu_result 计算完成后，才能发出访存信号
     // 访存信号
-    assign data_sram_we = st_b && es_valid ? st_b_we :
+    assign data_sram_we = (mem_excp | flush_sign) ? 4'b0000 : // 异常
+           st_b && es_valid ? st_b_we :
            st_h && es_valid ? st_h_we :
            st_w && es_valid ? st_w_we:
            4'b0000 ;
@@ -248,8 +316,8 @@ module EXU (
             );
 
     // 对结果进行汇总
-
-    assign exu_result = ({32{op_div}} & div_result)
+    assign exu_result = res_from_csr ? wire_csr_data :
+           ({32{op_div}} & div_result)
            | ({32{op_divu}} & div_result)
            | ({32{op_mod}} & mod_result)
            | ({32{op_modu}} & mod_result)
@@ -269,15 +337,17 @@ module EXU (
            | ({32{wire_alu_op[10]}} & alu_result)
            | ({32{wire_alu_op[11]}} & alu_result);
 
+
+
     // 握手信号
-    assign es_ready_go    = complete & div ? 1'b1 :
-           div ? 1'b0 :
+    assign es_ready_go = complete & div & !exu_excp ? 1'b1 :
+           div & !exu_excp ? 1'b0 :
            1'b1;
     assign es_allowin     = !es_valid || es_ready_go && ms_allowin;
     assign es_to_ms_valid =  es_valid && es_ready_go;
 
     always @(posedge clk) begin
-        if (rst) begin
+        if (rst || flush_sign) begin
             es_valid <= 1'b0;
         end
         else if (es_allowin) begin
@@ -286,6 +356,8 @@ module EXU (
         if (ds_to_es_valid && es_allowin) begin
             ds_to_es_bus_data_r <= bus_ds_to_es_data;
             mem_op_reg <= in_mem_op;
+            ds_excp_num_r <= ds_excp_num;
+            ds_excp_r <= ds_excp;
 
         end
     end

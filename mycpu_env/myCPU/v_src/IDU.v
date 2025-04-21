@@ -7,6 +7,11 @@ module IDU (
         // from ifu
         input wire [31:0] in_pc,
 
+        input wire fs_excp,
+        input wire [15:0] fs_excp_num,
+        output wire ds_excp_out,
+        output wire [15:0] ds_excp_num_out,
+
         // to rf
         output wire [4:0] rf_raddr1,
         output wire [4:0] rf_raddr2,
@@ -19,14 +24,27 @@ module IDU (
         input [31:0] inst_sram_data,
 
         // bus
-        output wire [177:0] bus_ds_to_es_data,
+        output wire [258:0] bus_ds_to_es_data,
 
         output wire [7:0] out_mem_op,
 
+        // csr
+        output wire [13:0] rd_csr_addr,
+        input  wire [31:0] rd_csr_data,
+        // input  wire [ 1:0] csr_plv,
+
+        // exception
+        input wire ertn_flush,
+        input wire excp_flush,
+        input wire exu_excp,
+
         // 直通解决数据相关
-        input wire [37:0] bus_exu_bypass_data,
-        input wire [37:0] bus_mem_bypass_data,
-        input wire [37:0] bus_wbu_bypass_data,
+        input wire [84:0] bus_exu_bypass_data,
+        input wire [84:0] bus_mem_bypass_data,
+        input wire [84:0] bus_wbu_bypass_data,
+
+        // csr 的数据相关
+
 
         // 握手信号
         //allowin
@@ -37,34 +55,77 @@ module IDU (
         output   ds_to_es_valid     // 发给下游的空闲信号
     );
 
+
+    // 异常类型
+    wire [15:0] syscall_num;
+
+    reg [15:0] fs_excp_num_r; // 从上一级接收
+    reg fs_excp_r;
+
+    wire [15:0] wire_fs_excp_num;
+    wire wire_fs_excp;
+
+    assign wire_fs_excp_num = fs_excp_num_r;
+    assign wire_fs_excp = fs_excp_r;
+
+    wire [15:0] ds_excp_num;
+    wire ds_excp;
+
+    // 输出
+    assign ds_excp_out = ds_excp;
+    assign ds_excp_num_out = ds_excp_num;
+
+    wire flush_sign;
+    assign flush_sign = ertn_flush | excp_flush;
+
+
+
     // 数据相关
 
     wire exu_regWr;
     wire [31:0] exu_data;
     wire [4:0] exu_regAddr;
+    wire exu_csr_we;
+    wire [13:0] exu_csr_idx;
+    wire [31:0] exu_csr_wdata;
 
     wire mem_regWr;
     wire [31:0] mem_data;
     wire [4:0] mem_regAddr;
+    wire mem_csr_we;
+    wire [13:0] mem_csr_idx;
+    wire [31:0] mem_csr_wdata;
 
     wire wbu_regWr;
     wire [31:0] wbu_data;
     wire [4:0] wbu_regAddr;
+    wire wbu_csr_we;
+    wire [13:0] wbu_csr_idx;
+    wire [31:0] wbu_csr_wdata;
 
     assign {
             exu_regWr,
             exu_data,
-            exu_regAddr
+            exu_regAddr,
+            exu_csr_we,
+            exu_csr_idx,
+            exu_csr_wdata
         } = bus_exu_bypass_data;
     assign {
             mem_regWr,
             mem_data,
-            mem_regAddr
+            mem_regAddr,
+            mem_csr_we,
+            mem_csr_idx,
+            mem_csr_wdata
         } = bus_mem_bypass_data;
     assign {
             wbu_regWr,
             wbu_data,
-            wbu_regAddr
+            wbu_regAddr,
+            wbu_csr_we,
+            wbu_csr_idx,
+            wbu_csr_wdata
         } = bus_wbu_bypass_data;
 
 
@@ -76,15 +137,41 @@ module IDU (
     wire        mem_we;
     wire [31:0] rkd_value;
     wire        res_from_mem;
+    wire        res_from_csr;
     wire        gr_we;
     wire [4:0]  dest;
     wire [31:0] pc;
+    // csr
+    wire [13:0] csr_idx; // csr 索引
+    wire [31:0] csr_data;
+    wire [31:0] csr_mask;
+    wire [31:0] csr_wdata; // 给 csr 中写的数据
+    wire is_inst_ertn;
+    wire csr_we;
+    wire kernel_inst;   // 特权指令
+
 
     wire br_taken;
     wire [31:0] br_target;
 
     assign bus_br_data = {br_taken, br_target};
-    assign bus_ds_to_es_data = {mul_div_op, alu_op, alu_src1, alu_src2, mem_we, rkd_value, res_from_mem, gr_we, dest, idu_pc};
+    assign bus_ds_to_es_data = {
+               mul_div_op,
+               alu_op,
+               alu_src1,
+               alu_src2,
+               mem_we,
+               rkd_value,
+               res_from_mem,
+               gr_we, dest,
+               idu_pc,
+               res_from_csr,
+               csr_data,
+               csr_we,
+               csr_idx,
+               csr_wdata,
+               is_inst_ertn
+           };
 
     wire [31:0] idu_inst;
     wire [31:0] idu_pc;
@@ -114,6 +201,11 @@ module IDU (
     wire [15:0] op_25_22_d;
     wire [ 3:0] op_21_20_d;
     wire [31:0] op_19_15_d;
+
+    // csr
+    wire [31:0] rd_d;
+    wire [31:0] rj_d;
+    wire [31:0] rk_d;
 
     wire        inst_add_w;
     wire        inst_sub_w;
@@ -163,6 +255,13 @@ module IDU (
     wire        inst_mod_w;
     wire        inst_mod_wu;
 
+    wire        inst_csrrd;
+    wire        inst_csrwr;
+    wire        inst_csrxchg;
+    wire        inst_ertn;
+
+    wire        inst_syscall;
+
 
     wire        need_ui5;
     wire        need_si12;
@@ -188,7 +287,7 @@ module IDU (
     end
     // 检测 load-use 数据相关
     wire load_use_conflict;
-    assign load_use_conflict = is_load && exu_regWr && (rf_raddr1 == exu_regAddr) && rf_raddr1 != 5'd0;
+    assign load_use_conflict = is_load && exu_regWr && (rf_raddr1 == exu_regAddr) && rf_raddr1 != 5'd0 && ~flush_sign;
 
     reg [31:0] conflict_regaData;
     reg [31:0] conflict_regbData;
@@ -238,18 +337,19 @@ module IDU (
     assign ds_to_es_valid = ds_valid && ds_ready_go;
 
     always @(posedge clk ) begin
-        if (rst) begin
+        if (rst || flush_sign) begin
             ds_valid <= 1'b0;
         end
         else if (ds_allowin) begin
             ds_valid <= fs_to_ds_valid;
         end
         if (fs_to_ds_valid && ds_allowin) begin
-            // 卸货，暂时不使用 bus
             pc_reg <= in_pc;
             // 如果当前是跳转，那么下一条指令置空
             inst_sram_rdata_reg <= br_taken ? 32'd0 :inst_sram_data;
             // inst_sram_rdata_reg <= inst_sram_rdata;
+            fs_excp_num_r <= fs_excp_num;
+            fs_excp_r <= fs_excp;
 
         end
     end
@@ -273,11 +373,17 @@ module IDU (
                              0], idu_inst[25:
                                           10]};
 
+    // csr
+    assign csr_idx = idu_inst[23:10];
 
     decoder_6_64 u_dec0(.in(op_31_26 ), .out(op_31_26_d ));
     decoder_4_16 u_dec1(.in(op_25_22 ), .out(op_25_22_d ));
     decoder_2_4  u_dec2(.in(op_21_20 ), .out(op_21_20_d ));
     decoder_5_32 u_dec3(.in(op_19_15 ), .out(op_19_15_d ));
+
+    decoder_5_32 u_dec4(.in(rd  ), .out(rd_d  ));
+    decoder_5_32 u_dec5(.in(rj  ), .out(rj_d  ));
+    decoder_5_32 u_dec6(.in(rk  ), .out(rk_d  ));
 
     assign inst_add_w  = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h1] & op_19_15_d[5'h00];
     assign inst_sub_w  = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h1] & op_19_15_d[5'h02];
@@ -330,6 +436,17 @@ module IDU (
     assign inst_mod_w   = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h2] & op_19_15_d[5'h1];
     assign inst_mod_wu  = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h2] & op_19_15_d[5'h3];
 
+    // csr
+    assign inst_csrrd      = op_31_26_d[6'h01] & ~idu_inst[25] & ~idu_inst[24] & rj_d[5'h00];
+    assign inst_csrwr      = op_31_26_d[6'h01] & ~idu_inst[25] & ~idu_inst[24] & rj_d[5'h01];
+    assign inst_csrxchg    = op_31_26_d[6'h01] & ~idu_inst[25] & ~idu_inst[24] & ~rj_d[5'h00] & ~rj_d[5'h01];
+    assign inst_ertn       = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & rk_d[5'h0e] & rj_d[5'h00] & rd_d[5'h00];
+    assign inst_syscall    = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h2] & op_19_15_d[5'h16];
+
+    assign kernel_inst = inst_csrrd|
+           inst_csrwr|
+           inst_csrxchg;
+
     assign alu_op[ 0] = inst_add_w | inst_addi_w | inst_ld_w | inst_st_w |
            | inst_jirl | inst_bl | inst_pcaddu12i | inst_ld_b | inst_ld_bu |
            inst_ld_h | inst_ld_hu | inst_st_b | inst_st_h;
@@ -367,10 +484,6 @@ module IDU (
 
     assign need_ui12  =  inst_andi | inst_ori | inst_xori;
 
-    // assign imm = src2_is_4 ? 32'h4:
-    //        need_si20 ? {i20[19:0], 12'b0}:
-    //        /*need_ui5 || need_si12*/{{20{i12[11]}}, i12[11:0]} ;
-
     assign imm =    src2_is_4 ? 32'h4:
            need_ui12 ? {20'b0, i12[11:0]}: // 12位零扩展立即数
            need_si20 ? {i20[19:0], 12'b0}:
@@ -383,8 +496,17 @@ module IDU (
     assign jirl_offs = {{14{i16[15]}}, i16[15:
                                            0], 2'b0};
 
-    assign src_reg_is_rd = inst_beq | inst_bne | inst_st_w | inst_st_h | inst_st_b | inst_blt | inst_bltu |
-           inst_bge | inst_bgeu;
+    assign src_reg_is_rd = inst_beq |
+           inst_bne |
+           inst_st_w |
+           inst_st_h |
+           inst_st_b |
+           inst_blt |
+           inst_bltu |
+           inst_bge |
+           inst_bgeu |
+           inst_csrwr  |
+           inst_csrxchg;
 
     assign src1_is_pc    = inst_jirl | inst_bl | inst_pcaddu12i;
 
@@ -415,8 +537,27 @@ module IDU (
 
 
     assign res_from_mem  = inst_ld_w | inst_ld_b | inst_ld_bu | inst_ld_h | inst_ld_hu;
-    assign dst_is_r1     = inst_bl;
-    assign gr_we         = inst_bl |
+    assign res_from_csr =  inst_csrrd | inst_csrwr | inst_csrxchg;
+    assign rd_csr_addr = csr_idx;
+
+    // 解决 csr 数据相关
+    wire [31:0] conflict_csr_data;
+
+    assign conflict_csr_data = exu_csr_we && (exu_csr_idx == csr_idx) ? exu_csr_wdata :
+           mem_csr_we && (mem_csr_idx == csr_idx) ? mem_csr_wdata :
+           wbu_csr_we && (wbu_csr_idx == csr_idx) ? wbu_csr_wdata : rd_csr_data;
+    assign csr_data = conflict_csr_data;
+
+    assign csr_we = inst_csrwr | inst_csrxchg; // 修改 csr
+
+    // 根据掩码 rj，将 old_rd 写入到 rj[x]=1 对应的 csr 位中
+    assign csr_mask = inst_csrwr ? 32'hffffffff : rj_value;
+    assign csr_wdata = rkd_value & csr_mask | (csr_data & ~csr_mask);
+
+    assign is_inst_ertn = inst_ertn; // 是 ertn 指令
+
+    assign dst_is_r1 = inst_bl;
+    assign gr_we = inst_bl |
            inst_add_w |
            inst_sub_w |
            inst_slt |
@@ -450,7 +591,11 @@ module IDU (
            inst_div_w|
            inst_div_wu|
            inst_mod_w|
-           inst_mod_wu;
+           inst_mod_wu|
+           inst_csrrd|
+           inst_csrxchg|
+           inst_csrwr
+           ;
 
     assign mem_we        = inst_st_w | inst_st_b | inst_st_h;
     assign dest          = dst_is_r1 ? 5'd1 : rd;
@@ -481,10 +626,17 @@ module IDU (
                        || inst_bltu && rj_ltu_rd
                        || inst_bge  && rj_gt_rd
                        || inst_bgeu && rj_gtu_rd
-                      ) && ds_valid;
+                      ) && ds_valid && !wire_fs_excp && !exu_excp;
     assign br_target = (inst_beq || inst_bne || inst_bl || inst_b || inst_blt || inst_bltu || inst_bge || inst_bgeu) ? (idu_pc + br_offs) :
            /*inst_jirl*/  (rj_value + jirl_offs);
 
+    assign ds_excp = inst_syscall | wire_fs_excp;
+    wire syscall_num = inst_syscall ? 16'h0800 : 16'b0;
+    // 异常号根据异常是否发生，置位
+    assign ds_excp_num = syscall_num | wire_fs_excp_num;
+
     assign alu_src1 = src1_is_pc  ? idu_pc[31:0] : rj_value;
     assign alu_src2 = src2_is_imm ? imm : rkd_value;
+
+
 endmodule
