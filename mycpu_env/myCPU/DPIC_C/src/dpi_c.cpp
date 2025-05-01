@@ -31,6 +31,8 @@ extern "C" int data_ram_read(int addr) {
     printf("data_read_addr:%08x\n", addr);
     if (addr == SW_INTER_ADDR) {
         return 0x0000aaaa;
+    } else if (addr == OPEN_TRACE_ADDR) {
+        return 0x0000001;
     }
     return paddr_read(addr);
 }
@@ -39,7 +41,6 @@ extern "C" int inst_ram_read(int addr) {
 }
 
 extern "C" void data_ram_write(int addr, int wdata, unsigned char wmask) {
-
     // 底层写的实现原理为：
     // 所有的写写地址都对齐到 4 字节
     // 写之前，先读出，之后根据 wmask 修改这个数据
@@ -95,6 +96,6 @@ extern "C" void data_ram_write(int addr, int wdata, unsigned char wmask) {
     printf("data_write_addr:%08x--->final_wdata:%08x\n", addr, target);
     paddr_write(addr, target);
     // 写完验证一下
-        uint32_t ans = data_ram_read(addr);
-        printf("after write and check: data_wrote:%08x\n", ans);
+    uint32_t ans = data_ram_read(addr);
+    printf("after write and check: data_wrote:%08x\n", ans);
 }

@@ -1,6 +1,7 @@
 module mycpu_top(
         input  wire        clk,
         input  wire        resetn,
+        // input    [ 7:0] intrpt,
         // inst sram interface
         output wire        inst_sram_en,
         output wire [3:0]  inst_sram_we,
@@ -21,6 +22,7 @@ module mycpu_top(
         output wire [ 4:0] debug_wb_rf_wnum,
         output wire [31:0] debug_wb_rf_wdata
     );
+    wire [ 7:0] intrpt;
 
     // reg         reset;
     // always @(posedge clk) reset <= ~resetn;
@@ -63,7 +65,7 @@ module mycpu_top(
 
     wire exu_es_excp_out;
     wire [15:0] exu_es_excp_num_out;
-    wire [118:0] exu_bus_exu_to_mem_data;
+    wire [150:0] exu_bus_exu_to_mem_data;
 
     wire exu_regWr;
     wire [31:0] exu_data;
@@ -82,7 +84,7 @@ module mycpu_top(
 
     wire mem_ms_excp_out;
     wire [15:0] mem_ms_excp_num_out;
-    wire [117:0] mem_bus_mem_to_wbu_data;
+    wire [149:0] mem_bus_mem_to_wbu_data;
     wire mem_regWr;
     wire [31:0] mem_data;
     wire [4:0] mem_regAddr;
@@ -92,7 +94,8 @@ module mycpu_top(
 
     wire [84:0] mem_bus_mem_bypass_data;
 
-        wire mem_mem_excp;
+    wire mem_mem_excp;
+    wire mem_is_ertn;
 
     // wbu
     wire        wbu_rf_we;
@@ -125,15 +128,19 @@ module mycpu_top(
 
     wire [31:0] wbu_csr_era;
 
+    wire wbu_is_ertn;
+
     //  regfile
     wire [31:0] rf_rdata1;
     wire [31:0] rf_rdata2;
 
     // csr
-
     wire [31:0] csr_rd_data;
     wire [31:0] csr_era_out;
     wire [31:0] csr_eentry_out;
+    wire [63:0] csr_timer_64_out;
+    wire [31:0] csr_tid_out;
+    wire csr_has_int;
 
     pre_IFU pre_ifu(
                 .clk        (clk),
@@ -150,7 +157,6 @@ module mycpu_top(
                 .pfs_excp   (preifu_pfs_excp),
                 .fs_allowin (ifu_fs_allowin)
             );
-
     // ifu
     IFU ifu(
             .clk        (clk),
@@ -172,8 +178,6 @@ module mycpu_top(
     assign inst_sram_we = 4'b0;
     assign inst_sram_addr = preifu_inst_addr;
     assign inst_sram_wdata = 32'b0;
-
-    // assign data_sram_en = 1'b1;
 
     // regfile
     regfile u_regfile(
@@ -222,9 +226,14 @@ module mycpu_top(
             .rd_csr_addr      (idu_rd_csr_addr),
             .rd_csr_data       (csr_rd_data),
 
+            // timer
+            .timer_64(csr_timer_64_out),
+            .csr_tid(csr_tid_out),
+
             .ertn_flush    (wbu_ertn_flush),
             .excp_flush    (wbu_excp_flush),
             .exu_excp      (exu_exu_excp),
+            .has_int(csr_has_int),
             // 直通解决数据相关
             .bus_exu_bypass_data(exu_bus_exu_bypass_data),
             .bus_mem_bypass_data(mem_bus_mem_bypass_data),
@@ -267,6 +276,7 @@ module mycpu_top(
             .excp_flush (wbu_excp_flush),
             .mem_excp (mem_mem_excp),
             .exu_excp (exu_exu_excp),
+            .mem_in_is_ertn(mem_is_ertn),
 
             .ms_allowin(mem_ms_allowin),
             .es_allowin(exe_es_allowin),
@@ -297,7 +307,10 @@ module mycpu_top(
 
             .ertn_flush (wbu_ertn_flush),
             .excp_flush (wbu_excp_flush),
+
+            .wbu_in_is_ertn(wbu_is_ertn),
             .mem_excp(mem_mem_excp),
+            .is_ertn (mem_is_ertn),
 
             .ws_allowin(wbu_ws_allowin),
             .ms_allowin(mem_ms_allowin),
@@ -337,6 +350,7 @@ module mycpu_top(
             .excp_tlb   (wbu_excp_tlb),
             .excp_tlb_vppn(wbu_excp_tlb_vppn),
             .csr_era    (wbu_csr_era),
+            .is_ertn    (wbu_is_ertn),
             .ertn_flush (wbu_ertn_flush),
             .excp_flush (wbu_excp_flush),
 
@@ -344,12 +358,15 @@ module mycpu_top(
             .ms_to_ws_valid(mem_ms_to_ws_valid)
         );
 
-        csr csr_o(
+    csr csr_o(
             .clk        (clk),
-            .reset      (reset),
+            .rst      (reset),
             //from ds for read
             .rd_addr    (idu_rd_csr_addr),
             .rd_data    (csr_rd_data),
+            .interuption (intrpt),
+            .timer_64_out(csr_timer_64_out),
+            .tid_out(csr_tid_out),
             // write signal
             .csr_wr_en  (wbu_csr_we),
             .wr_addr    (wbu_csr_addr),
@@ -365,6 +382,7 @@ module mycpu_top(
             .excp_tlbrefill(wbu_excp_tlbrefill),
             .excp_tlb   (wbu_excp_tlb),
             .excp_tlb_vppn(wbu_excp_tlb_vppn),
+            .has_int(csr_has_int),
 
             // to ifu
             .era_out    (csr_era_out),

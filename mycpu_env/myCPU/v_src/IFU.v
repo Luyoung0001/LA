@@ -56,8 +56,8 @@ module IFU (
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             pc <= 32'h1bfffffc;
-            fs_excp_r      <= 1'b0;
-            fs_excp_num_r  <= 16'b0;
+            fs_excp_r <= 1'b0;
+            fs_excp_num_r <= 16'b0;
         end
         // 上游指令处理完毕且当前阶段允许上游进入，那么当前阶段开始处理数据
         else if(to_fs_valid && fs_allowin) begin

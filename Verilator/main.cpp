@@ -75,6 +75,11 @@ int difftest() {
     int temp_we = (we == 15 ? 1 : 0);
     if (temp_we == 1 && wnum != 0) {
         read_ref();
+        // 如果执行读取内核时钟指令，ref 的 difftest we 信号为 0，此时不应该进行
+        // difftest 直接返回 1 即可
+        if (ref_struct.we == 0) {
+            return 1;
+        }
         return wnum == ref_struct.wnum && pc == ref_struct.pc &&
                value == ref_struct.value;
     }
@@ -97,17 +102,15 @@ void cpu_exec(uint64_t n) {
 
         // 停机信号
         uint32_t pc = top->rootp->verilator_top->debug_wb_pc;
-
-        // 如果为 0 说明不一致，应该打印一些信息
         if (difftest() == 0) {
             printf("Error!\n");
             break;
         }
-
         uint32_t stop_pc = 0x1c000100;
         if (pc == stop_pc) {
             break;
         }
+
         stepi();
         n--;
     }
@@ -116,11 +119,8 @@ void cpu_exec(uint64_t n) {
 }
 
 void init_system() {
-    // 分配内存
     init_mem();
-    // 加载镜像
     load_inst();
-    // 打开文件
     op_file();
 }
 

@@ -8,8 +8,8 @@ module pre_IFU (
 
         output wire [31:0] next_pc,
         output wire [31:0]  inst_addr,       // 发射给inst_ram的地址
-        input                          excp_flush       ,
-        input                          ertn_flush       ,
+        input wire excp_flush,
+        input wire ertn_flush,
         input wire [31:0] csr_era,
         input wire [31:0] csr_eentry,
 

@@ -94,6 +94,7 @@ wire [31:0] debug_wb_pc;
 wire [3 :0] debug_wb_rf_wen;
 wire [4 :0] debug_wb_rf_wnum;
 wire [31:0] debug_wb_rf_wdata;
+
 assign soc_clk           = soc_lite.clk;
 assign debug_wb_pc       = soc_lite.debug_wb_pc;
 assign debug_wb_rf_wen   = soc_lite.debug_wb_rf_wen;

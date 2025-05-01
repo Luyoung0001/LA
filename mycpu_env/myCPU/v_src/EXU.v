@@ -9,7 +9,7 @@ module EXU (
 
         // bus
         input wire [258:0] bus_ds_to_es_data,
-        output wire [118:0] bus_exu_to_mem_data,
+        output wire [150:0] bus_exu_to_mem_data,
 
         input wire [7:0] in_mem_op,
 
@@ -32,6 +32,8 @@ module EXU (
 
         output wire exu_excp, // 发射到上游的异常信号
 
+        input wire mem_in_is_ertn,
+
 
         // 握手信号
         // allowin
@@ -46,6 +48,9 @@ module EXU (
     reg [15:0] ds_excp_num_r; // 从上一级接收
     reg ds_excp_r;
 
+    wire [15:0] excp_ale_num; // 地址非对齐
+    wire excp_ale;
+
     wire [15:0] wire_ds_excp_num;
     wire wire_ds_excp;
 
@@ -55,8 +60,11 @@ module EXU (
     wire [15:0] es_excp_num;
     wire es_excp;
 
-    assign es_excp_num = wire_ds_excp_num;
-    assign es_excp = wire_ds_excp;
+    assign es_excp_num = wire_ds_excp_num | excp_ale_num;
+    assign es_excp = wire_ds_excp | excp_ale;
+
+    wire [31:0] pv_addr ;
+    wire [31:0] error_va ;
 
     // 输出
     assign es_excp_out = es_excp;
@@ -141,7 +149,8 @@ module EXU (
                wire_csr_we,
                wire_csr_idx,
                wire_csr_wdata,
-               wire_is_inst_ertn
+               wire_is_inst_ertn,
+               error_va
            };
 
 
@@ -158,6 +167,9 @@ module EXU (
             .alu_src2   (wire_alu_src2  ),
             .alu_result (alu_result)
         );
+    // 同时，将错误地址传递到下游
+    assign pv_addr = alu_result;
+    assign error_va = pv_addr;
 
     // 解决数据相关
     assign exu_regWr = gr_we;
@@ -213,26 +225,13 @@ module EXU (
 
     assign out_mem_mask = ld_mask;
 
-    assign ld_mask = ld_b && (alu_result[1:0] == 2'b00) ? 4'b0001 :
-           ld_b && (alu_result[1:0] == 2'b01) ? 4'b0010 :
-           ld_b && (alu_result[1:0] == 2'b10) ? 4'b0100 :
-           ld_b && (alu_result[1:0] == 2'b11) ? 4'b1000 :
-           ld_bu && (alu_result[1:0] == 2'b00) ? 4'b0001 :
-           ld_bu && (alu_result[1:0] == 2'b01) ? 4'b0010 :
-           ld_bu && (alu_result[1:0] == 2'b10) ? 4'b0100 :
-           ld_bu && (alu_result[1:0] == 2'b11) ? 4'b1000 :
-           ld_h && (alu_result[1:0] == 2'b00) ? 4'b0011 :
-           ld_h && (alu_result[1:0] == 2'b01) ? 4'b0110 :
-           ld_h && (alu_result[1:0] == 2'b10) ? 4'b1100 :
-           ld_h && (alu_result[1:0] == 2'b11) ? 4'b0000 :
-           ld_hu && (alu_result[1:0] == 2'b00) ? 4'b0011 :
-           ld_hu && (alu_result[1:0] == 2'b01) ? 4'b0110 :
-           ld_hu && (alu_result[1:0] == 2'b10) ? 4'b1100 :
-           ld_hu && (alu_result[1:0] == 2'b11) ? 4'b0000 :
+    assign ld_mask = (ld_b | ld_bu) && (alu_result[1:0] == 2'b00) ? 4'b0001 :
+           (ld_b |ld_bu ) && (alu_result[1:0] == 2'b01) ? 4'b0010 :
+           (ld_b | ld_bu) && (alu_result[1:0] == 2'b10) ? 4'b0100 :
+           (ld_b | ld_bu) && (alu_result[1:0] == 2'b11) ? 4'b1000 :
+           (ld_h |ld_hu)  && (alu_result[1:0] == 2'b00) ? 4'b0011 :
+           (ld_h |ld_hu) && (alu_result[1:0] == 2'b10) ? 4'b1100 :
            ld_w && (alu_result[1:0] == 2'b00) ? 4'b1111 :
-           ld_w && (alu_result[1:0] == 2'b01) ? 4'b1111 :
-           ld_w && (alu_result[1:0] == 2'b10) ? 4'b1111 :
-           ld_w && (alu_result[1:0] == 2'b11) ? 4'b1111 :
            4'b0000;
 
 
@@ -241,15 +240,22 @@ module EXU (
            alu_result[1:0] == 2'b10 ? 4'b0100 :
            4'b1000;
     assign st_h_we = alu_result[1:0] == 2'b00 ? 4'b0011 :
-           alu_result[1:0] == 2'b01 ? 4'b0110 :
            alu_result[1:0] == 2'b10 ? 4'b1100 :
            4'b0000;
     assign st_w_we = 4'b1111;
 
+    // 检测地址是否自然对齐
+    // 如果是 ld_h 或者 st_h，对齐到偶数地址
+    // 如果是 ld_w 或者 st_w，对齐到4字节
+    assign excp_ale = (ld_h | ld_hu | st_h) && alu_result[0] ? 1'b1 :
+           (ld_w | st_w) && (alu_result[1:0] != 2'b00) ? 1'b1 : 1'b0;
+
+    assign excp_ale_num = excp_ale ? 16'h0200 :16'b0;
+
     // 使能信号必须借助 alu_result 进行计算
     // 因此，在 alu_result 计算完成后，才能发出访存信号
     // 访存信号
-    assign data_sram_we = (mem_excp | flush_sign) ? 4'b0000 : // 异常
+    assign data_sram_we = (exu_excp | flush_sign | mem_in_is_ertn) ? 4'b0000 : // 异常
            st_b && es_valid ? st_b_we :
            st_h && es_valid ? st_h_we :
            st_w && es_valid ? st_w_we:
@@ -257,7 +263,7 @@ module EXU (
     assign data_sram_addr  = alu_result; // 访存地址
     assign data_sram_en = st_b || st_h || st_w || ld_b || ld_bu || ld_h || ld_hu || ld_w;
 
-    // 写入的数据很讲究
+    // 写入
     assign data_sram_wdata = st_b ? {4{wire_in_rkd_value[7:0]}} :
            st_h ? {2{wire_in_rkd_value[15:0]}} :
            st_w ? wire_in_rkd_value : 32'b0;
@@ -289,9 +295,10 @@ module EXU (
             .mul_result(mul_result)
         );
 
-    // 除法器，调用 ip 实现，这里是 axi 总线
+    // 除法器
     wire [31:0] div_result;
     wire [31:0] mod_result;
+
     reg complete;
     wire wire_complete;
     always @(posedge clk) begin
@@ -340,9 +347,11 @@ module EXU (
 
 
     // 握手信号
-    assign es_ready_go = complete & div & !exu_excp ? 1'b1 :
-           div & !exu_excp ? 1'b0 :
-           1'b1;
+    assign es_ready_go = exu_excp ? 1'b1 : // 异常直接继续
+           complete & div ? 1'b1 :         // 计算完成
+           div ? 1'b0 :                    // 计算未完成
+           1'b1;                           // 其它情况
+
     assign es_allowin     = !es_valid || es_ready_go && ms_allowin;
     assign es_to_ms_valid =  es_valid && es_ready_go;
 

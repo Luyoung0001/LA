@@ -3424,11 +3424,13 @@ module SimpleLACore(
   assign io_data_req_bits_wdata = _io_data_req_bits_wdata_T_2[31:0];
   assign io_data_req_bits_cacop = _T_35 ? 1'h0 : _T_1251;
   assign io_data_req_bits_preld = _T_35 ? 1'h0 : _T_1315;
+
   assign io_debug_pc = PC;
   assign io_debug_wen = mem_OK & |wbIdx & _T_1355 ? 4'hf : 4'h0;
   assign io_debug_wnum = _wbIdx_T_9 | _wbIdx_T_7;
   assign io_debug_wdata = _wbData_T_23 | _GEN_2370;
   assign io_debug_inst = dStallReg ? inst_reg : io_inst_resp_bits;
+  
   always @(posedge clock) begin
     if (GR_MPORT_en & GR_MPORT_mask) begin
       GR[GR_MPORT_addr] <= GR_MPORT_data;
