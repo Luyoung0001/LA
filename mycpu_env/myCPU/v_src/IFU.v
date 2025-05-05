@@ -28,7 +28,6 @@ module IFU (
     reg  [31:0] pc;
     reg  [31:0] inst_ram_data_reg; // 发射给下游的指令
 
-
     // IFU 阶段有效信号
     reg fs_valid;     // 表示当前流水级是否在处理指令
     wire fs_ready_go; // 表示流水级是否需要被阻塞

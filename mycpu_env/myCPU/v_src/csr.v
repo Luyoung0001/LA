@@ -11,27 +11,45 @@ module csr(
         //timer 64
         output wire [63:0] timer_64_out ,
         output wire [31:0] tid_out,
-        // write signal
-        input wire csr_wr_en,
-        input wire [13:0] wr_addr,
-        input wire [31:0] wr_data,
-        input wire [31:0] era_in,
-        input wire ertn_flush,
-        input wire excp_flush,
 
-        input wire [ 5:0] ecode_in,
-        input wire va_error_in,
-        input wire [31:0] bad_va_in,
-        input wire [ 8:0] esubcode_in,
-        input wire excp_tlbrefill,
-        input wire excp_tlb,
-        input wire [18:0] excp_tlb_vppn,
+        input wire [147:0] bus_wbu_to_csr_data,
+        input wire [1:0] flush,
         output wire has_int,
 
         // to ifu
         output wire [31:0] era_out,
         output wire [31:0] eentry_out
     );
+
+    wire excp_flush;
+    wire ertn_flush;
+    assign {excp_flush, ertn_flush} = flush;
+
+    // csr
+    wire csr_wr_en;
+    wire [13:0] csr_waddr;
+    wire [31:0] csr_wdata;
+    wire [31:0] csr_era_in;
+    wire [5:0] csr_ecode;
+    wire [31:0] bad_va;
+    wire [8:0] csr_esubcode;
+    wire va_error;
+    wire excp_tlbrefill;
+    wire excp_tlb;
+    wire [18:0] excp_tlb_vppn;
+    assign {
+            csr_wr_en,
+            csr_waddr,
+            csr_wdata,
+            csr_ecode,
+            va_error,
+            bad_va,
+            csr_esubcode,
+            excp_tlbrefill,
+            excp_tlb,
+            excp_tlb_vppn,
+            csr_era_in
+        } = bus_wbu_to_csr_data;
 
     reg [63:0] timer_64;
     reg        timer_en;
@@ -52,23 +70,23 @@ module csr(
     localparam TVAL  = 14'h42;
     localparam TICLR = 14'h44;
 
-    wire crmd_wen   = csr_wr_en & (wr_addr == CRMD);
-    wire prmd_wen   = csr_wr_en & (wr_addr == PRMD);
-    wire ecfg_wen   = csr_wr_en & (wr_addr == ECFG);
-    wire estat_wen  = csr_wr_en & (wr_addr == ESTAT);
-    wire era_wen    = csr_wr_en & (wr_addr == ERA);
-    wire eentry_wen = csr_wr_en & (wr_addr == EENTRY);
-    wire badv_wen   = csr_wr_en & (wr_addr == BADV);
+    wire crmd_wen   = csr_wr_en & (csr_waddr == CRMD);
+    wire prmd_wen   = csr_wr_en & (csr_waddr == PRMD);
+    wire ecfg_wen   = csr_wr_en & (csr_waddr == ECFG);
+    wire estat_wen  = csr_wr_en & (csr_waddr == ESTAT);
+    wire era_wen    = csr_wr_en & (csr_waddr == ERA);
+    wire eentry_wen = csr_wr_en & (csr_waddr == EENTRY);
+    wire badv_wen   = csr_wr_en & (csr_waddr == BADV);
 
-    wire save0_wen  = csr_wr_en & (wr_addr == SAVE0);
-    wire save1_wen  = csr_wr_en & (wr_addr == SAVE1);
-    wire save2_wen  = csr_wr_en & (wr_addr == SAVE2);
-    wire save3_wen  = csr_wr_en & (wr_addr == SAVE3);
+    wire save0_wen  = csr_wr_en & (csr_waddr == SAVE0);
+    wire save1_wen  = csr_wr_en & (csr_waddr == SAVE1);
+    wire save2_wen  = csr_wr_en & (csr_waddr == SAVE2);
+    wire save3_wen  = csr_wr_en & (csr_waddr == SAVE3);
 
-    wire tid_wen    = csr_wr_en & (wr_addr == TID);
-    wire tcfg_wen   = csr_wr_en & (wr_addr == TCFG);
-    wire tval_wen   = csr_wr_en & (wr_addr == TVAL);
-    wire ticlr_wen  = csr_wr_en & (wr_addr == TICLR);
+    wire tid_wen    = csr_wr_en & (csr_waddr == TID);
+    wire tcfg_wen   = csr_wr_en & (csr_waddr == TCFG);
+    wire tval_wen   = csr_wr_en & (csr_waddr == TVAL);
+    wire ticlr_wen  = csr_wr_en & (csr_waddr == TICLR);
 
     reg [31:0] csr_crmd;
     reg [31:0] csr_prmd;
@@ -111,8 +129,6 @@ module csr(
     assign tid_out      = csr_tid;
     assign timer_64_out = timer_64;
     assign has_int = ((csr_ecfg[`LIE] & csr_estat[`IS]) != 13'b0) & csr_crmd[`IE];
-    ; // 软件中断、定时器中断
-
 
     //crmd
     always @(posedge clk) begin
@@ -135,15 +151,15 @@ module csr(
             csr_crmd[  `IE] <= csr_prmd[`PIE ]; // 恢复中断
         end
         else if (crmd_wen) begin
-            csr_crmd[ `PLV] <= wr_data[ `PLV];
-            csr_crmd[  `IE] <= wr_data[	 `IE];
-            csr_crmd[  `DA] <= wr_data[	 `DA];
-            csr_crmd[  `PG] <= wr_data[  `PG];
-            csr_crmd[`DATF] <= wr_data[`DATF];
-            csr_crmd[`DATM] <= wr_data[`DATM];
+            csr_crmd[ `PLV] <= csr_wdata[ `PLV];
+            csr_crmd[  `IE] <= csr_wdata[	 `IE];
+            csr_crmd[  `DA] <= csr_wdata[	 `DA];
+            csr_crmd[  `PG] <= csr_wdata[  `PG];
+            csr_crmd[`DATF] <= csr_wdata[`DATF];
+            csr_crmd[`DATM] <= csr_wdata[`DATM];
         end
     end
-    
+
     //prmd
     always @(posedge clk) begin
         if (rst) begin
@@ -154,8 +170,8 @@ module csr(
             csr_prmd[ `PIE] <= csr_crmd[`IE ];
         end
         else if (prmd_wen) begin
-            csr_prmd[`PPLV] <= wr_data[`PPLV];
-            csr_prmd[ `PIE] <= wr_data[ `PIE];
+            csr_prmd[`PPLV] <= csr_wdata[`PPLV];
+            csr_prmd[ `PIE] <= csr_wdata[ `PIE];
         end
     end
 
@@ -171,24 +187,24 @@ module csr(
             timer_en <= 1'b0;
         end
         else begin
-            if (ticlr_wen && wr_data[`CLR]) begin
+            if (ticlr_wen && csr_wdata[`CLR]) begin
                 csr_estat[11] <= 1'b0;
             end
             else if (tcfg_wen) begin
-                timer_en <= wr_data[`EN];
+                timer_en <= csr_wdata[`EN];
             end
             else if (timer_en && (csr_tval == 32'b0)) begin
                 csr_estat[11] <= 1'b1;           // 减到 0 的时候，置中断
                 timer_en <= csr_tcfg[`PERIODIC]; // 是否重复计时
             end
-            csr_estat[9:2] <= interuption; // 中断状态位
+            csr_estat[9:2] <= interuption; // 直接对外部中断进行采样
 
             if (excp_flush) begin
-                csr_estat[`ECODE] <= ecode_in;
-                csr_estat[`ESUBCODE] <= esubcode_in;
+                csr_estat[`ECODE] <= csr_ecode;
+                csr_estat[`ESUBCODE] <= csr_esubcode;
             end
             else if (estat_wen) begin
-                csr_estat[1:0] <= wr_data[1:0]; // 仅仅被 csr 更新
+                csr_estat[1:0] <= csr_wdata[1:0]; // 仅仅被 csr 更新
             end
         end
     end
@@ -196,10 +212,10 @@ module csr(
     //era
     always @(posedge clk) begin
         if (excp_flush) begin
-            csr_era <= era_in; // 发生例外时写
+            csr_era <= csr_era_in; // 发生例外时写
         end
         else if (era_wen) begin
-            csr_era <= wr_data;  // 也可以直接操作
+            csr_era <= csr_wdata;  // 也可以直接操作
         end
     end
 
@@ -209,45 +225,45 @@ module csr(
             csr_eentry[5:0] <= 6'b0;
         end
         else if (eentry_wen) begin
-            csr_eentry[31:6] <= wr_data[31:6];
+            csr_eentry[31:6] <= csr_wdata[31:6];
         end
     end
 
     //badv
     always @(posedge clk) begin
         if (badv_wen) begin
-            csr_badv <= wr_data;
+            csr_badv <= csr_wdata;
         end
-        else if (va_error_in) begin
-            csr_badv <= bad_va_in;
+        else if (va_error) begin
+            csr_badv <= bad_va;
         end
     end
 
     //save0
     always @(posedge clk) begin
         if (save0_wen) begin
-            csr_save0 <= wr_data;
+            csr_save0 <= csr_wdata;
         end
     end
 
     //save1
     always @(posedge clk) begin
         if (save1_wen) begin
-            csr_save1 <= wr_data;
+            csr_save1 <= csr_wdata;
         end
     end
 
     //save2
     always @(posedge clk) begin
         if (save2_wen) begin
-            csr_save2 <= wr_data;
+            csr_save2 <= csr_wdata;
         end
     end
 
     //save3
     always @(posedge clk) begin
         if (save3_wen) begin
-            csr_save3 <= wr_data;
+            csr_save3 <= csr_wdata;
         end
     end
 
@@ -257,7 +273,7 @@ module csr(
             csr_tid <= 32'b0;
         end
         else if (tid_wen) begin
-            csr_tid <= wr_data;
+            csr_tid <= csr_wdata;
         end
     end
 
@@ -267,27 +283,27 @@ module csr(
             csr_tcfg[`EN] <= 1'b0;
         end
         else if (tcfg_wen) begin
-            csr_tcfg[      `EN] <= wr_data[      `EN];
-            csr_tcfg[`PERIODIC] <= wr_data[`PERIODIC];
-            csr_tcfg[ `INITVAL] <= wr_data[ `INITVAL];
+            csr_tcfg[      `EN] <= csr_wdata[      `EN];
+            csr_tcfg[`PERIODIC] <= csr_wdata[`PERIODIC];
+            csr_tcfg[ `INITVAL] <= csr_wdata[ `INITVAL];
         end
     end
 
-    //ectl
+    //ecfg
     always @(posedge clk) begin
         if (rst) begin
             csr_ecfg <= 32'b0;
         end
         else if (ecfg_wen) begin
-            csr_ecfg[ `LIE_1] <= wr_data[ `LIE_1];
-            csr_ecfg[ `LIE_2] <= wr_data[ `LIE_2];
+            csr_ecfg[ `LIE_1] <= csr_wdata[ `LIE_1];
+            csr_ecfg[ `LIE_2] <= csr_wdata[ `LIE_2];
         end
     end
 
     //tval
     always @(posedge clk) begin
         if (tcfg_wen) begin
-            csr_tval <= {wr_data[ `INITVAL], 2'b0};
+            csr_tval <= {csr_wdata[ `INITVAL], 2'b0};
         end
         else if (timer_en) begin
             if (csr_tval != 32'b0) begin

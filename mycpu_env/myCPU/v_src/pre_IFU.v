@@ -8,8 +8,9 @@ module pre_IFU (
 
         output wire [31:0] next_pc,
         output wire [31:0]  inst_addr,       // 发射给inst_ram的地址
-        input wire excp_flush,
-        input wire ertn_flush,
+        // input wire excp_flush,
+        // input wire ertn_flush,
+        input wire [1:0] flush,
         input wire [31:0] csr_era,
         input wire [31:0] csr_eentry,
 
@@ -20,6 +21,10 @@ module pre_IFU (
         // 让 inst_addr 变成上一个周期的值
         input wire fs_allowin
     );
+    wire excp_flush;
+    wire ertn_flush;
+    assign {excp_flush, ertn_flush} = flush;
+
     wire flush_sign;
     assign flush_sign = ertn_flush || excp_flush;
 
@@ -46,7 +51,6 @@ module pre_IFU (
 
     // 取值地址错例外
     assign pfs_excp_adef = (nextpc[0] || nextpc[1]);
-
     assign pfs_excp = pfs_excp_adef;
 
 

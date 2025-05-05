@@ -19,16 +19,11 @@ module MEM(
         output wire [84:0] bus_mem_bypass_data,
 
         // exception
-        input wire ertn_flush,
-        input wire excp_flush,
+        input wire [1:0] flush,
 
         input wire wbu_in_is_ertn,
-
         output wire mem_excp, // 发射到 exu 以实现精确异常
-
-        // ertn
-
-        output wire is_ertn,
+        output wire is_ertn, // 这个信号的作用和异常一致，但是它归根结底不属于异常
 
         // 握手信号
         //allowin
@@ -38,6 +33,10 @@ module MEM(
         input    es_to_ms_valid, // 来自上游的 valid 信号
         output   ms_to_ws_valid  // 发给下游的 valid 信号
     );
+
+    wire excp_flush;
+    wire ertn_flush;
+    assign {excp_flush, ertn_flush} = flush;
 
     // 异常信号
     reg [15:0] es_excp_num_r; // 从上一级接收
@@ -49,24 +48,15 @@ module MEM(
     assign wire_es_excp_num = es_excp_num_r;
     assign wire_es_excp = es_excp_r;
 
-
-
-    wire [15:0] ms_excp_num;
-    wire ms_excp;
+    wire [15:0] ms_excp_num; // 当前阶段的异常 += 上一阶段
+    wire ms_excp;            // 当前阶段的异常 += 上一阶段
 
     assign ms_excp_num = wire_es_excp_num;
     assign ms_excp = wire_es_excp;
 
-    // 输出
-    assign ms_excp_out = ms_excp;
-    assign ms_excp_num_out = ms_excp_num;
-
-
-
+    // 清空信号
     wire flush_sign;
     assign flush_sign = ertn_flush | excp_flush;
-
-    assign mem_excp = ms_excp;
 
     // 数据相关
     wire mem_regWr;
@@ -76,7 +66,6 @@ module MEM(
     wire mem_csr_we;
     wire [13:0] mem_csr_idx;
     wire [31:0] mem_csr_wdata;
-
 
 
     reg [150:0] bus_exu_to_mem_data_r;
@@ -128,6 +117,12 @@ module MEM(
                wire_error_va
            };
 
+    // 输出
+    assign ms_excp_out = ms_excp;
+    assign ms_excp_num_out = ms_excp_num;
+    assign mem_excp = ms_excp;   // 发送给上一级，目的是为了取消上一级的一些执行效果，比如内存写、除法计算等等
+    assign is_ertn = wire_is_inst_ertn | wbu_in_is_ertn; // 同样也是为了取消上一级的执行效果
+
     assign gr_we          = wire_gr_we & ms_valid;
     assign dest           = wire_dest;
     assign pc             = wire_pc;
@@ -177,8 +172,6 @@ module MEM(
            data_sram_rdata;
 
     assign final_result = wire_res_from_mem ? mem_result : wire_exu_result;
-
-    assign is_ertn = wire_is_inst_ertn | wbu_in_is_ertn;
 
 
     // 解决数据相关

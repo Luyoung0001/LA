@@ -25,11 +25,9 @@ module EXU (
         output wire [3:0] out_mem_mask,
 
         // exception
-        input wire ertn_flush,
-        input wire excp_flush,
+        input wire [1:0] flush,
 
         input wire mem_excp,
-
         output wire exu_excp, // 发射到上游的异常信号
 
         input wire mem_in_is_ertn,
@@ -43,6 +41,10 @@ module EXU (
         input     ds_to_es_valid, // 来自的上游的 valid 信号
         output    es_to_ms_valid  // 发给下游的 valid 信号
     );
+
+    wire excp_flush;
+    wire ertn_flush;
+    assign {excp_flush, ertn_flush} = flush;
 
     // 异常信号
     reg [15:0] ds_excp_num_r; // 从上一级接收
@@ -255,7 +257,7 @@ module EXU (
     // 使能信号必须借助 alu_result 进行计算
     // 因此，在 alu_result 计算完成后，才能发出访存信号
     // 访存信号
-    assign data_sram_we = (exu_excp | flush_sign | mem_in_is_ertn) ? 4'b0000 : // 异常
+    assign data_sram_we = (mem_excp | es_excp | flush_sign | mem_in_is_ertn) ? 4'b0000 : // 异常
            st_b && es_valid ? st_b_we :
            st_h && es_valid ? st_h_we :
            st_w && es_valid ? st_w_we:
@@ -347,7 +349,7 @@ module EXU (
 
 
     // 握手信号
-    assign es_ready_go = exu_excp ? 1'b1 : // 异常直接继续
+    assign es_ready_go = (es_excp | mem_excp | flush_sign | mem_in_is_ertn) ? 1'b1 : // 异常直接继续
            complete & div ? 1'b1 :         // 计算完成
            div ? 1'b0 :                    // 计算未完成
            1'b1;                           // 其它情况
@@ -367,7 +369,6 @@ module EXU (
             mem_op_reg <= in_mem_op;
             ds_excp_num_r <= ds_excp_num;
             ds_excp_r <= ds_excp;
-
         end
     end
 

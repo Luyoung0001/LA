@@ -22,10 +22,8 @@ module mycpu_top(
         output wire [ 4:0] debug_wb_rf_wnum,
         output wire [31:0] debug_wb_rf_wdata
     );
-    wire [ 7:0] intrpt;
+    wire [7:0] intrpt;
 
-    // reg         reset;
-    // always @(posedge clk) reset <= ~resetn;
     wire reset;
     assign reset = ~resetn;
 
@@ -123,8 +121,9 @@ module mycpu_top(
     wire wbu_excp_tlb;
     wire [18:0] wbu_excp_tlb_vppn;
 
-    wire wbu_ertn_flush;
-    wire wbu_excp_flush;
+    wire [147:0] wbu_bus_wbu_to_csr_data;
+
+    wire [1:0] wbu_flush;
 
     wire [31:0] wbu_csr_era;
 
@@ -149,8 +148,7 @@ module mycpu_top(
                 .bus_br_data    (idu_bus_br_data),
                 .next_pc    (preifu_next_pc),
                 .inst_addr  (preifu_inst_addr),
-                .excp_flush (wbu_excp_flush),
-                .ertn_flush (wbu_ertn_flush),
+                .flush     (wbu_flush),
                 .csr_era    (csr_era_out),
                 .csr_eentry (csr_eentry_out),
                 .pfs_excp_adef(preifu_pfs_excp_adef),
@@ -230,8 +228,7 @@ module mycpu_top(
             .timer_64(csr_timer_64_out),
             .csr_tid(csr_tid_out),
 
-            .ertn_flush    (wbu_ertn_flush),
-            .excp_flush    (wbu_excp_flush),
+            .flush     (wbu_flush),
             .exu_excp      (exu_exu_excp),
             .has_int(csr_has_int),
             // 直通解决数据相关
@@ -272,8 +269,7 @@ module mycpu_top(
             .out_mem_op(exu_out_mem_op),
             .out_mem_mask(exu_out_mem_mask),
 
-            .ertn_flush (wbu_ertn_flush),
-            .excp_flush (wbu_excp_flush),
+            .flush     (wbu_flush),
             .mem_excp (mem_mem_excp),
             .exu_excp (exu_exu_excp),
             .mem_in_is_ertn(mem_is_ertn),
@@ -305,8 +301,7 @@ module mycpu_top(
             .data_sram_rdata(data_sram_rdata),
             .bus_mem_bypass_data(mem_bus_mem_bypass_data),
 
-            .ertn_flush (wbu_ertn_flush),
-            .excp_flush (wbu_excp_flush),
+            .flush     (wbu_flush),
 
             .wbu_in_is_ertn(wbu_is_ertn),
             .mem_excp(mem_mem_excp),
@@ -337,22 +332,9 @@ module mycpu_top(
             // 数据相关
             .bus_wbu_bypass_data(wbu_bus_wbu_bypass_data),
 
-            // csr
-            .csr_we     (wbu_csr_we),
-            .csr_addr   (wbu_csr_addr),
-            .csr_wdata  (wbu_csr_wdata),
-
-            .csr_ecode  (wbu_csr_ecode),
-            .va_error   (wbu_va_error),
-            .bad_va     (wbu_bad_va),
-            .csr_esubcode(wbu_csr_esubcode),
-            .excp_tlbrefill(wbu_excp_tlbrefill),
-            .excp_tlb   (wbu_excp_tlb),
-            .excp_tlb_vppn(wbu_excp_tlb_vppn),
-            .csr_era    (wbu_csr_era),
+            .bus_wub_to_csr_data(wbu_bus_wbu_to_csr_data),
             .is_ertn    (wbu_is_ertn),
-            .ertn_flush (wbu_ertn_flush),
-            .excp_flush (wbu_excp_flush),
+            .flush     (wbu_flush),
 
             .ws_allowin(wbu_ws_allowin),
             .ms_to_ws_valid(mem_ms_to_ws_valid)
@@ -367,21 +349,8 @@ module mycpu_top(
             .interuption (intrpt),
             .timer_64_out(csr_timer_64_out),
             .tid_out(csr_tid_out),
-            // write signal
-            .csr_wr_en  (wbu_csr_we),
-            .wr_addr    (wbu_csr_addr),
-            .wr_data    (wbu_csr_wdata),
-            .era_in     (wbu_csr_era),
-            .ertn_flush (wbu_ertn_flush),
-            .excp_flush (wbu_excp_flush),
-
-            .ecode_in   (wbu_csr_ecode),
-            .va_error_in(wbu_va_error),
-            .bad_va_in  (wbu_bad_va),
-            .esubcode_in(wbu_csr_esubcode),
-            .excp_tlbrefill(wbu_excp_tlbrefill),
-            .excp_tlb   (wbu_excp_tlb),
-            .excp_tlb_vppn(wbu_excp_tlb_vppn),
+            .bus_wbu_to_csr_data(wbu_bus_wbu_to_csr_data),
+            .flush     (wbu_flush),
             .has_int(csr_has_int),
 
             // to ifu

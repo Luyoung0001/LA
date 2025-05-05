@@ -18,30 +18,35 @@ module WBU(
         // bus
         output wire [84:0] bus_wbu_bypass_data,
         // csr
-        output wire csr_we,
-        output wire [13:0] csr_addr,
-        output wire [31:0] csr_wdata,
-
-        output [ 5:0] csr_ecode,
-        output wire va_error,
-        output [31:0] bad_va,
-        output [8:0] csr_esubcode,
-        output wire excp_tlbrefill,
-        output wire excp_tlb,
-        output [18:0] excp_tlb_vppn,
+        output wire [147:0] bus_wub_to_csr_data,
 
         // exception
-        output wire ertn_flush,
-        output wire  excp_flush,
-        output wire [31:0] csr_era,
+        output wire [1:0] flush,
+
         // ertn
         output wire is_ertn,
         // 握手信号
         //allowin
         output  ws_allowin,    // 发给上游的 allowin 信号
         input   ms_to_ws_valid // 来自的上游的 valid 信号
-
     );
+
+    wire excp_flush;
+    wire ertn_flush;
+    assign flush = {excp_flush, ertn_flush};
+
+    // to_csr
+    wire csr_we;
+    wire [13:0] csr_addr;
+    wire [31:0] csr_wdata;
+    wire [31:0] csr_era;
+    wire [5:0] csr_ecode;
+    wire [31:0] bad_va;
+    wire [8:0] csr_esubcode;
+    wire va_error;
+    wire excp_tlbrefill;
+    wire excp_tlb;
+    wire [18:0] excp_tlb_vppn;
 
     // 异常信号
     reg [15:0] ms_excp_num_r; // 从上一级接收
@@ -93,7 +98,6 @@ module WBU(
             wire_is_inst_ertn,
             wire_error_va
         } = bus_mem_to_wbu_data_r;
-
 
 
     reg ws_valid;
@@ -151,8 +155,6 @@ module WBU(
     assign flush_sign = excp_flush || ertn_flush;
 
     assign is_ertn = wire_is_inst_ertn;
-
-
     assign csr_era = wire_pc;
     // 检测异常
     assign {csr_ecode,
@@ -169,5 +171,19 @@ module WBU(
            ws_excp_num[12] ? {`ECODE_BRK , 1'b0, 32'b0, 9'b0, 1'b0, 1'b0, 19'b0} :
            ws_excp_num[13] ? {`ECODE_INE , 1'b0, 32'b0, 9'b0, 1'b0, 1'b0, 19'b0} :
            69'b0;
+
+    // 信号发射到下游
+    assign bus_wub_to_csr_data = {
+               csr_we,
+               csr_addr,
+               csr_wdata,
+               csr_ecode,
+               va_error,
+               bad_va,
+               csr_esubcode,
+               excp_tlbrefill,
+               excp_tlb,
+               excp_tlb_vppn,
+               csr_era};
 
 endmodule

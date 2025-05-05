@@ -31,17 +31,19 @@ module IDU (
         // csr
         output wire [13:0] rd_csr_addr,
         input  wire [31:0] rd_csr_data,
-        // input  wire [ 1:0] csr_plv,
 
         //timer 64
-        input  [63:0]    timer_64,
-        input  [31:0]    csr_tid,
+        input [63:0] timer_64,
+        input [31:0] csr_tid,
 
         // exception
-        input wire ertn_flush,
-        input wire excp_flush,
-        input wire exu_excp,
+        // input wire ertn_flush,
+        // input wire excp_flush,
+
+        input wire [1:0] flush,
         input wire has_int,
+
+        input wire exu_excp,
 
         // 直通解决数据相关
         input wire [84:0] bus_exu_bypass_data,
@@ -58,11 +60,15 @@ module IDU (
         output   ds_to_es_valid     // 发给下游的空闲信号
     );
 
+    wire excp_flush;
+    wire ertn_flush;
+    assign {excp_flush, ertn_flush} = flush;
+
     // 异常类型
-    wire [15:0] syscall_num;
-    wire [15:0] excp_ine_num;
-    wire [15:0] excp_brk_num;
-    wire [15:0] excp_ie_num;
+    wire [15:0] syscall_num;    // 系统调用异常
+    wire [15:0] excp_ine_num;   // 指令无效异常
+    wire [15:0] excp_brk_num;   // 断点异常
+    wire [15:0] excp_ie_num;    // 中断异常
 
     wire excp_brk;
     wire inst_valid;
@@ -304,7 +310,7 @@ module IDU (
     end
     // 检测 load-use 数据相关
     wire load_use_conflict;
-    assign load_use_conflict = is_load && exu_regWr && (rf_raddr1 == exu_regAddr) && rf_raddr1 != 5'd0 && ~flush_sign;
+    assign load_use_conflict = is_load && exu_regWr && (rf_raddr1 == exu_regAddr) && rf_raddr1 != 5'd0;
 
     reg [31:0] conflict_regaData;
     reg [31:0] conflict_regbData;
@@ -349,7 +355,7 @@ module IDU (
     reg   ds_valid;    // 表示当前流水级是否在处理指令
     wire  ds_ready_go; // 是否需要阻塞
 
-    assign ds_ready_go    =  ds_valid & !load_use_conflict;
+    assign ds_ready_go    =  flush_sign ? 1'b1 : ds_valid & !load_use_conflict;
     assign ds_allowin     = !ds_valid || ds_ready_go && es_allowin; // 表示当前阶段是否允许上游进入
     assign ds_to_es_valid = ds_valid && ds_ready_go;
 
@@ -368,7 +374,6 @@ module IDU (
             pc_reg <= in_pc;
             // 如果当前是跳转，那么下一条指令置 NOP
             inst_sram_rdata_reg <= br_taken ? inst_nop_data :inst_sram_data;
-            // inst_sram_rdata_reg <= inst_sram_rdata;
             fs_excp_num_r <= fs_excp_num;
             fs_excp_r <= fs_excp;
         end
@@ -582,15 +587,12 @@ module IDU (
     // 1c076238:	0000600f 	rdtimel.w	$r15,$r0
     // 1c07623c:	00006180 	rdtimel.w	$r0,$r12
 
-
-
     assign {rdcnt_en, rdcnt_result} = ({33{inst_rdcntvl_w}} & {1'b1, timer_64[31: 0]}) |
            ({33{inst_rdcntvh_w}} & {1'b1, timer_64[63:32]}) |
            ({33{inst_rdcntid_w}} & {1'b1, csr_tid});
 
-
-
     // 解决 csr 数据相关
+
     wire [31:0] conflict_csr_data;
     assign conflict_csr_data = exu_csr_we && (exu_csr_idx == csr_idx) ? exu_csr_wdata :
            mem_csr_we && (mem_csr_idx == csr_idx) ? mem_csr_wdata :
@@ -686,7 +688,7 @@ module IDU (
     assign br_target = (inst_beq || inst_bne || inst_bl || inst_b || inst_blt || inst_bltu || inst_bge || inst_bgeu) ? (idu_pc + br_offs) :
            /*inst_jirl*/  (rj_value + jirl_offs);
 
-
+    // 如果下游有异常，当前指令全部 valid 就行，不用报指令无效异常
     assign inst_valid = exu_excp ? 1'b1 : inst_add_w |
            inst_sub_w|
            inst_slt |
@@ -744,10 +746,6 @@ module IDU (
            inst_rdcntvh_w;
 
     assign ds_excp = (inst_syscall | wire_fs_excp | ~inst_valid | inst_break | has_int) & ~is_nop;
-
-    // assign ds_excp = inst_syscall | wire_fs_excp | inst_break | has_int;
-    // assign ds_excp = inst_syscall | wire_fs_excp;
-
     assign syscall_num = inst_syscall ? 16'h0800 : 16'b0;
     assign excp_ine_num = ~inst_valid ? 16'h2000 : 16'b0;
     assign excp_brk_num = inst_break ? 16'h1000 : 16'b0;
@@ -757,7 +755,6 @@ module IDU (
     assign ds_excp_num = ~is_nop ? (syscall_num | wire_fs_excp_num | excp_ine_num | excp_brk_num | excp_ie_num) :
            (syscall_num | wire_fs_excp_num | excp_ine_num | excp_brk_num);
 
-    // assign ds_excp_num = syscall_num | wire_fs_excp_num;
     assign alu_src1 = src1_is_pc  ? idu_pc[31:0] : rj_value;
     assign alu_src2 = src2_is_imm ? imm : rkd_value;
 
