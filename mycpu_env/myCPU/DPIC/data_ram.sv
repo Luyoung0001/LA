@@ -52,13 +52,4 @@ module data_ram(
         end
     end
 
-    // 同步读操作，延迟一个周期
-    // always_ff @(posedge clk) begin
-    //         if (en) begin
-
-    //         end else begin
-    //             spo <= 32'h0; // 没有使能时输出默认值
-    //         end
-    //     end
-
 endmodule

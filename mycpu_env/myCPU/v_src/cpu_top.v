@@ -1,7 +1,50 @@
-module mycpu_top(
+module cpu_top(
         input  wire        clk,
         input  wire        resetn,
-        // input    [ 7:0] intrpt,
+
+        // AXI
+        // read request
+        // output   reg[ 3:0] arid,
+        // output   reg[31:0] araddr,
+        // output   reg[ 7:0] arlen,
+        // output   reg[ 2:0] arsize,
+        // output      [ 1:0] arburst,
+        // output      [ 1:0] arlock,
+        // output      [ 3:0] arcache,
+        // output      [ 2:0] arprot,
+        // output   reg       arvalid,
+        // input              arready,
+
+        // input    [ 3:0] rid,
+        // input    [31:0] rdata,
+        // input    [ 1:0] rresp,
+        // input           rlast,
+        // input           rvalid,
+        // output   reg    rready,
+
+        // output      [ 3:0] awid,
+        // output   reg[31:0] awaddr,
+        // output   reg[ 7:0] awlen,
+        // output   reg[ 2:0] awsize,
+        // output      [ 1:0] awburst,
+        // output      [ 1:0] awlock,
+        // output      [ 3:0] awcache,
+        // output      [ 2:0] awprot,
+        // output   reg       awvalid,
+        // input              awready,
+
+        // output      [ 3:0] wid,
+        // output   reg[31:0] wdata,
+        // output   reg[ 3:0] wstrb,
+        // output   reg       wlast,
+        // output   reg       wvalid,
+        // input              wready,
+
+        // input    [ 3:0] bid,
+        // input    [ 1:0] bresp,
+        // input           bvalid,
+        // output   reg    bready,
+
         // inst sram interface
         output wire        inst_sram_en,
         output wire [3:0]  inst_sram_we,
@@ -24,6 +67,8 @@ module mycpu_top(
     );
     wire [7:0] intrpt;
 
+    assign intrpt = 8'b0;
+
     wire reset;
     assign reset = ~resetn;
 
@@ -32,6 +77,8 @@ module mycpu_top(
     wire [31:0] preifu_next_pc;
     wire preifu_pfs_excp_adef;
     wire preifu_pfs_excp;
+    wire [31:0] preifu_inst_data;
+    wire preifu_rvalid_o;
 
     // ifu
     wire [31:0] ifu_fs_pc;
@@ -40,6 +87,7 @@ module mycpu_top(
 
     wire ifu_fs_excp_out;
     wire [15:0] ifu_fs_excp_num_out;
+    wire [31:0] ifu_inst_data_o;
 
     // idu
     wire [32:0] idu_bus_br_data;
@@ -59,6 +107,8 @@ module mycpu_top(
     wire idu_ds_allowin;
     wire idu_ds_to_es_valid;
 
+    wire [31:0] idu_inst_data;
+
     // exu
 
     wire exu_es_excp_out;
@@ -75,8 +125,6 @@ module mycpu_top(
     wire [84:0] exu_bus_exu_bypass_data;
     wire [7:0] exu_out_mem_op;
     wire [3:0] exu_out_mem_mask;
-
-
 
     // mem
 
@@ -141,34 +189,59 @@ module mycpu_top(
     wire [31:0] csr_tid_out;
     wire csr_has_int;
 
-    pre_IFU pre_ifu(
-                .clk        (clk),
-                .rst        (reset),
-                .fs_pc      (ifu_fs_pc),
-                .bus_br_data    (idu_bus_br_data),
-                .next_pc    (preifu_next_pc),
-                .inst_addr  (preifu_inst_addr),
-                .flush     (wbu_flush),
-                .csr_era    (csr_era_out),
-                .csr_eentry (csr_eentry_out),
-                .pfs_excp_adef(preifu_pfs_excp_adef),
-                .pfs_excp   (preifu_pfs_excp),
-                .fs_allowin (ifu_fs_allowin)
-            );
+    // pre_IFU pre_ifu(
+    //             .clk        (clk),
+    //             .rst        (reset),
+    //             .fs_pc      (ifu_fs_pc),
+    //             .bus_br_data    (idu_bus_br_data),
+    //             .next_pc    (preifu_next_pc),
+    //             .inst_addr  (preifu_inst_addr),
+    //             .inst_data  (preifu_inst_data),
+    //             .flush     (wbu_flush),
+    //             .csr_era    (csr_era_out),
+    //             .csr_eentry (csr_eentry_out),
+    //             .pfs_excp_adef(preifu_pfs_excp_adef),
+    //             .pfs_excp   (preifu_pfs_excp),
+    //             .fs_allowin (ifu_fs_allowin)
+    //             // AXI
+    //             // .arid       (arid),
+    //             // .araddr     (araddr),
+    //             // .arlen      (arlen),
+    //             // .arsize     (arsize),
+    //             // .arburst    (arburst),
+    //             // .arlock     (arlock),
+    //             // .arcache    (arcache),
+    //             // .arprot     (arprot),
+    //             // .arvalid    (arvalid),
+    //             // .arready    (arready),
+    //             // .rready     (rready),
+    //             // .rdata      (rdata),
+    //             // .rresp      (rresp),
+    //             // .rlast      (rlast),
+    //             // .rvalid     (rvalid),
+    //             // .rid        (rid),
+    //             // .rvalid_o   (preifu_rvalid_o)
+    //         );
     // ifu
     IFU ifu(
             .clk        (clk),
             .rst        (reset),
-            .pfs_excp_adef (preifu_pfs_excp_adef),
-            .pfs_excp   (preifu_pfs_excp),
-
+            // .pfs_excp_adef (preifu_pfs_excp_adef),
+            // .pfs_excp   (preifu_pfs_excp),
+            .bus_br_data    (idu_bus_br_data),
             .fs_excp_out (ifu_fs_excp_out),
             .fs_excp_num_out(ifu_fs_excp_num_out),
-            .next_pc    (preifu_next_pc),
+            .flush     (wbu_flush),
+            .csr_era    (csr_era_out),
+            .csr_eentry (csr_eentry_out),
+            // .next_pc    (preifu_next_pc),
+            .inst_addr  (preifu_inst_addr),
+            .inst_data  (preifu_inst_data),
             .fs_pc      (ifu_fs_pc),
             .ds_allowin (idu_ds_allowin),
-            .fs_allowin (ifu_fs_allowin),
+            // .fs_allowin (ifu_fs_allowin),
             .fs_to_ds_valid(ifu_fs_to_ds_valid)
+            // .rvalid (preifu_rvalid_o)
         );
 
     // inst_ram

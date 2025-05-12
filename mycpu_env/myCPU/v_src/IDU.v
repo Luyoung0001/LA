@@ -37,8 +37,6 @@ module IDU (
         input [31:0] csr_tid,
 
         // exception
-        // input wire ertn_flush,
-        // input wire excp_flush,
 
         input wire [1:0] flush,
         input wire has_int,
