@@ -6,9 +6,6 @@ module verilator_top(
 
     wire cpu_resetn;
     assign cpu_resetn = ~rst;
-    // always @(posedge clk)begin
-    //     cpu_resetn <= ~rst;
-    // end
 
     //cpu inst sram
     wire        cpu_inst_en;
@@ -35,15 +32,6 @@ module verilator_top(
     wire [31:0] data_sram_addr;
     wire [31:0] data_sram_wdata;
     wire [31:0] data_sram_rdata;
-
-    // //conf
-    // wire        conf_en;
-    // wire        conf_we;
-    // wire [31:0] conf_addr;
-    // wire [31:0] conf_wdata;
-    // wire [31:0] conf_rdata;
-    // wire [15:0] conf_led;
-
 
     // wire_AXI
 
@@ -89,17 +77,44 @@ module verilator_top(
     wire        wire_bready;
     wire [3:0] wire_bid;
 
+    //cpu inst sram
+    wire        cpu_inst_req;
+    wire        cpu_inst_wr;
+    wire [1 :0] cpu_inst_size;
+    wire [3 :0] cpu_inst_wstrb;
+    wire [31:0] cpu_inst_addr;
+    wire [31:0] cpu_inst_wdata;
+    wire        cpu_inst_addr_ok;
+    wire        cpu_inst_data_ok;
+    wire [31:0] cpu_inst_rdata;
+
+    //cpu data sram
+    wire        cpu_data_req;
+    wire        cpu_data_wr;
+    wire [1 :0] cpu_data_size;
+    wire [3 :0] cpu_data_wstrb;
+    wire [31:0] cpu_data_addr;
+    wire [31:0] cpu_data_wdata;
+    wire        cpu_data_addr_ok;
+    wire        cpu_data_data_ok;
+    wire [31:0] cpu_data_rdata;
+
 
     //cpu
     cpu_top cpu(
                 .clk              (clk       ),
                 .resetn           (cpu_resetn    ),  //low active
 
-                .inst_sram_en     (cpu_inst_en   ),
-                .inst_sram_we     (cpu_inst_we   ),
-                .inst_sram_addr   (cpu_inst_addr ),
-                .inst_sram_wdata  (cpu_inst_wdata),
-                .inst_sram_rdata  (cpu_inst_rdata),
+
+                .inst_sram_req    (cpu_inst_req    ),
+                .inst_sram_wr     (cpu_inst_wr     ),
+                .inst_sram_size   (cpu_inst_size   ),
+                .inst_sram_wstrb  (cpu_inst_wstrb  ),
+                .inst_sram_addr   (cpu_inst_addr   ),
+                .inst_sram_wdata  (cpu_inst_wdata  ),
+                .inst_sram_addr_ok(cpu_inst_addr_ok),
+                .inst_sram_data_ok(cpu_inst_data_ok),
+                .inst_sram_rdata  (cpu_inst_rdata  ),
 
                 // .arid           (wire_arid),
                 // .araddr         (wire_araddr),
@@ -140,11 +155,17 @@ module verilator_top(
                 // .bready         (wire_bready),
                 // .bid            (wire_bid),
 
-                .data_sram_en     (cpu_data_en   ),
-                .data_sram_we     (cpu_data_we   ),
-                .data_sram_addr   (cpu_data_addr ),
-                .data_sram_wdata  (cpu_data_wdata),
-                .data_sram_rdata  (cpu_data_rdata),
+
+                .data_sram_req    (cpu_data_req    ),
+                .data_sram_wr     (cpu_data_wr     ),
+                .data_sram_size   (cpu_data_size   ),
+                .data_sram_wstrb  (cpu_data_wstrb  ),
+                .data_sram_addr   (cpu_data_addr   ),
+                .data_sram_wdata  (cpu_data_wdata  ),
+                .data_sram_addr_ok(cpu_data_addr_ok),
+                .data_sram_data_ok(cpu_data_data_ok),
+                .data_sram_rdata  (cpu_data_rdata  ),
+
 
                 .debug_wb_pc      (debug_wb_pc),
                 .debug_wb_rf_we   (debug_wb_rf_we),
@@ -152,19 +173,95 @@ module verilator_top(
                 .debug_wb_rf_wdata(debug_wb_rf_wdata)
             );
 
-    // assign cpu_data_rdata = (cpu_data_addr == 12'd1024)? {24'b0, ~switch[7:0]} :
-    //        32'b0;
+
+    // 包装器
+
+    wire        inst_ram_en   ;
+    wire [3 :0] inst_ram_we   ;
+    wire [31:0] inst_ram_addr ;
+    wire [31:0] inst_ram_wdata;
+    wire [31:0] inst_ram_rdata;
+
+    sram_wrap u_inst_sram_wrap(
+                  .clk              (clk   ),
+                  .resetn           (cpu_resetn),  //low active
+
+                  .req             (cpu_inst_req    ),
+                  .wr              (cpu_inst_wr     ),
+                  .size            (cpu_inst_size   ),
+                  .wstrb           (cpu_inst_wstrb  ),
+                  .addr            (cpu_inst_addr   ),
+                  .wdata           (cpu_inst_wdata  ),
+                  .addr_ok         (cpu_inst_addr_ok),
+                  .data_ok         (cpu_inst_data_ok),
+                  .rdata           (cpu_inst_rdata  ),
+
+                  //slave
+                  .ram_en          (inst_ram_en     ),
+                  .ram_we          (inst_ram_we     ),
+                  .ram_addr        (inst_ram_addr   ),
+                  .ram_wdata       (inst_ram_wdata  ),
+                  .ram_rdata       (inst_ram_rdata  )
+              );
 
     //inst ram
     inst_ram inst_ram
              (
                  .clk   (clk            ),
-                 .we    (cpu_inst_we        ),
-                 .en    (cpu_inst_en),
-                 .a     (cpu_inst_addr),
-                 .d     (cpu_inst_wdata     ),
-                 .spo   (cpu_inst_rdata     )
+                 .we    (inst_ram_we        ),
+                 .en    (inst_ram_en),
+                 .a     (inst_ram_addr),
+                 .d     (inst_ram_wdata     ),
+                 .spo   (inst_ram_rdata     )
              );
+
+
+    //data ram
+    wire        data_ram_en   ;
+    wire [3 :0] data_ram_we   ;
+    wire [31:0] data_ram_addr ;
+    wire [31:0] data_ram_wdata;
+    wire [31:0] data_ram_rdata;
+
+    sram_wrap u_data_sram_wrap(
+                  .clk             (clk          ),
+                  .resetn          (cpu_resetn       ),  //low active
+
+                  .req             (cpu_data_req    ),
+                  .wr              (cpu_data_wr     ),
+                  .size            (cpu_data_size   ),
+                  .wstrb           (cpu_data_wstrb  ),
+                  .addr            (cpu_data_addr   ),
+                  .wdata           (cpu_data_wdata  ),
+                  .addr_ok         (cpu_data_addr_ok),
+                  .data_ok         (cpu_data_data_ok),
+                  .rdata           (cpu_data_rdata  ),
+
+                  //slave
+                  .ram_en          (data_ram_en     ),
+                  .ram_we          (data_ram_we     ),
+                  .ram_addr        (data_ram_addr   ),
+                  .ram_wdata       (data_ram_wdata  ),
+                  .ram_rdata       (data_ram_rdata  )
+              );
+
+
+    data_ram data_ram
+             (
+                 .clk   (clk            ),
+                 .we    (data_ram_we        ),
+                 .en    (data_ram_en        ),
+                 .a     (data_ram_addr),
+                 .d     (data_ram_wdata     ),
+                 .spo   (data_ram_rdata     )
+             );
+
+    debug debug
+          (   .debug_wb_pc(debug_wb_pc),
+              .debug_wb_rf_we(debug_wb_rf_we),
+              .debug_wb_rf_wnum(debug_wb_rf_wnum),
+              .debug_wb_rf_wdata(debug_wb_rf_wdata)
+          );
 
     // axi_ram axi_ram (
     //             .clock (clk),
@@ -210,21 +307,6 @@ module verilator_top(
     //             .bid            (wire_bid)
 
     //         );
-    data_ram data_ram
-             (
-                 .clk   (clk            ),
-                 .we    (cpu_data_we        ),
-                 .en    (cpu_data_en        ),
-                 .a     (cpu_data_addr),
-                 .d     (cpu_data_wdata     ),
-                 .spo   (cpu_data_rdata     )
-             );
-    debug debug
-          (   .debug_wb_pc(debug_wb_pc),
-              .debug_wb_rf_we(debug_wb_rf_we),
-              .debug_wb_rf_wnum(debug_wb_rf_wnum),
-              .debug_wb_rf_wdata(debug_wb_rf_wdata)
-          );
 
 
 

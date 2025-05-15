@@ -14,10 +14,21 @@ module EXU (
         input wire [7:0] in_mem_op,
 
         // to mem_sram
-        output wire [31:0] data_sram_addr,
-        output wire [31:0] data_sram_wdata,
-        output wire [3:0] data_sram_we,
-        output wire data_sram_en,
+        // output wire [31:0] data_sram_addr,
+        // output wire [31:0] data_sram_wdata,
+        // output wire [3:0] data_sram_we,
+        // output wire data_sram_en,
+
+        output req, // en
+        output wr,   // |we
+        output [1:0] size, // 新增
+        output [3:0] wstrb, // we
+        output wire [31:0] addr,
+        output [31:0] wdata,
+        input addr_ok, // 新增
+        input data_ok,
+
+
 
         output wire [84:0] bus_exu_bypass_data,
 
@@ -32,6 +43,8 @@ module EXU (
 
         input wire mem_in_is_ertn,
 
+        // 这里进行内存访问，如果此时在执行内存操作，等待多个周期
+        // 一直到收到 data_ok 为止
 
         // 握手信号
         // allowin
@@ -257,16 +270,34 @@ module EXU (
     // 使能信号必须借助 alu_result 进行计算
     // 因此，在 alu_result 计算完成后，才能发出访存信号
     // 访存信号
-    assign data_sram_we = (mem_excp | es_excp | flush_sign | mem_in_is_ertn) ? 4'b0000 : // 异常
+    // assign data_sram_we = (mem_excp | es_excp | flush_sign | mem_in_is_ertn) ? 4'b0000 : // 异常
+    //        st_b && es_valid ? st_b_we :
+    //        st_h && es_valid ? st_h_we :
+    //        st_w && es_valid ? st_w_we:
+    //        4'b0000 ;
+    // assign data_sram_addr  = alu_result; // 访存地址
+    // assign data_sram_en = st_b || st_h || st_w || ld_b || ld_bu || ld_h || ld_hu || ld_w;
+
+    // // 写入
+    // assign data_sram_wdata = st_b ? {4{wire_in_rkd_value[7:0]}} :
+    //        st_h ? {2{wire_in_rkd_value[15:0]}} :
+    //        st_w ? wire_in_rkd_value : 32'b0;
+
+    // 访存信号
+    assign size = ld_b || ld_bu || st_b ? 2'b00 :
+           ld_h || ld_hu || st_h ? 2'b01 :
+           st_w ? 2'b10 : 2'b00;
+    assign wr = (st_b || st_h || st_w) && es_valid ? 1'b1 : 1'b0;
+    
+    assign wstrb = (mem_excp | es_excp | flush_sign | mem_in_is_ertn) ? 4'b0000 : // 异常
            st_b && es_valid ? st_b_we :
            st_h && es_valid ? st_h_we :
            st_w && es_valid ? st_w_we:
            4'b0000 ;
-    assign data_sram_addr  = alu_result; // 访存地址
-    assign data_sram_en = st_b || st_h || st_w || ld_b || ld_bu || ld_h || ld_hu || ld_w;
-
+    assign addr  = alu_result; // 访存地址
+    assign req = (st_b || st_h || st_w || ld_b || ld_bu || ld_h || ld_hu || ld_w) && ms_allowin;
     // 写入
-    assign data_sram_wdata = st_b ? {4{wire_in_rkd_value[7:0]}} :
+    assign wdata = st_b ? {4{wire_in_rkd_value[7:0]}} :
            st_h ? {2{wire_in_rkd_value[15:0]}} :
            st_w ? wire_in_rkd_value : 32'b0;
 
@@ -347,9 +378,10 @@ module EXU (
            | ({32{wire_alu_op[11]}} & alu_result);
 
 
-
+    // 是否访存
     // 握手信号
-    assign es_ready_go = (es_excp | mem_excp | flush_sign | mem_in_is_ertn) ? 1'b1 : // 异常直接继续
+    assign es_ready_go = req && !data_ok ? 1'b0 : // 访存未完成不过
+           (es_excp | mem_excp | flush_sign | mem_in_is_ertn) ? 1'b1 : // 异常直接继续
            complete & div ? 1'b1 :         // 计算完成
            div ? 1'b0 :                    // 计算未完成
            1'b1;                           // 其它情况

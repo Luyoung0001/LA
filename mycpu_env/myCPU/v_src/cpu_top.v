@@ -46,18 +46,40 @@ module cpu_top(
         // output   reg    bready,
 
         // inst sram interface
-        output wire        inst_sram_en,
-        output wire [3:0]  inst_sram_we,
+        // output wire        inst_sram_en,
+        // output wire [3:0]  inst_sram_we,
+        // output wire [31:0] inst_sram_addr,
+        // output wire [31:0] inst_sram_wdata,
+        // input  wire [31:0] inst_sram_rdata,
+
+        output inst_sram_req,
+        output inst_sram_wr,
+        output [1:0] inst_sram_size,
+        output wire [3:0] inst_sram_wstrb,
         output wire [31:0] inst_sram_addr,
         output wire [31:0] inst_sram_wdata,
+        input  wire        inst_sram_addr_ok,
+        input  wire        inst_sram_data_ok,
         input  wire [31:0] inst_sram_rdata,
 
+
         // data sram interface
-        output wire        data_sram_en,
-        output wire [3:0]  data_sram_we,
+        // output wire        data_sram_en,
+        // output wire [3:0]  data_sram_we,
+        // output wire [31:0] data_sram_addr,
+        // output wire [31:0] data_sram_wdata,
+        // input  wire [31:0] data_sram_rdata,
+
+        output wire        data_sram_req,
+        output wire        data_sram_wr,
+        output wire [1:0]  data_sram_size,
+        output wire [3:0]  data_sram_wstrb,
         output wire [31:0] data_sram_addr,
         output wire [31:0] data_sram_wdata,
+        input  wire        data_sram_addr_ok,
+        input  wire        data_sram_data_ok,
         input  wire [31:0] data_sram_rdata,
+
 
         // trace debug interface
         output wire [31:0] debug_wb_pc,
@@ -65,6 +87,8 @@ module cpu_top(
         output wire [ 4:0] debug_wb_rf_wnum,
         output wire [31:0] debug_wb_rf_wdata
     );
+
+
     wire [7:0] intrpt;
 
     assign intrpt = 8'b0;
@@ -89,6 +113,15 @@ module cpu_top(
     wire [15:0] ifu_fs_excp_num_out;
     wire [31:0] ifu_inst_data_o;
 
+    wire ifu_en;
+    wire [3:0] ifu_we;
+    wire [31:0] ifu_wdata;
+
+    wire [31:0] ifu_rdata_o;
+
+    wire ifu_condition_4;
+
+
     // idu
     wire [32:0] idu_bus_br_data;
 
@@ -109,6 +142,9 @@ module cpu_top(
 
     wire [31:0] idu_inst_data;
 
+    wire idu_get_inst;
+    wire idu_br_taken_o;
+
     // exu
 
     wire exu_es_excp_out;
@@ -125,6 +161,11 @@ module cpu_top(
     wire [84:0] exu_bus_exu_bypass_data;
     wire [7:0] exu_out_mem_op;
     wire [3:0] exu_out_mem_mask;
+
+    wire [31:0] exu_rdata_o;
+    wire exu_memory_waite_o;
+
+    wire exu_es_stop;
 
     // mem
 
@@ -189,66 +230,35 @@ module cpu_top(
     wire [31:0] csr_tid_out;
     wire csr_has_int;
 
-    // pre_IFU pre_ifu(
-    //             .clk        (clk),
-    //             .rst        (reset),
-    //             .fs_pc      (ifu_fs_pc),
-    //             .bus_br_data    (idu_bus_br_data),
-    //             .next_pc    (preifu_next_pc),
-    //             .inst_addr  (preifu_inst_addr),
-    //             .inst_data  (preifu_inst_data),
-    //             .flush     (wbu_flush),
-    //             .csr_era    (csr_era_out),
-    //             .csr_eentry (csr_eentry_out),
-    //             .pfs_excp_adef(preifu_pfs_excp_adef),
-    //             .pfs_excp   (preifu_pfs_excp),
-    //             .fs_allowin (ifu_fs_allowin)
-    //             // AXI
-    //             // .arid       (arid),
-    //             // .araddr     (araddr),
-    //             // .arlen      (arlen),
-    //             // .arsize     (arsize),
-    //             // .arburst    (arburst),
-    //             // .arlock     (arlock),
-    //             // .arcache    (arcache),
-    //             // .arprot     (arprot),
-    //             // .arvalid    (arvalid),
-    //             // .arready    (arready),
-    //             // .rready     (rready),
-    //             // .rdata      (rdata),
-    //             // .rresp      (rresp),
-    //             // .rlast      (rlast),
-    //             // .rvalid     (rvalid),
-    //             // .rid        (rid),
-    //             // .rvalid_o   (preifu_rvalid_o)
-    //         );
+
     // ifu
     IFU ifu(
             .clk        (clk),
             .rst        (reset),
-            // .pfs_excp_adef (preifu_pfs_excp_adef),
-            // .pfs_excp   (preifu_pfs_excp),
             .bus_br_data    (idu_bus_br_data),
             .fs_excp_out (ifu_fs_excp_out),
             .fs_excp_num_out(ifu_fs_excp_num_out),
             .flush     (wbu_flush),
             .csr_era    (csr_era_out),
             .csr_eentry (csr_eentry_out),
-            // .next_pc    (preifu_next_pc),
-            .inst_addr  (preifu_inst_addr),
-            .inst_data  (preifu_inst_data),
+
             .fs_pc      (ifu_fs_pc),
             .ds_allowin (idu_ds_allowin),
-            // .fs_allowin (ifu_fs_allowin),
-            .fs_to_ds_valid(ifu_fs_to_ds_valid)
-            // .rvalid (preifu_rvalid_o)
-        );
+            .fs_to_ds_valid(ifu_fs_to_ds_valid),
+            .condition_4 (ifu_condition_4),
 
-    // inst_ram
-    assign inst_sram_en = 1'b1;
-    assign inst_sram_we = 4'b0;
-    assign inst_sram_addr = preifu_inst_addr;
-    assign inst_sram_wdata = 32'b0;
+            // like SRAM
+            .req (inst_sram_req),
+            .wr  (inst_sram_wr),
+            .size(inst_sram_size),
+            .wstrb(inst_sram_wstrb),
+            .addr(inst_sram_addr),
+            .wdata(inst_sram_wdata),
+            .addr_ok(inst_sram_addr_ok),
+            .data_ok(inst_sram_data_ok)
+
+
+        );
 
     // regfile
     regfile u_regfile(
@@ -274,6 +284,8 @@ module cpu_top(
 
             // from ifu
             .in_pc         (ifu_fs_pc),
+
+            .condition_4 (ifu_condition_4),
 
             .fs_excp (ifu_fs_excp_out),
             .fs_excp_num(ifu_fs_excp_num_out),
@@ -316,6 +328,8 @@ module cpu_top(
 
         );
 
+
+
     // exu
     EXU exu(
             .clk        (clk),
@@ -331,11 +345,16 @@ module cpu_top(
 
             .in_mem_op(idu_out_mem_op),
 
-            // to mem_sram
-            .data_sram_addr(data_sram_addr),
-            .data_sram_wdata(data_sram_wdata),
-            .data_sram_we(data_sram_we),
-            .data_sram_en(data_sram_en),
+
+            .req(data_sram_req),
+            .wr(data_sram_wr),
+            .size(data_sram_size),
+            .wstrb(data_sram_wstrb),
+            .addr(data_sram_addr),
+            .wdata(data_sram_wdata),
+            .addr_ok(data_sram_addr_ok),
+            .data_ok(data_sram_data_ok),
+
 
             //  bus
             .bus_exu_bypass_data(exu_bus_exu_bypass_data),

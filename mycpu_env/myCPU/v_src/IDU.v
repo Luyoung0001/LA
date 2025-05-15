@@ -43,6 +43,8 @@ module IDU (
 
         input wire exu_excp,
 
+        input condition_4,
+
         // 直通解决数据相关
         input wire [84:0] bus_exu_bypass_data,
         input wire [84:0] bus_mem_bypass_data,
@@ -73,6 +75,7 @@ module IDU (
 
     reg [15:0] fs_excp_num_r; // 从上一级接收
     reg fs_excp_r;
+    reg reg_condition_4;
 
     wire [15:0] wire_fs_excp_num;
     wire wire_fs_excp;
@@ -360,7 +363,8 @@ module IDU (
     wire [31:0] inst_nop_data;
 
     assign inst_nop_data = 32'b0000_0011_0100_0000_0000_0000_0000_0000; // nop : andi r0, r0,0
-
+    reg [31:0] inst_buff;
+    reg buff_valid;
     always @(posedge clk ) begin
         if (rst || flush_sign) begin
             ds_valid <= 1'b0;
@@ -368,10 +372,18 @@ module IDU (
         else if (ds_allowin) begin
             ds_valid <= fs_to_ds_valid;
         end
+        reg_condition_4 <= condition_4;
+        if (condition_4) begin
+            inst_buff  <= inst_sram_data;
+            buff_valid <= 1'b1;
+        end
         if (fs_to_ds_valid && ds_allowin) begin
             pc_reg <= in_pc;
+            buff_valid <= 1'b0;
             // 如果当前是跳转，那么下一条指令置 NOP
-            inst_sram_rdata_reg <= br_taken ? inst_nop_data :inst_sram_data;
+            inst_sram_rdata_reg <= br_taken ? inst_nop_data :
+                                buff_valid ? inst_buff :
+                                inst_sram_data;
             fs_excp_num_r <= fs_excp_num;
             fs_excp_r <= fs_excp;
         end
@@ -682,7 +694,7 @@ module IDU (
                        || inst_bltu && rj_ltu_rd
                        || inst_bge  && rj_gt_rd
                        || inst_bgeu && rj_gtu_rd
-                      ) && ds_valid && !wire_fs_excp;
+                      ) && ds_valid && !wire_fs_excp && ds_ready_go;
     assign br_target = (inst_beq || inst_bne || inst_bl || inst_b || inst_blt || inst_bltu || inst_bge || inst_bgeu) ? (idu_pc + br_offs) :
            /*inst_jirl*/  (rj_value + jirl_offs);
 
