@@ -1,6 +1,7 @@
 module axi_ram (
         input          clock,
         input          reset,
+
         input   reg[ 3:0] arid,
         input   reg[31:0] araddr,
         input   reg[ 7:0] arlen,
@@ -43,9 +44,9 @@ module axi_ram (
         input   reg    bready
     );
 
-
     import "DPI-C" function int data_ram_read(input int addr);
                import "DPI-C" function void data_ram_write(input int addr, input int wdata, input byte we_7);
+
 
                           // 寄存器信号
                           logic [3:0] state;
@@ -84,7 +85,6 @@ module axi_ram (
                                             // $display("arready:= 0x%h", arready);
                                         end
                                     end
-
                                     wire [7:0] wstrb_1;  // 目标是扩展为 8 位
                           assign wstrb_1 = {4'b0, wstrb};  // 高 4 位填充 0，低 4 位为 wstrb
 
@@ -128,7 +128,7 @@ module axi_ram (
                                     end
 
                                     assign rlast = 1'b0;
-                          assign rid = 4'b0;
+                          assign rid = arid;
                           assign bid = 4'b0;
 
 

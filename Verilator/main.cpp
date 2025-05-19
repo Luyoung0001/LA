@@ -47,6 +47,8 @@ typedef struct diff {
 } diff;
 // 打开文件
 
+int i = 0;
+
 FILE* fp;
 void op_file() {
     fp = fopen("/home/luyoung/LA/mycpu_env/gettrace/golden_trace.txt", "r");
@@ -64,11 +66,29 @@ void read_ref() {
 }
 
 // 读取 trace，与拉到的信号进行比对
+// 上次的状态
+diff last_op;
+
 int difftest() {
     uint32_t we = top->rootp->verilator_top->debug_wb_rf_we;
     uint32_t wnum = top->rootp->verilator_top->debug_wb_rf_wnum;
     uint32_t pc = top->rootp->verilator_top->debug_wb_pc;
     uint32_t value = top->rootp->verilator_top->debug_wb_rf_wdata;
+
+    if (we == 15 && last_op.we == we && last_op.wnum == wnum &&
+        last_op.pc == pc && last_op.value == value) {
+        return 1;
+    }
+    if(wnum == 0){
+        return 1;
+
+    }
+    if (we && wnum !=0) {
+        last_op.we = we;
+        last_op.wnum = wnum;
+        last_op.pc = pc;
+        last_op.value = value;
+    }
     if (we)
         printf("-->CPU %d %08x %02x %08x\n", we == 15, pc, wnum, value);
 
@@ -93,8 +113,6 @@ void run(int n) {
     }
 }
 
-// 执行 CPU
-int i = 0;
 void cpu_exec(uint64_t n) {
     while (n) {
         i++;

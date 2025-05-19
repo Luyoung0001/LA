@@ -7,25 +7,25 @@ All rights reserved.
 Redistribution and use in source and binary forms, with or without modification,
 are permitted provided that the following conditions are met:
 
-1. Redistributions of source code must retain the above copyright notice, this 
+1. Redistributions of source code must retain the above copyright notice, this
 list of conditions and the following disclaimer.
 
-2. Redistributions in binary form must reproduce the above copyright notice, 
+2. Redistributions in binary form must reproduce the above copyright notice,
 this list of conditions and the following disclaimer in the documentation and/or
 other materials provided with the distribution.
 
-3. Neither the name of Loongson Technology Corporation Limited nor the names of 
-its contributors may be used to endorse or promote products derived from this 
+3. Neither the name of Loongson Technology Corporation Limited nor the names of
+its contributors may be used to endorse or promote products derived from this
 software without specific prior written permission.
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED 
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
 DISCLAIMED. IN NO EVENT SHALL LOONGSON TECHNOLOGY CORPORATION LIMITED BE LIABLE
-TO ANY PARTY FOR DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
-CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE 
-GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) 
-HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT 
+TO ANY PARTY FOR DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
 LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------------
@@ -70,9 +70,9 @@ end
 always #5 clk=~clk;
 soc_lite_top #(.SIMULATION(1'b1)) soc_lite
 (
-       .resetn      (resetn     ), 
+       .resetn      (resetn     ),
        .clk         (clk        ),
-    
+
         //------gpio-------
         .num_csn    (num_csn    ),
         .num_a_g    (num_a_g    ),
@@ -83,7 +83,7 @@ soc_lite_top #(.SIMULATION(1'b1)) soc_lite
         .btn_key_col(btn_key_col),
         .btn_key_row(btn_key_row),
         .btn_step   (btn_step   )
-    );   
+    );
 
 //soc lite signals
 //"soc_clk" means clk in cpu
@@ -117,7 +117,7 @@ reg [31:0] ref_wb_rf_wdata;
 
 integer a;
 always @(posedge soc_clk)
-begin 
+begin
     #1;
     if(|debug_wb_rf_we && debug_wb_rf_wnum!=5'd0 && !debug_end && `CONFREG_OPEN_TRACE)
     begin
@@ -143,7 +143,7 @@ assign   ref_wb_rf_wdata_v[15: 8] =   ref_wb_rf_wdata[15: 8] & {8{debug_wb_rf_we
 assign   ref_wb_rf_wdata_v[7 : 0] =   ref_wb_rf_wdata[7 : 0] & {8{debug_wb_rf_we[0]}};
 
 
-//compare result in rsing edge 
+//compare result in rsing edge
 reg debug_wb_err;
 always @(posedge soc_clk)
 begin

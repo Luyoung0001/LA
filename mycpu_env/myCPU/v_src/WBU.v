@@ -16,19 +16,19 @@ module WBU(
         output wire [31:0] pc,
 
         // bus
-        output wire [84:0] bus_wbu_bypass_data,
+        output wire [85:0] bus_wbu_bypass_data,
+
         // csr
         output wire [147:0] bus_wub_to_csr_data,
 
         // exception
         output wire [1:0] flush,
-
         // ertn
         output wire is_ertn,
+
         // 握手信号
-        //allowin
-        output  ws_allowin,    // 发给上游的 allowin 信号
-        input   ms_to_ws_valid // 来自的上游的 valid 信号
+        input up_valid,
+        output waite_ready_o
     );
 
     wire excp_flush;
@@ -70,6 +70,7 @@ module WBU(
     wire wbu_regWr;
     wire [31:0] wbu_data;
     wire [4:0] wbu_regAddr;
+    wire wbu_over;
 
     wire wbu_csr_we;
     wire [13:0] wbu_csr_idx;
@@ -87,6 +88,7 @@ module WBU(
 
     reg [149:0] bus_mem_to_wbu_data_r;
 
+
     assign {
             wire_gr_we,
             wire_dest,
@@ -100,28 +102,42 @@ module WBU(
         } = bus_mem_to_wbu_data_r;
 
 
-    reg ws_valid;
-    wire ws_ready_go;
+    // 这里为了不重复发射寄存器写信号，采用如下的策略
+    // 每次对 4 元组进行获取，如果检测到和上次发生变化，则将标记置 1
 
-    assign ws_ready_go = 1'b1;
-    assign ws_allowin  = !ws_valid || ws_ready_go;
+    reg [31:0] last_pc;
+    reg [4:0] last_waddr;
+    reg [31:0] last_wdata;
+    wire is_same;
+    assign is_same = last_pc == pc && last_wdata == rf_wdata && last_waddr == rf_waddr;
+
+    reg [1:0] wbu_state;
     always @(posedge clk) begin
+        last_pc <= pc;
+        last_waddr <= rf_waddr;
+        last_wdata <= rf_wdata;
         if (rst || flush_sign) begin
-            ws_valid <= 1'b0;
+            wbu_state <= 2'd0;
         end
-        else if (ws_allowin) begin
-            ws_valid <= ms_to_ws_valid;
-        end
-
-        if (ms_to_ws_valid && ws_allowin) begin
+        else if (wbu_state == 2'd0 && up_valid) begin
             bus_mem_to_wbu_data_r <= bus_mem_to_wbu_data;
             ms_excp_num_r <= ms_excp_num;
             ms_excp_r <= ms_excp;
+            wbu_state <= 2'd1;
+
+        end
+        else if(wbu_state == 2'd1) begin
+            wbu_state <= 2'd0;
         end
     end
 
+    wire ws_valid;
+    assign ws_valid = wbu_state == 2'd1;
+    assign waite_ready_o = wbu_state == 2'd0 ? 1'b1 : 1'b0;
+    assign wbu_over = wbu_state == 2'd0;
+
     // 输出到 regfile
-    assign rf_we    = wire_gr_we & ws_valid & !ws_excp;
+    assign rf_we    = wire_gr_we & ws_valid & !ws_excp && !is_same;
     assign rf_waddr = wire_dest;
     assign rf_wdata = wire_final_result;
     assign pc       = wire_pc;
@@ -148,7 +164,8 @@ module WBU(
                wbu_regAddr,
                wbu_csr_we,
                wbu_csr_idx,
-               wbu_csr_wdata
+               wbu_csr_wdata,
+               wbu_over
            };
 
     assign excp_flush = ws_excp & ws_valid;

@@ -3,9 +3,10 @@ module IDU (
         input wire clk,
         input wire rst,
         // to ifu
-        output wire [32:0] bus_br_data,
+        output wire [33:0] bus_br_data,
         // from ifu
         input wire [31:0] in_pc,
+        input wire [31:0] in_rdata,
 
         input wire fs_excp,
         input wire [15:0] fs_excp_num,
@@ -19,51 +20,40 @@ module IDU (
         // from rf
         input wire [31:0] rf_rdata1,
         input wire [31:0] rf_rdata2,
-
-        // from inst_ram
-        input [31:0] inst_sram_data,
-
         // bus
         output wire [258:0] bus_ds_to_es_data,
-
         output wire [7:0] out_mem_op,
 
         // csr
         output wire [13:0] rd_csr_addr,
         input  wire [31:0] rd_csr_data,
-
         //timer 64
         input [63:0] timer_64,
         input [31:0] csr_tid,
-
         // exception
 
         input wire [1:0] flush,
         input wire has_int,
 
         input wire exu_excp,
-
-        input condition_4,
+        input wire exu_is_ertn_i,
 
         // 直通解决数据相关
-        input wire [84:0] bus_exu_bypass_data,
-        input wire [84:0] bus_mem_bypass_data,
-        input wire [84:0] bus_wbu_bypass_data,
+        input wire [85:0] bus_exu_bypass_data,
+        input wire [85:0] bus_mem_bypass_data,
+        input wire [85:0] bus_wbu_bypass_data,
 
         // csr 的数据相关
         // 握手信号
-        //allowin
-        input    es_allowin, // 下游发来的 allowin
-        output   ds_allowin, // 发给上游的 allowin
-
-        input    fs_to_ds_valid,    // 上游发来的空闲信号
-        output   ds_to_es_valid     // 发给下游的空闲信号
+        input up_valid,
+        output state_valid,
+        input waite_ready_i,
+        output waite_ready_o
     );
 
     wire excp_flush;
     wire ertn_flush;
     assign {excp_flush, ertn_flush} = flush;
-
     // 异常类型
     wire [15:0] syscall_num;    // 系统调用异常
     wire [15:0] excp_ine_num;   // 指令无效异常
@@ -87,9 +77,14 @@ module IDU (
     wire ds_excp;
     wire is_nop;
 
+    wire caculate_done_1;
+    wire caculate_done_2;
+
+    wire caculate_done;
+
     // 输出
-    assign ds_excp_out = ds_excp;
-    assign ds_excp_num_out = ds_excp_num;
+    assign ds_excp_out = exu_is_ertn_i ? 1'b0: ds_excp;
+    assign ds_excp_num_out = exu_is_ertn_i ? 16'd0: ds_excp_num;
 
     wire flush_sign;
     assign flush_sign = ertn_flush | excp_flush;
@@ -102,6 +97,7 @@ module IDU (
     wire exu_csr_we;
     wire [13:0] exu_csr_idx;
     wire [31:0] exu_csr_wdata;
+    wire exu_over;
 
     wire mem_regWr;
     wire [31:0] mem_data;
@@ -109,6 +105,7 @@ module IDU (
     wire mem_csr_we;
     wire [13:0] mem_csr_idx;
     wire [31:0] mem_csr_wdata;
+    wire mem_over;
 
     wire wbu_regWr;
     wire [31:0] wbu_data;
@@ -116,6 +113,7 @@ module IDU (
     wire wbu_csr_we;
     wire [13:0] wbu_csr_idx;
     wire [31:0] wbu_csr_wdata;
+    wire wbu_over;
 
     assign {
             exu_regWr,
@@ -123,7 +121,8 @@ module IDU (
             exu_regAddr,
             exu_csr_we,
             exu_csr_idx,
-            exu_csr_wdata
+            exu_csr_wdata,
+            exu_over
         } = bus_exu_bypass_data;
     assign {
             mem_regWr,
@@ -131,7 +130,8 @@ module IDU (
             mem_regAddr,
             mem_csr_we,
             mem_csr_idx,
-            mem_csr_wdata
+            mem_csr_wdata,
+            mem_over
         } = bus_mem_bypass_data;
     assign {
             wbu_regWr,
@@ -139,7 +139,8 @@ module IDU (
             wbu_regAddr,
             wbu_csr_we,
             wbu_csr_idx,
-            wbu_csr_wdata
+            wbu_csr_wdata,
+            wbu_over
         } = bus_wbu_bypass_data;
 
 
@@ -166,30 +167,6 @@ module IDU (
 
     wire rdcnt_en;
     wire [31:0] rdcnt_result;
-
-
-    wire br_taken;
-    wire [31:0] br_target;
-
-    assign bus_br_data = {br_taken, br_target};
-    assign bus_ds_to_es_data = {
-               mul_div_op,
-               alu_op,
-               alu_src1,
-               alu_src2,
-               mem_we,
-               rkd_value,
-               res_from_mem,
-               gr_we,
-               dest,
-               idu_pc,
-               res_from_csr,
-               csr_data,
-               csr_we,
-               csr_idx,
-               csr_wdata,
-               is_inst_ertn
-           };
 
     wire [31:0] idu_inst;
     wire [31:0] idu_pc;
@@ -297,26 +274,93 @@ module IDU (
 
     wire        need_ui12;
 
+
+    wire br_taken;
+    wire [31:0] br_target;
+
+    assign bus_br_data = {br_taken, br_target, caculate_done};
+    assign bus_ds_to_es_data = {
+               mul_div_op,
+               alu_op,
+               alu_src1,
+               alu_src2,
+               mem_we,
+               rkd_value,
+               res_from_mem,
+               gr_we,
+               dest,
+               idu_pc,
+               res_from_csr,
+               csr_data,
+               csr_we,
+               csr_idx,
+               csr_wdata,
+               is_inst_ertn
+           };
+
     // 判断是否数据相关
-    // 越靠近 idu 越优先
-    // 检测上一条指令是否是 load 指令
-    reg is_load;
-    always @(posedge clk) begin
-        if (rst) begin
-            is_load <= 1'b0;
+    // 暂存上一级来的数据
+
+    reg [31:0] inst_sram_rdata_reg;
+    reg [31:0] pc_reg;
+    wire [31:0] inst_nop_data;
+    assign inst_nop_data = 32'b0000_0011_0100_0000_0000_0000_0000_0000; // nop : andi r0, r0,0
+    reg [1:0] idu_state;
+
+    assign caculate_done = caculate_done_1 && caculate_done_2;
+
+    always @(posedge clk ) begin
+        if (rst || flush_sign) begin
+            idu_state <= 2'd0;
+            pc_reg <= 32'd0;
+            inst_sram_rdata_reg <= 32'd0;
+            fs_excp_num_r <= 16'd0;
+            fs_excp_r <= 1'b0;
         end
-        else if (fs_to_ds_valid && ds_allowin) begin
-            is_load <= inst_ld_w;
+        // idle
+        else if (idu_state == 2'd0 && up_valid) begin
+            // 取出数据
+            pc_reg <= in_pc;
+            // 如果当前是跳转，那么下一条指令置 NOP
+            inst_sram_rdata_reg <= br_taken ? inst_nop_data : in_rdata;
+            fs_excp_num_r <= fs_excp_num;
+            fs_excp_r <= fs_excp;
+            idu_state <= 2'd1;
+        end
+        // waite_valid
+        else if (idu_state == 2'd1 && caculate_done) begin
+            // 等待数据相关稳定
+            if(waite_ready_i) begin
+                idu_state <= 2'd0;
+            end
         end
     end
-    // 检测 load-use 数据相关
-    wire load_use_conflict;
-    assign load_use_conflict = is_load && exu_regWr && (rf_raddr1 == exu_regAddr) && rf_raddr1 != 5'd0;
+
+    assign state_valid = idu_state == 2'd1 && caculate_done;
+    assign waite_ready_o = idu_state == 2'd0 ? 1'b1 : 1'b0;
+
 
     reg [31:0] conflict_regaData;
     reg [31:0] conflict_regbData;
 
     // 当检测到冲突以后，就得阻塞
+
+    assign caculate_done_1 = exu_regWr &&
+       (rf_raddr1 == exu_regAddr) && rf_raddr1 != 5'd0 ? exu_over ? 1'b1 : 1'b0:
+           mem_regWr &&
+       (rf_raddr1 == mem_regAddr) && rf_raddr1 != 5'd0 ? mem_over ? 1'b1 : 1'b0:
+           wbu_regWr &&
+       (rf_raddr1 == wbu_regAddr) && rf_raddr1 != 5'd0 ? wbu_over ? 1'b1 : 1'b0:
+           1'b1;
+
+
+    assign caculate_done_2 = exu_regWr &&
+       (rf_raddr2 == exu_regAddr) && rf_raddr2 != 5'd0 ? exu_over ? 1'b1 : 1'b0:
+           mem_regWr &&
+       (rf_raddr2 == mem_regAddr) && rf_raddr2 != 5'd0 ? mem_over ? 1'b1 : 1'b0:
+           wbu_regWr &&
+       (rf_raddr2 == wbu_regAddr) && rf_raddr2 != 5'd0 ? wbu_over ? 1'b1 : 1'b0:
+           1'b1;
 
     always @(*) begin
         if (exu_regWr && (rf_raddr1 == exu_regAddr) && rf_raddr1 != 5'd0) begin
@@ -348,46 +392,8 @@ module IDU (
         end
     end
 
-    // 暂存上一级来的数据
-    reg [31:0] inst_sram_rdata_reg;
-    reg [31:0] pc_reg;
 
-    // 握手信号
-    reg   ds_valid;    // 表示当前流水级是否在处理指令
-    wire  ds_ready_go; // 是否需要阻塞
 
-    assign ds_ready_go    =  flush_sign ? 1'b1 : ds_valid & !load_use_conflict;
-    assign ds_allowin     = !ds_valid || ds_ready_go && es_allowin; // 表示当前阶段是否允许上游进入
-    assign ds_to_es_valid = ds_valid && ds_ready_go;
-
-    wire [31:0] inst_nop_data;
-
-    assign inst_nop_data = 32'b0000_0011_0100_0000_0000_0000_0000_0000; // nop : andi r0, r0,0
-    reg [31:0] inst_buff;
-    reg buff_valid;
-    always @(posedge clk ) begin
-        if (rst || flush_sign) begin
-            ds_valid <= 1'b0;
-        end
-        else if (ds_allowin) begin
-            ds_valid <= fs_to_ds_valid;
-        end
-        reg_condition_4 <= condition_4;
-        if (condition_4) begin
-            inst_buff  <= inst_sram_data;
-            buff_valid <= 1'b1;
-        end
-        if (fs_to_ds_valid && ds_allowin) begin
-            pc_reg <= in_pc;
-            buff_valid <= 1'b0;
-            // 如果当前是跳转，那么下一条指令置 NOP
-            inst_sram_rdata_reg <= br_taken ? inst_nop_data :
-                                buff_valid ? inst_buff :
-                                inst_sram_data;
-            fs_excp_num_r <= fs_excp_num;
-            fs_excp_r <= fs_excp;
-        end
-    end
     assign idu_inst = inst_sram_rdata_reg;
     assign is_nop = (idu_inst == inst_nop_data) ? 1'b1 : 1'b0; // 当前指令是空指令信号，不要挂中断信号
     assign idu_pc = pc_reg;
@@ -685,6 +691,13 @@ module IDU (
     assign rj_gt_rd = ($signed(rj_value) >= $signed(rkd_value));
     assign rj_gtu_rd = ($unsigned(rj_value) >= $unsigned(rkd_value));
 
+    // 转移指令首先要计算完毕
+    // 因为有前递数据会不断得刷新
+    // 什么是就计算完了？
+    // 我的思路是，让下游每一个模块都计算完毕，这样
+    // IDU 才会拿到完整的数据并顺利完成计算
+
+
     assign br_taken = (inst_beq  &&  rj_eq_rd
                        || inst_bne  && !rj_eq_rd
                        || inst_jirl
@@ -694,7 +707,8 @@ module IDU (
                        || inst_bltu && rj_ltu_rd
                        || inst_bge  && rj_gt_rd
                        || inst_bgeu && rj_gtu_rd
-                      ) && ds_valid && !wire_fs_excp && ds_ready_go;
+                      )  && !wire_fs_excp;
+    //   )  && !wire_fs_excp ;
     assign br_target = (inst_beq || inst_bne || inst_bl || inst_b || inst_blt || inst_bltu || inst_bge || inst_bgeu) ? (idu_pc + br_offs) :
            /*inst_jirl*/  (rj_value + jirl_offs);
 

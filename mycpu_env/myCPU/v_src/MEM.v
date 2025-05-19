@@ -16,7 +16,7 @@ module MEM(
 
         // from mem_sram
         input wire [31:0] data_sram_rdata,
-        output wire [84:0] bus_mem_bypass_data,
+        output wire [85:0] bus_mem_bypass_data,
 
         // exception
         input wire [1:0] flush,
@@ -26,12 +26,10 @@ module MEM(
         output wire is_ertn, // 这个信号的作用和异常一致，但是它归根结底不属于异常
 
         // 握手信号
-        //allowin
-        input    ws_allowin, // 来自下游的 allowin 信号
-        output   ms_allowin, // 发给上游的 allowin 信号
-
-        input    es_to_ms_valid, // 来自上游的 valid 信号
-        output   ms_to_ws_valid  // 发给下游的 valid 信号
+        input up_valid,
+        output state_valid,
+        input waite_ready_i,
+        output waite_ready_o
     );
 
     wire excp_flush;
@@ -62,6 +60,7 @@ module MEM(
     wire mem_regWr;
     wire [31:0] mem_data;
     wire [4:0] mem_regAddr;
+    wire mem_over;
 
     wire mem_csr_we;
     wire [13:0] mem_csr_idx;
@@ -69,9 +68,7 @@ module MEM(
 
 
     reg [150:0] bus_exu_to_mem_data_r;
-
-    reg     ms_valid;
-    wire    ms_ready_go;
+    reg [31:0] reg_rdata;
 
     wire    [31:0] wire_exu_result;
     wire    wire_res_from_mem;
@@ -105,7 +102,7 @@ module MEM(
             wire_error_va
         } = bus_exu_to_mem_data_r;
 
-    assign bus_mem_to_wbu_data = {
+    assign bus_mem_to_wbu_data = flush_sign ? 150'd0 : {
                gr_we,
                dest,
                final_result,
@@ -123,7 +120,7 @@ module MEM(
     assign mem_excp = ms_excp;   // 发送给上一级，目的是为了取消上一级的一些执行效果，比如内存写、除法计算等等
     assign is_ertn = wire_is_inst_ertn | wbu_in_is_ertn; // 同样也是为了取消上一级的执行效果
 
-    assign gr_we          = wire_gr_we & ms_valid;
+    assign gr_we          = wire_gr_we;
     assign dest           = wire_dest;
     assign pc             = wire_pc;
 
@@ -155,21 +152,21 @@ module MEM(
     assign ld_w = mem_op[7];
 
     // 这里读出来的数据也很讲究
-    assign mem_result = ld_b && mem_mask[0] ? {{24{data_sram_rdata[7]}}, data_sram_rdata[7:0]}:
-           ld_b && mem_mask[1] ? {{24{data_sram_rdata[15]}}, data_sram_rdata[15:8]}:
-           ld_b && mem_mask[2] ? {{24{data_sram_rdata[23]}}, data_sram_rdata[23:16]}:
-           ld_b && mem_mask[3] ? {{24{data_sram_rdata[31]}}, data_sram_rdata[31:24]}:
-           ld_bu && mem_mask[0] ? {24'b0, data_sram_rdata[7:0]}:
-           ld_bu && mem_mask[1] ? {24'b0, data_sram_rdata[15:8]}:
-           ld_bu && mem_mask[2] ? {24'b0, data_sram_rdata[23:16]}:
-           ld_bu && mem_mask[3] ? {24'b0, data_sram_rdata[31:24]}:
-           ld_h && mem_mask == 4'b0011 ? {{16{data_sram_rdata[15]}}, data_sram_rdata[15:0]}:
-           ld_h && mem_mask == 4'b0110 ? {{16{data_sram_rdata[23]}}, data_sram_rdata[23:8]}:
-           ld_h && mem_mask == 4'b1100 ? {{16{data_sram_rdata[31]}}, data_sram_rdata[31:16]}:
-           ld_hu && mem_mask == 4'b0011 ? {16'b0, data_sram_rdata[15:0]}:
-           ld_hu && mem_mask == 4'b0110 ? {16'b0, data_sram_rdata[23:8]}:
-           ld_hu && mem_mask == 4'b1100 ? {16'b0, data_sram_rdata[31:16]}:
-           data_sram_rdata;
+    assign mem_result = ld_b && mem_mask[0] ? {{24{reg_rdata[7]}}, reg_rdata[7:0]}:
+           ld_b && mem_mask[1] ? {{24{reg_rdata[15]}}, reg_rdata[15:8]}:
+           ld_b && mem_mask[2] ? {{24{reg_rdata[23]}}, reg_rdata[23:16]}:
+           ld_b && mem_mask[3] ? {{24{reg_rdata[31]}}, reg_rdata[31:24]}:
+           ld_bu && mem_mask[0] ? {24'b0, reg_rdata[7:0]}:
+           ld_bu && mem_mask[1] ? {24'b0, reg_rdata[15:8]}:
+           ld_bu && mem_mask[2] ? {24'b0, reg_rdata[23:16]}:
+           ld_bu && mem_mask[3] ? {24'b0, reg_rdata[31:24]}:
+           ld_h && mem_mask == 4'b0011 ? {{16{reg_rdata[15]}}, reg_rdata[15:0]}:
+           ld_h && mem_mask == 4'b0110 ? {{16{reg_rdata[23]}}, reg_rdata[23:8]}:
+           ld_h && mem_mask == 4'b1100 ? {{16{reg_rdata[31]}}, reg_rdata[31:16]}:
+           ld_hu && mem_mask == 4'b0011 ? {16'b0, reg_rdata[15:0]}:
+           ld_hu && mem_mask == 4'b0110 ? {16'b0, reg_rdata[23:8]}:
+           ld_hu && mem_mask == 4'b1100 ? {16'b0, reg_rdata[31:16]}:
+           reg_rdata;
 
     assign final_result = wire_res_from_mem ? mem_result : wire_exu_result;
 
@@ -189,31 +186,43 @@ module MEM(
                mem_regAddr,
                mem_csr_we,
                mem_csr_idx,
-               mem_csr_wdata
+               mem_csr_wdata,
+               mem_over
            };
 
-    assign ms_ready_go    = 1'b1;
-    assign ms_allowin     = !ms_valid || ms_ready_go && ws_allowin;
-    assign ms_to_ws_valid =  ms_valid && ms_ready_go;
+    reg [1:0] mem_state;
 
     always @(posedge clk) begin
         if (rst || flush_sign) begin
-            ms_valid <= 1'b0;
+            mem_state <= 2'd0;
+            reg_rdata <= 32'd0;
+            bus_exu_to_mem_data_r <= 151'd0;
+            mem_op_reg <= 8'd0;
+            mem_mask_reg <= 4'd0;
+            es_excp_num_r <= 16'd0;
+            es_excp_r <= 1'b0;
         end
-        else if (ms_allowin) begin
-            ms_valid <= es_to_ms_valid;
-        end
-
-        if (es_to_ms_valid && ms_allowin) begin
+        else if (mem_state == 2'd0 && up_valid) begin
+            reg_rdata <= data_sram_rdata;
             bus_exu_to_mem_data_r <= bus_exu_to_mem_data;
             mem_op_reg <= in_mem_op;
             mem_mask_reg <= in_mem_mask;
-
             es_excp_num_r <= es_excp_num;
             es_excp_r <= es_excp;
-
+            mem_state <= 2'd1;
         end
+
+        else if(mem_state == 2'd1) begin
+            if(waite_ready_i) begin
+                mem_state <= 2'd0;
+            end
+        end
+
     end
+
+    assign state_valid = (mem_state == 2'd1) ? 1'b1 : 1'b0;
+    assign waite_ready_o = (mem_state == 2'd0) ? 1'b1 : 1'b0;
+    assign mem_over = mem_state == 2'd0;
 
 
 

@@ -28,7 +28,7 @@
 
 extern "C" int data_ram_read(int addr) {
     // gpio
-    printf("data_read_addr:%08x\n", addr);
+    // printf("data_read_addr:%08x\n", addr);
     if (addr == SW_INTER_ADDR) {
         return 0x0000aaaa;
     } else if (addr == OPEN_TRACE_ADDR) {
