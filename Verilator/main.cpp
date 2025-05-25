@@ -126,6 +126,7 @@ void cpu_exec(uint64_t n) {
         }
         uint32_t stop_pc = 0x1c000100;
         if (pc == stop_pc) {
+            printf("\033[32mPassed all the tests!\033[0m\n");
             break;
         }
 
