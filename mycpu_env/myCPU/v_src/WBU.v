@@ -109,7 +109,8 @@ module WBU(
     reg [4:0] last_waddr;
     reg [31:0] last_wdata;
     wire is_same;
-    assign is_same = last_pc == pc && last_wdata == rf_wdata && last_waddr == rf_waddr;
+    // assign is_same = last_pc == pc && last_wdata == rf_wdata && last_waddr == rf_waddr; // 条件太过严格？
+        assign is_same = last_pc == pc && last_waddr == rf_waddr; // 只要 pc、rf_waddr 一致，就不再重复写
 
     reg [1:0] wbu_state;
     always @(posedge clk) begin

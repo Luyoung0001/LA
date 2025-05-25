@@ -58,12 +58,12 @@
       "-Os",
       "-c",
       "-o",
-      "main.o",
-      "/home/luyoung/LA/Verilator/main.cpp"
+      "dpi_c.o",
+      "/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/src/dpi_c.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/Verilator/main.cpp",
-    "output": "/home/luyoung/LA/obj_dir/main.o"
+    "file": "/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/src/dpi_c.cpp",
+    "output": "/home/luyoung/LA/obj_dir/dpi_c.o"
   },
   {
     "arguments": [
@@ -91,12 +91,12 @@
       "-Os",
       "-c",
       "-o",
-      "paddr.o",
-      "/home/luyoung/LA/mycpu_env/myCPU/memory/src/paddr.c"
+      "main.o",
+      "/home/luyoung/LA/Verilator/main.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/mycpu_env/myCPU/memory/src/paddr.c",
-    "output": "/home/luyoung/LA/obj_dir/paddr.o"
+    "file": "/home/luyoung/LA/Verilator/main.cpp",
+    "output": "/home/luyoung/LA/obj_dir/main.o"
   },
   {
     "arguments": [
@@ -157,12 +157,12 @@
       "-Os",
       "-c",
       "-o",
-      "dpi_c.o",
-      "/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/src/dpi_c.cpp"
+      "verilated_fst_c.o",
+      "/usr/local/share/verilator/include/verilated_fst_c.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/src/dpi_c.cpp",
-    "output": "/home/luyoung/LA/obj_dir/dpi_c.o"
+    "file": "/usr/local/share/verilator/include/verilated_fst_c.cpp",
+    "output": "/home/luyoung/LA/obj_dir/verilated_fst_c.o"
   },
   {
     "arguments": [
@@ -223,12 +223,12 @@
       "-Os",
       "-c",
       "-o",
-      "verilated_fst_c.o",
-      "/usr/local/share/verilator/include/verilated_fst_c.cpp"
+      "paddr.o",
+      "/home/luyoung/LA/mycpu_env/myCPU/memory/src/paddr.c"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/usr/local/share/verilator/include/verilated_fst_c.cpp",
-    "output": "/home/luyoung/LA/obj_dir/verilated_fst_c.o"
+    "file": "/home/luyoung/LA/mycpu_env/myCPU/memory/src/paddr.c",
+    "output": "/home/luyoung/LA/obj_dir/paddr.o"
   },
   {
     "arguments": [
@@ -262,40 +262,6 @@
     "directory": "/home/luyoung/LA/obj_dir",
     "file": "/home/luyoung/LA/obj_dir/Vverilator_top__ALL.cpp",
     "output": "/home/luyoung/LA/obj_dir/Vverilator_top__ALL.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/g++",
-      "-faligned-new",
-      "-fcf-protection=none",
-      "-Wno-bool-operation",
-      "-Wno-sign-compare",
-      "-Wno-uninitialized",
-      "-Wno-unused-but-set-variable",
-      "-Wno-unused-parameter",
-      "-Wno-unused-variable",
-      "-Wno-shadow",
-      "-Os",
-      "-I.",
-      "-I/usr/local/share/verilator/include",
-      "-I/usr/local/share/verilator/include/vltstd",
-      "-DVM_COVERAGE=0",
-      "-DVM_SC=0",
-      "-DVM_TRACE=1",
-      "-DVM_TRACE_FST=1",
-      "-DVM_TRACE_VCD=0",
-      "-I/home/luyoung/LA/Verilator/include",
-      "-I/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/include",
-      "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
-      "-c",
-      "-fdiagnostics-color",
-      "-o",
-      "main.o",
-      "/home/luyoung/LA/Verilator/main.cpp"
-    ],
-    "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/Verilator/main.cpp",
-    "output": "/home/luyoung/LA/obj_dir/main.o"
   },
   {
     "arguments": [

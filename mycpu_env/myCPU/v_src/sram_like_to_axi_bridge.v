@@ -494,6 +494,13 @@ module sram_like_to_axi_bridge(
             inst_data_received <= 1'b0;
             inst_read_data <= 32'b0;
             handling_inst_request <= 1'b0;
+
+            inst_arvalid <= 1'b0;
+            inst_arid <= 4'd0;
+            inst_araddr <= 32'd0;
+            inst_arsize <= 3'd0;
+            inst_arlen <= 8'd0;
+            inst_rready <= 1'b0;
         end
 
         else begin
@@ -505,6 +512,11 @@ module sram_like_to_axi_bridge(
                     if (inst_read_request && !handling_data_request) begin
                         inst_state <= READ_ADDR;
                         handling_inst_request <= 1'b1;
+                        inst_arvalid <= 1'b1;
+                        inst_arid <= 4'b0000; // ID for instruction reads
+                        inst_araddr <= inst_sram_addr;
+                        inst_arsize <= convert_size(inst_sram_size);
+                        inst_arlen <= 8'b00000000; // Single transfer
                     end
                 end
 
@@ -560,9 +572,15 @@ module sram_like_to_axi_bridge(
             data_read_data <= 32'b0;
             handling_data_request <= 1'b0;
 
+            data_arvalid <= 1'b0;
+            data_arid <= 4'd0;
+            data_araddr <= 32'd0;
+            data_arsize <= 3'd0;
+            data_arlen <= 8'd0;
+            data_rready <= 1'b0;
+
             // Reset AXI signals
             // arvalid <= 1'b0;
-
             // rready <= 1'b0;
             awvalid <= 1'b0;
             wvalid <= 1'b0;
@@ -581,10 +599,21 @@ module sram_like_to_axi_bridge(
                         if (data_read_request) begin
                             data_state <= READ_ADDR;
                             handling_data_request <= 1'b1;
+
+                            data_arvalid <= 1'b1;
+                            data_arid <= 4'b0001; // ID for data reads
+                            data_araddr <= data_sram_addr;
+                            data_arsize <= convert_size(data_sram_size);
+                            data_arlen <= 8'b00000000; // Single transfer
                         end
                         else if (data_write_request) begin
                             data_state <= WRITE_ADDR;
                             handling_data_request <= 1'b1;
+
+                            awvalid <= 1'b1;
+                            awaddr <= data_sram_addr;
+                            awsize <= convert_size(data_sram_size);
+                            awlen <= 8'b00000000; // Single transfer
                         end
                     end
                 end
@@ -634,7 +663,6 @@ module sram_like_to_axi_bridge(
                         awvalid <= 1'b0;
                         data_state <= WRITE_DATA;
                         data_addr_accepted <= 1'b1;
-
                         wvalid <= 1'b1;
                         wdata <= data_sram_wdata;
                         wstrb <= data_sram_wstrb;
@@ -669,8 +697,8 @@ module sram_like_to_axi_bridge(
     assign  arvalid = inst_arvalid | data_arvalid;
     assign  araddr = handling_inst_request ? inst_araddr : data_araddr;
     assign arid = handling_inst_request ? inst_arid : data_arid;
-    assign arsize = handling_data_request ? inst_arsize : data_arsize;
-    assign arlen = handling_data_request ? inst_arlen : data_arlen;
+    assign arsize = handling_inst_request ? inst_arsize : data_arsize;
+    assign arlen = handling_inst_request ? inst_arlen : data_arlen;
     assign rready = inst_rready | data_rready;
 
 endmodule
