@@ -49,7 +49,7 @@ run: build
 	$(EXE)
 
 clean:
-	@rm -rf $(OBJ_DIR)
+	@rm -rf $(OBJ_DIR) wave.vcd
 
 runall:
 	@bash run_all_tests.sh
