@@ -268,6 +268,10 @@ module EXU (
     assign op_mod  = mul_div_op[5];
     assign op_modu = mul_div_op[6];
 
+
+    reg [1:0] exu_state;
+    reg [31:0] reg_rdata;
+
     wire div;
     wire div_signed;
     assign div = op_div || op_divu || op_mod || op_modu;
@@ -286,22 +290,14 @@ module EXU (
     // 除法器
     wire [31:0] div_result;
     wire [31:0] mod_result;
-
-    reg complete;
     wire wire_complete;
-    always @(posedge clk) begin
-        if (rst) begin
-            complete <= 1'b0;
-        end
-        else begin
-            complete <= wire_complete;
-        end
-    end
-
+    // 适当的时机撤销除法信号
+    wire do_div;
+    assign do_div = div && exu_state == 2'd1 && !wire_complete;
     divider divider(
                 .div_clk(clk),
                 .reset(rst),
-                .div(div),
+                .div(do_div),
                 .div_signed (div_signed),
                 .x(wire_alu_src1),
                 .y(wire_alu_src2),
@@ -362,8 +358,7 @@ module EXU (
     assign access_memo = ld_b || ld_bu || ld_h || ld_hu || ld_w ||
            st_b||st_h || st_w;
 
-    reg [1:0] exu_state;
-    reg [31:0] reg_rdata;
+
 
     always @(posedge clk) begin
         if (rst || flush_sign) begin
@@ -393,7 +388,7 @@ module EXU (
             else if(es_excp | mem_excp | flush_sign | mem_in_is_ertn) begin
                 exu_state <= 2'd0;
             end
-            else if(complete & div) begin
+            else if(wire_complete & div) begin
                 exu_state <= 2'd0;
             end
             else if(div) begin
