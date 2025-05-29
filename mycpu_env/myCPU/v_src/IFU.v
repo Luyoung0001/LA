@@ -39,7 +39,6 @@ module IFU (
     wire ertn_flush;
     wire flush_sign;
 
-
     assign {excp_flush, ertn_flush} = flush;
     assign flush_sign = ertn_flush || excp_flush;
 

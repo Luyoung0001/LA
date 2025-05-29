@@ -60,6 +60,7 @@ module pre_IFU (
             end
         end
     end
+
     assign pc_o = pc;
     assign state_valid = pfs_state == 2'd1  ? 1'b1 : 1'b0;
 

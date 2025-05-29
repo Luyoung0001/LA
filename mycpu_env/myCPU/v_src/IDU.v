@@ -48,7 +48,9 @@ module IDU (
         input up_valid,
         output state_valid,
         input waite_ready_i,
-        output waite_ready_o
+        output waite_ready_o,
+        // tlb
+        output wire [4:0] tlb_inst_bus
     );
 
     wire excp_flush;
@@ -263,6 +265,12 @@ module IDU (
     wire        inst_rdcntvl_w;
     wire        inst_rdcntvh_w;
     wire        inst_zero;
+
+    wire        inst_tlbsrch;
+    wire        inst_tlbrd;
+    wire        inst_tlbwr;
+    wire        inst_tlbfill;
+    wire        inst_invtlb;
 
 
     wire        need_ui5;
@@ -490,6 +498,12 @@ module IDU (
     assign inst_rdcntvl_w  = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h0] & op_19_15_d[5'h00] & rk_d[5'h18] & rj_d[5'h00] & !rd_d[5'h00];
     assign inst_rdcntvh_w  = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h0] & op_19_15_d[5'h00] & rk_d[5'h19] & rj_d[5'h00];
     assign inst_zero       = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h0] & op_19_15_d[5'h00] & rk_d[5'h00] & rj_d[5'h00] & rd_d[5'h00];
+
+    assign inst_invtlb     = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h13];
+    assign inst_tlbsrch    = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & rk_d[5'h0a] & rj_d[5'h00] & rd_d[5'h00];
+    assign inst_tlbrd      = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & rk_d[5'h0b] & rj_d[5'h00] & rd_d[5'h00];
+    assign inst_tlbwr      = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & rk_d[5'h0c] & rj_d[5'h00] & rd_d[5'h00];
+    assign inst_tlbfill    = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & rk_d[5'h0d] & rj_d[5'h00] & rd_d[5'h00];
 
     // assign kernel_inst = inst_csrrd|
     //        inst_csrwr|
@@ -767,7 +781,18 @@ module IDU (
            inst_break|
            inst_rdcntid_w|
            inst_rdcntvl_w|
-           inst_rdcntvh_w;
+           inst_rdcntvh_w|
+           inst_tlbsrch    |
+           inst_tlbrd      |
+           inst_tlbwr      |
+           inst_tlbfill    |
+           (inst_invtlb && (rd == 5'd0 ||
+                            rd == 5'd1 ||
+                            rd == 5'd2 ||
+                            rd == 5'd3 ||
+                            rd == 5'd4 ||
+                            rd == 5'd5 ||
+                            rd == 5'd6 ));
 
     assign ds_excp = (inst_syscall | wire_fs_excp | ~inst_valid | inst_break | has_int) & ~is_nop;
     assign syscall_num = inst_syscall ? 16'h0800 : 16'b0;
@@ -782,5 +807,12 @@ module IDU (
     assign alu_src1 = src1_is_pc  ? idu_pc[31:0] : rj_value;
     assign alu_src2 = src2_is_imm ? imm : rkd_value;
 
-
+    // tlb
+    assign tlb_inst_bus = {
+        inst_tlbsrch,
+        inst_tlbrd,
+        inst_tlbwr,
+        inst_tlbfill,
+        inst_invtlb
+    };
 endmodule

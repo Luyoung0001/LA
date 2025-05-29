@@ -5,7 +5,7 @@ module tlb_top #
    ,parameter SIMULATION=1'b0
 )
 (
-    input  wire        resetn, 
+    input  wire        resetn,
     input  wire        clk,
 
     //------gpio-------
@@ -175,22 +175,22 @@ tlb #(.TLBNUM(16)) tlb (
 // write \ read
 
 //  index  | e | vppn   | ps   | asid |  g  |  ppn0  |  plv0 mat0 d0 v0 |  ppn1  |  plv1 mat1 d1 v1 |
-//   0     | 1 | 0x1000 | 0x15 | 0x0  |  0  |  0x1000|     0,1,1,1      |  0x1100|     0,1,1,1      | 
-//   1     | 1 | 0x111  | 0xc  | 0x1  |  1  |  0x222 |     0,1,1,1      |  0x033 |     0,1,1,1      | 
-//   2     | 1 | 0x222  | 0xc  | 0x2  |  0  |  0x333 |     0,1,1,1      |  0x044 |     0,1,1,1      | 
-//   3     | 1 | 0x333  | 0xc  | 0x3  |  1  |  0x444 |     0,1,1,1      |  0x055 |     0,1,1,1      | 
-//   4     | 1 | 0x444  | 0xc  | 0x4  |  0  |  0x555 |     0,1,1,1      |  0x066 |     0,1,1,1      | 
-//   5     | 1 | 0x444  | 0xc  | 0x5  |  0  |  0x666 |     0,1,1,1      |  0x077 |     0,1,1,1      | 
-//   6     | 1 | 0x666  | 0xc  | 0x6  |  0  |  0x777 |     0,1,1,1      |  0x088 |     0,1,1,1      | 
-//   7     | 1 | 0x666  | 0xc  | 0x7  |  0  |  0x888 |     0,1,1,1      |  0x099 |     0,1,1,1      | 
-//   8     | 1 | 0x888  | 0xc  | 0x8  |  0  |  0x999 |     0,1,1,1      |  0x0aa |     0,1,1,1      | 
-//   9     | 1 | 0x999  | 0xc  | 0x9  |  0  |  0xaaa |     0,1,1,1      |  0x0bb |     0,1,1,1      | 
-//   10    | 1 | 0xaaa  | 0xc  | 0xa  |  0  |  0xbbb |     0,1,1,1      |  0x0cc |     0,1,1,1      | 
-//   11    | 1 | 0xbbb  | 0xc  | 0xb  |  0  |  0xccc |     0,1,1,1      |  0x0dd |     0,1,1,1      | 
-//   12    | 1 | 0xccc  | 0xc  | 0xc  |  0  |  0xddd |     0,1,1,1      |  0x0ee |     0,1,1,1      | 
-//   13    | 1 | 0xddd  | 0xc  | 0xd  |  0  |  0xeee |     0,1,1,1      |  0x0ff |     0,1,1,1      | 
-//   14    | 1 | 0xeee  | 0xc  | 0xe  |  0  |  0xfff |     0,1,1,1      |  0x000 |     0,1,1,1      | 
-//   15    | 1 | 0xf000 | 0x15 | 0xf  |  0  |  0x2000|     0,1,1,1      |  0x2100|     0,1,1,1      | 
+//   0     | 1 | 0x1000 | 0x15 | 0x0  |  0  |  0x1000|     0,1,1,1      |  0x1100|     0,1,1,1      |
+//   1     | 1 | 0x111  | 0xc  | 0x1  |  1  |  0x222 |     0,1,1,1      |  0x033 |     0,1,1,1      |
+//   2     | 1 | 0x222  | 0xc  | 0x2  |  0  |  0x333 |     0,1,1,1      |  0x044 |     0,1,1,1      |
+//   3     | 1 | 0x333  | 0xc  | 0x3  |  1  |  0x444 |     0,1,1,1      |  0x055 |     0,1,1,1      |
+//   4     | 1 | 0x444  | 0xc  | 0x4  |  0  |  0x555 |     0,1,1,1      |  0x066 |     0,1,1,1      |
+//   5     | 1 | 0x444  | 0xc  | 0x5  |  0  |  0x666 |     0,1,1,1      |  0x077 |     0,1,1,1      |
+//   6     | 1 | 0x666  | 0xc  | 0x6  |  0  |  0x777 |     0,1,1,1      |  0x088 |     0,1,1,1      |
+//   7     | 1 | 0x666  | 0xc  | 0x7  |  0  |  0x888 |     0,1,1,1      |  0x099 |     0,1,1,1      |
+//   8     | 1 | 0x888  | 0xc  | 0x8  |  0  |  0x999 |     0,1,1,1      |  0x0aa |     0,1,1,1      |
+//   9     | 1 | 0x999  | 0xc  | 0x9  |  0  |  0xaaa |     0,1,1,1      |  0x0bb |     0,1,1,1      |
+//   10    | 1 | 0xaaa  | 0xc  | 0xa  |  0  |  0xbbb |     0,1,1,1      |  0x0cc |     0,1,1,1      |
+//   11    | 1 | 0xbbb  | 0xc  | 0xb  |  0  |  0xccc |     0,1,1,1      |  0x0dd |     0,1,1,1      |
+//   12    | 1 | 0xccc  | 0xc  | 0xc  |  0  |  0xddd |     0,1,1,1      |  0x0ee |     0,1,1,1      |
+//   13    | 1 | 0xddd  | 0xc  | 0xd  |  0  |  0xeee |     0,1,1,1      |  0x0ff |     0,1,1,1      |
+//   14    | 1 | 0xeee  | 0xc  | 0xe  |  0  |  0xfff |     0,1,1,1      |  0x000 |     0,1,1,1      |
+//   15    | 1 | 0xf000 | 0x15 | 0xf  |  0  |  0x2000|     0,1,1,1      |  0x2100|     0,1,1,1      |
 
 wire [18:0] tlb_vppn [15:0];
 wire        tlb_e    [15:0];
@@ -897,7 +897,7 @@ assign s0_error = (s_test_found[s0_test_id] ^ s0_found) || (s_test_found[s0_test
                     (s0_d   != s_test_d  [s0_test_id]) ||
                     (s0_v   != s_test_v  [s0_test_id]) )
                   );
-                   
+
 assign s1_error = (s_test_found[s1_test_id] ^ s1_found) || (s_test_found[s1_test_id] &&
                   ( ~s1_found ||
                     (s1_ppn != s_test_ppn[s1_test_id]) ||
@@ -907,7 +907,7 @@ assign s1_error = (s_test_found[s1_test_id] ^ s1_found) || (s_test_found[s1_test
                     (s1_d   != s_test_d  [s1_test_id]) ||
                     (s1_v   != s_test_v  [s1_test_id]) )
                   );
-                   
+
 always @(posedge clk_g) begin
     if(~resetn) begin
         test_error <= 1'b0;
@@ -934,11 +934,11 @@ begin
 end
 //scan data
 reg [3:0] scan_data;
-always @ ( posedge clk_g )  
+always @ ( posedge clk_g )
 begin
     if ( !resetn )
     begin
-        scan_data <= 32'd0;  
+        scan_data <= 32'd0;
         num_csn   <= 8'b1111_1111;
     end
     else

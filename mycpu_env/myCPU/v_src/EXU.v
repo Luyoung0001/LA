@@ -1,52 +1,101 @@
-module EXU (
-        input wire clk,
-        input wire rst,
+`include "csr.h"
+module EXU
+    #(
+         parameter TLBNUM = 64
+     )
+     (
+         input wire clk,
+         input wire rst,
 
-        input wire ds_excp,
-        input wire [15:0] ds_excp_num,
-        output wire es_excp_out,
-        output wire [15:0] es_excp_num_out,
+         input wire ds_excp,
+         input wire [15:0] ds_excp_num,
+         output wire es_excp_out,
+         output wire [15:0] es_excp_num_out,
 
-        // bus
-        input wire [258:0] bus_ds_to_es_data,
-        output wire [150:0] bus_exu_to_mem_data,
+         // bus
+         input wire [258:0] bus_ds_to_es_data,
+         output wire [150:0] bus_exu_to_mem_data,
 
-        input wire [7:0] in_mem_op,
+         input wire [7:0] in_mem_op,
 
-        output wire req, //
-        output wr,   // |we
-        output [1:0] size, // 新增
-        output [3:0] wstrb, // we
-        output wire [31:0] addr,
-        output [31:0] wdata,
-        input addr_ok, // 新增
-        input data_ok,
-        input [31:0] rdata,
+         output wire req, //
+         output wr,   // |we
+         output [1:0] size, // 新增
+         output [3:0] wstrb, // we
+         output wire [31:0] addr,
+         output [31:0] wdata,
+         input addr_ok, // 新增
+         input data_ok,
+         input [31:0] rdata,
 
-        output wire [31:0] rdata_o,
+         output wire [31:0] rdata_o,
 
-        output wire [85:0] bus_exu_bypass_data,
+         output wire [85:0] bus_exu_bypass_data,
 
-        output wire [7:0] out_mem_op,
-        output wire [3:0] out_mem_mask,
+         output wire [7:0] out_mem_op,
+         output wire [3:0] out_mem_mask,
 
 
-        // exception
-        input wire [1:0] flush,
+         // exception
+         input wire [1:0] flush,
 
-        input wire mem_excp,
-        output wire exu_excp, // 发射到上游的异常信号
+         input wire mem_excp,
+         output wire exu_excp, // 发射到上游的异常信号
 
-        input wire mem_in_is_ertn,
-        output wire exu_is_ertn,
+         input wire mem_in_is_ertn,
+         output wire exu_is_ertn,
 
-        // 握手信号
-        input up_valid,
-        output state_valid,
-        input waite_ready_i,
-        output waite_ready_o
-    );
+         // 握手信号
+         input up_valid,
+         output state_valid,
+         input waite_ready_i,
+         output waite_ready_o,
 
+         // tlb
+         input wire [4:0] tlb_inst_bus,
+         output wire [4:0] tlb_inst_bus_o,
+
+         // from csr
+         input wire [1:0]  csr_plv,
+         input wire [31:0] csr_dmw0,
+         input wire [31:0] csr_dmw1,
+         input wire        csr_da,
+         input wire        csr_pg,
+         input wire [31:0] csr_tlbidx,
+
+
+         // from or to addr_trans
+         // for tlbsrch
+         output wire [31:0]    data_vaddr,
+         output wire [31:0]    data_dmw0,
+         output wire [31:0]    data_dmw1,
+         output wire           data_da,
+         output wire           data_pg,
+         output wire           data_dmw0_en,
+         output wire           data_dmw1_en,
+         input wire            data_tlb_found,
+         input wire[ 5:0]      data_tlb_index,
+
+         // for load store
+         input wire  [ 7:0]    data_index,
+         input wire  [19:0]    data_tag,
+         input wire  [ 3:0]    data_offset,
+         // for tlbrd
+         output wire [31:0]     tlbidx_o,
+         input wire [31:0]      tlbehi_in,
+         input wire [31:0]      tlbelo0_in,
+         input wire [31:0]      tlbelo1_in,
+         input wire [31:0]      tlbidx_in,
+
+         // for tlbsrch
+         output wire[$clog2(TLBNUM)-1:0] tlbsrch_index,
+         output wire                     tlbsrch_found,
+         // for tlbrd
+         output wire [31:0] tlbehi_o,
+         output wire [31:0] tlbelo0_o,
+         output wire [31:0] tlbelo1_o,
+         output wire [31:0]  tlbidx_o1
+     );
     wire excp_flush;
     wire ertn_flush;
     assign {excp_flush, ertn_flush} = flush;
@@ -111,6 +160,23 @@ module EXU (
     wire gr_we;
     wire [4:0] dest;
     wire [31:0] pc;
+
+    // tlb
+    reg [4:0] tlb_inst_bus_r;
+    wire wire_inst_tlbsrch;
+    wire wire_inst_tlbrd;
+    wire wire_inst_tlbwr;
+    wire wire_inst_tlbfill;
+    wire wire_inst_invtlb;
+
+    assign {
+            wire_inst_tlbsrch,
+            wire_inst_tlbrd,
+            wire_inst_tlbwr,
+            wire_inst_tlbfill,
+            wire_inst_invtlb
+        } = tlb_inst_bus_r;
+
 
 
     // 输出
@@ -330,7 +396,6 @@ module EXU (
 
     // 是否访存
     // 握手信号
-
     assign gr_we = wire_in_gr_we;
     assign dest = wire_in_dest;
     assign pc = wire_in_pc;
@@ -345,7 +410,6 @@ module EXU (
            st_h  ? st_h_we :
            st_w  ? st_w_we:
            4'b0000 ;
-    assign addr  = alu_result; // 访存地址
     // assign req = 1'b0; // 默认信号
     // 写入
     assign wdata = st_b ? {4{wire_in_rkd_value[7:0]}} :
@@ -357,9 +421,6 @@ module EXU (
     wire access_memo;
     assign access_memo = ld_b || ld_bu || ld_h || ld_hu || ld_w ||
            st_b||st_h || st_w;
-
-
-
     always @(posedge clk) begin
         if (rst || flush_sign) begin
             exu_state <= 2'd0;
@@ -367,6 +428,8 @@ module EXU (
             mem_op_reg <= 8'd0;
             ds_excp_num_r <= 16'd0;
             ds_excp_r <= 1'b0;
+            // tlb
+            tlb_inst_bus_r <= 5'd0;
         end
         else if (exu_state == 2'd0 && up_valid) begin
             ds_to_es_bus_data_r <= bus_ds_to_es_data;
@@ -374,6 +437,9 @@ module EXU (
             ds_excp_num_r <= ds_excp_num;
             ds_excp_r <= ds_excp;
             exu_state <= 2'd1;
+            // tlb
+            tlb_inst_bus_r <= tlb_inst_bus;
+
         end
         // 这里要处理，进入处理阶段
         else if(exu_state == 2'd1) begin
@@ -414,8 +480,33 @@ module EXU (
 
     assign exu_over = exu_state == 2'b0;
 
+    // tlb
+    // 窗口映射使能检查
+    wire pg_mode;
 
+    // 加上 tlb 之后，地址的意义发生了变化
+    // 假设是 pg 映射模式，那么地址就得从 addr_trans 返回
+    // 这里将会考虑数据前递技术解决数据相关
+    assign pg_mode = csr_pg && !csr_da;
+    assign data_dmw0_en = ((data_dmw0[`PLV0] && csr_plv == 2'd0) || (data_dmw0[`PLV3] && csr_plv == 2'd3)) && (alu_result[31:29] == data_dmw0[`VSEG]) && pg_mode;
+    assign data_dmw1_en = ((data_dmw1[`PLV0] && csr_plv == 2'd0) || (data_dmw1[`PLV3] && csr_plv == 2'd3)) && (alu_result[31:29] == data_dmw1[`VSEG]) && pg_mode;
+    assign data_dmw0 = csr_dmw0;
+    assign data_dmw1 = csr_dmw1;
+    assign data_da = csr_da;
+    assign data_pg = csr_pg;
+    assign data_vaddr = alu_result;
 
+    assign addr = {data_tag,data_index, data_offset}; // 物理地址
 
+    // for tlbsrch
+    assign tlbsrch_index = data_tlb_index[5:0];
+    assign tlbsrch_found = data_tlb_found;
+    // for tlbrd
+    assign tlbehi_o = tlbehi_in;
+    assign tlbelo0_o = tlbelo0_in;
+    assign tlbelo1_o = tlbelo1_in;
+    assign tlbidx_o1 = tlbidx_in;
+
+    assign tlb_inst_bus_o = tlb_inst_bus_r;
 
 endmodule

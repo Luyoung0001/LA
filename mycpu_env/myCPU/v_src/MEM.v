@@ -1,4 +1,8 @@
-module MEM(
+`include "csr.h"
+module MEM    #(
+        parameter TLBNUM = 64
+    )
+    (
         // from exu
         input wire clk,
         input wire rst,
@@ -29,7 +33,24 @@ module MEM(
         input up_valid,
         output state_valid,
         input waite_ready_i,
-        output waite_ready_o
+        output waite_ready_o,
+        // tlb
+        input wire [4:0] tlb_inst_bus,
+        output wire [4:0] tlb_inst_bus_o,
+        // tlbsrch
+        input wire[$clog2(TLBNUM)-1:0] tlbsrch_index,
+        input wire                     tlbsrch_found,
+        output wire [$clog2(TLBNUM)-1:0] tlbsrch_index_o,
+        output wire                     tlbsrch_found_o,
+        // tlbrd
+        input wire [31:0]       tlbehi_in,
+        input wire [31:0]       tlbelo0_in,
+        input wire [31:0]       tlbelo1_in,
+        input wire [31:0]       tlbidx_in,
+        output wire [31:0]      tlbehi_o,
+        output wire [31:0]      tlbelo0_o,
+        output wire [31:0]      tlbelo1_o,
+        output wire [31:0]      tlbidx_o1
     );
 
     wire excp_flush;
@@ -88,6 +109,23 @@ module MEM(
 
     reg [7:0] mem_op_reg;
     reg [3:0] mem_mask_reg;
+
+    // tlb
+    reg [4:0] tlb_inst_bus_r;
+    wire wire_inst_tlbsrch;
+    wire wire_inst_tlbrd;
+    wire wire_inst_tlbwr;
+    wire wire_inst_tlbfill;
+    wire wire_inst_invtlb;
+
+    assign {
+            wire_inst_tlbsrch,
+            wire_inst_tlbrd,
+            wire_inst_tlbwr,
+            wire_inst_tlbfill,
+            wire_inst_invtlb
+        } = tlb_inst_bus_r;
+
 
     assign {
             wire_res_from_mem,
@@ -191,6 +229,12 @@ module MEM(
            };
 
     reg [1:0] mem_state;
+    reg [$clog2(TLBNUM)-1:0] tlbsrch_index_r;
+    reg tlbsrch_found_r;
+    reg [31:0] tlbehi_in_r;
+    reg [31:0] tlbelo0_in_r;
+    reg [31:0] tlbelo1_in_r;
+    reg [31:0] tlbidx_in_r;
 
     always @(posedge clk) begin
         if (rst || flush_sign) begin
@@ -201,6 +245,17 @@ module MEM(
             mem_mask_reg <= 4'd0;
             es_excp_num_r <= 16'd0;
             es_excp_r <= 1'b0;
+            // tlb
+            tlb_inst_bus_r <= 5'd0;
+            // tlbsrch
+            tlbsrch_index_r <= 6'd0;
+            tlbsrch_found_r <= 1'b0;
+            // tlbrd
+            tlbehi_in_r <= 32'd0;
+            tlbelo0_in_r <= 32'd0;
+            tlbelo1_in_r <= 32'd0;
+            tlbidx_in_r <= 32'd0;
+
         end
         else if (mem_state == 2'd0 && up_valid) begin
             reg_rdata <= data_sram_rdata;
@@ -210,6 +265,16 @@ module MEM(
             es_excp_num_r <= es_excp_num;
             es_excp_r <= es_excp;
             mem_state <= 2'd1;
+            // tlb
+            tlb_inst_bus_r <= tlb_inst_bus;
+            // tlbsrch
+            tlbsrch_index_r <= tlbsrch_index;
+            tlbsrch_found_r <= tlbsrch_found;
+            // tlbrd
+            tlbehi_in_r <= tlbehi_in;
+            tlbelo0_in_r <= tlbelo0_in;
+            tlbelo1_in_r <= tlbelo1_in;
+            tlbidx_in_r <= tlbidx_in;
         end
 
         else if(mem_state == 2'd1) begin
@@ -224,6 +289,15 @@ module MEM(
     assign waite_ready_o = (mem_state == 2'd0) ? 1'b1 : 1'b0;
     assign mem_over = mem_state == 2'd0;
 
-
+    // tlb
+    assign tlb_inst_bus_o = tlb_inst_bus_r;
+    // tlbsrch
+    assign tlbsrch_index_o = tlbsrch_index_r;
+    assign tlbsrch_found_o = tlbsrch_found_r;
+    // tlbrd
+    assign tlbehi_o = tlbehi_in_r;
+    assign tlbelo0_o = tlbelo0_in_r;
+    assign tlbelo1_o = tlbelo1_in_r;
+    assign tlbidx_o1 = tlbidx_in_r;
 
 endmodule
