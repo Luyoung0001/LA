@@ -50,7 +50,11 @@ module IDU (
         input waite_ready_i,
         output waite_ready_o,
         // tlb
-        output wire [4:0] tlb_inst_bus
+        output wire [4:0] tlb_inst_bus,
+        // invtlb
+        output wire [4:0] invtlb_op,
+        output wire [9:0] invtlb_asid,
+        output wire [18:0] invtlb_vpn
     );
 
     wire excp_flush;
@@ -809,10 +813,15 @@ module IDU (
 
     // tlb
     assign tlb_inst_bus = {
-        inst_tlbsrch,
-        inst_tlbrd,
-        inst_tlbwr,
-        inst_tlbfill,
-        inst_invtlb
-    };
+               inst_tlbsrch,
+               inst_tlbrd,
+               inst_tlbwr,
+               inst_tlbfill,
+               inst_invtlb
+           };
+
+    // invtlb
+    assign invtlb_op = rd;
+    assign invtlb_asid = rj_value[9:0];
+    assign invtlb_vpn = rkd_value[31:13];
 endmodule

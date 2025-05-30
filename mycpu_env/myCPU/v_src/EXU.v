@@ -62,7 +62,9 @@ module EXU
          input wire        csr_da,
          input wire        csr_pg,
          input wire [31:0] csr_tlbidx,
-
+         input wire [31:0] csr_tlbehi,
+         input wire [31:0] csr_tlbelo0,
+         input wire [31:0] csr_tlbelo1,
 
          // from or to addr_trans
          // for tlbsrch
@@ -81,20 +83,32 @@ module EXU
          input wire  [19:0]    data_tag,
          input wire  [ 3:0]    data_offset,
          // for tlbrd
-         output wire [31:0]     tlbidx_o,
-         input wire [31:0]      tlbehi_in,
-         input wire [31:0]      tlbelo0_in,
-         input wire [31:0]      tlbelo1_in,
-         input wire [31:0]      tlbidx_in,
+         output wire [31:0]    tlbidx_o,
+         input wire [31:0]     tlbehi_in,
+         input wire [31:0]     tlbelo0_in,
+         input wire [31:0]     tlbelo1_in,
+         input wire [31:0]     tlbidx_in,
 
          // for tlbsrch
          output wire[$clog2(TLBNUM)-1:0] tlbsrch_index,
          output wire                     tlbsrch_found,
          // for tlbrd
-         output wire [31:0] tlbehi_o,
-         output wire [31:0] tlbelo0_o,
-         output wire [31:0] tlbelo1_o,
-         output wire [31:0]  tlbidx_o1
+         output wire [31:0]     tlbehi_o,
+         output wire [31:0]     tlbelo0_o,
+         output wire [31:0]     tlbelo1_o,
+         output wire [31:0]     tlbidx_o1,
+         // for tlbwr tlbfill
+         output wire [31:0]     tlbwr_fill_tlbehi_o1,
+         output wire [31:0]     tlbwr_fill_tlbelo0_o1,
+         output wire [31:0]     tlbwr_fill_tlbelo1_o1,
+         output wire [31:0]     tlbwr_fill_tlbidx_o1,
+         // for invtlb
+         input wire [4:0]       invtlb_op_i,
+         input wire [9:0]       invtlb_asid_i,
+         input wire [18:0]      invtlb_vpn_i,
+         output wire [4:0]      invtlb_op_o,
+         output wire [9:0]      invtlb_asid_o,
+         output wire [18:0]     invtlb_vpn_o
      );
     wire excp_flush;
     wire ertn_flush;
@@ -421,6 +435,10 @@ module EXU
     wire access_memo;
     assign access_memo = ld_b || ld_bu || ld_h || ld_hu || ld_w ||
            st_b||st_h || st_w;
+
+    reg [4:0] invtlb_op_i_r;
+    reg [9:0] invtlb_asid_i_r;
+    reg [18:0] invtlb_vpn_i_r;
     always @(posedge clk) begin
         if (rst || flush_sign) begin
             exu_state <= 2'd0;
@@ -430,6 +448,10 @@ module EXU
             ds_excp_r <= 1'b0;
             // tlb
             tlb_inst_bus_r <= 5'd0;
+            // invtlb
+            invtlb_op_i_r <= 5'd0;
+            invtlb_asid_i_r <= 10'd0;
+            invtlb_vpn_i_r <= 19'd0;
         end
         else if (exu_state == 2'd0 && up_valid) begin
             ds_to_es_bus_data_r <= bus_ds_to_es_data;
@@ -439,6 +461,10 @@ module EXU
             exu_state <= 2'd1;
             // tlb
             tlb_inst_bus_r <= tlb_inst_bus;
+            // invtlb
+            invtlb_op_i_r <= invtlb_op_i;
+            invtlb_asid_i_r <= invtlb_asid_i;
+            invtlb_vpn_i_r <= invtlb_vpn_i;
 
         end
         // 这里要处理，进入处理阶段
@@ -487,15 +513,14 @@ module EXU
     // 加上 tlb 之后，地址的意义发生了变化
     // 假设是 pg 映射模式，那么地址就得从 addr_trans 返回
     // 这里将会考虑数据前递技术解决数据相关
-    assign pg_mode = csr_pg && !csr_da;
-    assign data_dmw0_en = ((data_dmw0[`PLV0] && csr_plv == 2'd0) || (data_dmw0[`PLV3] && csr_plv == 2'd3)) && (alu_result[31:29] == data_dmw0[`VSEG]) && pg_mode;
-    assign data_dmw1_en = ((data_dmw1[`PLV0] && csr_plv == 2'd0) || (data_dmw1[`PLV3] && csr_plv == 2'd3)) && (alu_result[31:29] == data_dmw1[`VSEG]) && pg_mode;
+    assign data_vaddr = alu_result;
     assign data_dmw0 = csr_dmw0;
     assign data_dmw1 = csr_dmw1;
     assign data_da = csr_da;
     assign data_pg = csr_pg;
-    assign data_vaddr = alu_result;
-
+    assign pg_mode = csr_pg && !csr_da;
+    assign data_dmw0_en = ((data_dmw0[`PLV0] && csr_plv == 2'd0) || (data_dmw0[`PLV3] && csr_plv == 2'd3)) && (alu_result[31:29] == data_dmw0[`VSEG]) && pg_mode;
+    assign data_dmw1_en = ((data_dmw1[`PLV0] && csr_plv == 2'd0) || (data_dmw1[`PLV3] && csr_plv == 2'd3)) && (alu_result[31:29] == data_dmw1[`VSEG]) && pg_mode;
     assign addr = {data_tag,data_index, data_offset}; // 物理地址
 
     // for tlbsrch
@@ -506,6 +531,15 @@ module EXU
     assign tlbelo0_o = tlbelo0_in;
     assign tlbelo1_o = tlbelo1_in;
     assign tlbidx_o1 = tlbidx_in;
+    // for tlbwr tlbfill
+    assign tlbwr_fill_tlbehi_o1 = csr_tlbehi;
+    assign tlbwr_fill_tlbelo0_o1 = csr_tlbelo0;
+    assign tlbwr_fill_tlbelo1_o1 = csr_tlbelo1;
+    assign tlbwr_fill_tlbidx_o1 = csr_tlbidx;
+    // for invtlb
+    assign invtlb_op_o = invtlb_op_i_r;
+    assign invtlb_asid_o = invtlb_asid_i_r;
+    assign invtlb_vpn_o = invtlb_vpn_i_r;
 
     assign tlb_inst_bus_o = tlb_inst_bus_r;
 

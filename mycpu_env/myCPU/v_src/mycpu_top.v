@@ -45,42 +45,6 @@ module mycpu_top(
         input   wire        bvalid,
         output   wire    bready,
 
-        // inst sram interface
-        // output wire        inst_sram_en,
-        // output wire [3:0]  inst_sram_we,
-        // output wire [31:0] inst_sram_addr,
-        // output wire [31:0] inst_sram_wdata,
-        // input  wire [31:0] inst_sram_rdata,
-
-        // output              inst_sram_req,
-        // output              inst_sram_wr,
-        // output wire [1:0]   inst_sram_size,
-        // output wire [3:0]   inst_sram_wstrb,
-        // output wire [31:0]  inst_sram_addr,
-        // output wire [31:0]  inst_sram_wdata,
-        // input  wire         inst_sram_addr_ok,
-        // input  wire         inst_sram_data_ok,
-        // input  wire [31:0]  inst_sram_rdata,
-
-
-        // data sram interface
-        // output wire        data_sram_en,
-        // output wire [3:0]  data_sram_we,
-        // output wire [31:0] data_sram_addr,
-        // output wire [31:0] data_sram_wdata,
-        // input  wire [31:0] data_sram_rdata,
-
-        // output wire        data_sram_req,
-        // output wire        data_sram_wr,
-        // output wire [1:0]  data_sram_size,
-        // output wire [3:0]  data_sram_wstrb,
-        // output wire [31:0] data_sram_addr,
-        // output wire [31:0] data_sram_wdata,
-        // input  wire        data_sram_addr_ok,
-        // input  wire        data_sram_data_ok,
-        // input  wire [31:0] data_sram_rdata,
-
-
         // trace debug interface
         output wire [31:0] debug_wb_pc,
         output wire [ 3:0] debug_wb_rf_we,
@@ -218,6 +182,23 @@ module mycpu_top(
 
     wire ifu_state_valid;
     wire ifu_waite_ready_o;
+    // tlb
+    wire [31:0] ifu_inst_vaddr;
+    wire [31:0] ifu_inst_dmw0;
+    wire [31:0] ifu_inst_dmw1;
+    wire        ifu_inst_da;
+    wire        ifu_inst_pg;
+    wire        ifu_inst_dmw0_en;
+    wire        ifu_inst_dmw1_en;
+    wire [7:0]  ifu_inst_index;
+    wire [19:0] ifu_inst_tag;
+    wire [3:0]  ifu_inst_offset;
+    wire        ifu_inst_tlb_found;
+    wire        ifu_inst_tlb_v;
+    wire [31:0] ifu_inst_tlb_d;
+    wire [31:0] ifu_inst_tlb_mat;
+    wire [31:0] ifu_inst_tlb_plv;
+
 
 
     // idu
@@ -245,10 +226,13 @@ module mycpu_top(
 
     wire idu_waite_ready_o;
     wire idu_state_valid;
-
+    // tlb
+    wire [4:0] idu_tlb_inst_bus;
+    wire [4:0] idu_invtlb_op;
+    wire [9:0] idu_invtlb_asid;
+    wire [18:0] idu_invtlb_vpn;
 
     // exu
-
     wire exu_es_excp_out;
     wire [15:0] exu_es_excp_num_out;
     wire [150:0] exu_bus_exu_to_mem_data;
@@ -272,6 +256,33 @@ module mycpu_top(
 
     wire [31:0] exu_rdata_o;
     wire exu_exu_is_etrn;
+    // tlb
+    wire [4:0] exu_tlb_inst_bus_o;
+    wire [31:0] exu_data_vaddr;
+    wire [31:0] exu_data_dmw0;
+    wire [31:0] exu_data_dmw1;
+    wire exu_data_da;
+    wire exu_data_pg;
+    wire exu_data_dmw0_en;
+    wire exu_data_dmw1_en;
+
+    wire [31:0] exu_tlbidv_o;
+    wire [5:0] exu_tlbsrch_index;
+    wire exu_tlbsrch_found;
+    wire [31:0] exu_tlbehi_o;
+    wire [31:0] exu_tlbelo0_o;
+    wire [31:0] exu_tlbelo1_o;
+    wire [31:0] exu_tlbidx_o;
+
+    wire [31:0] exu_tlbwr_fill_tlbehi_o1;
+    wire [31:0] exu_tlbwr_fill_tlbelo0_o1;
+    wire [31:0] exu_tlbwr_fill_tlbelo1_o1;
+    wire [31:0] exu_tlbwr_fill_tlbidx_o1;
+
+    wire [4:0] exu_invtlb_op_o;
+    wire [9:0] exu_invtlb_asid_o;
+    wire [18:0] exu_invtlb_vpn_o;
+
 
     // mem
 
@@ -292,6 +303,26 @@ module mycpu_top(
 
     wire mem_state_valid;
     wire mem_waite_ready_o;
+
+    // tlb
+    wire [4:0] mem_tlb_inst_bus_o;
+
+    wire [5:0] mem_tlbsrch_index_o;
+    wire mem_tlbsrch_found_o;
+
+    wire [31:0] mem_tlbehi_o;
+    wire [31:0] mem_tlbelo0_o;
+    wire [31:0] mem_tlbelo1_o;
+    wire [31:0] mem_tlbidx_o;
+
+    wire [31:0] mem_tlbwr_fill_tlbehi_o;
+    wire [31:0] mem_tlbwr_fill_tlbelo0_o;
+    wire [31:0] mem_tlbwr_fill_tlbelo1_o;
+    wire [31:0] mem_tlbwr_fill_tlbidx_o;
+
+    wire [4:0] mem_invtlb_op_o;
+    wire [9:0] mem_invtlb_asid_o;
+    wire [18:0] mem_invtlb_vpn_o;
 
     // wbu
     wire        wbu_rf_we;
@@ -328,6 +359,31 @@ module mycpu_top(
     wire wbu_is_ertn;
     wire wbu_waite_ready_o;
 
+    // tlb
+    wire wbu_tlbsrch_en;
+    wire wbu_tlbsrch_found_o;
+    wire [5:0] wbu_tlbsrch_index_o;
+
+    wire wbu_tlbrd_en;
+    wire [31:0] wbu_tlbehi_o;
+    wire [31:0] wbu_tlbelo0_o;
+    wire [31:0] wbu_tlbelo1_o;
+    wire [31:0] wbu_tlbidx_o;
+
+    wire [31:0] wbu_tlbwr_fill_tlbehi_o;
+    wire [31:0] wbu_tlbwr_fill_tlbelo0_o;
+    wire [31:0] wbu_tlbwr_fill_tlbelo1_o;
+    wire [31:0] wbu_tlbwr_fill_tlbidx_o;
+    wire wbu_tlbwr_en_o;
+
+    wire wbu_tlbfill_en_o;
+    wire [5:0] wbu_rand_index_o;
+
+    wire [4:0] wbu_invtlb_op_o;
+    wire [9:0] wbu_invtlb_asid_o;
+    wire [18:0] wbu_invtlb_vpn_o;
+    wire wbu_invtlb_en_o;
+
     //  regfile
     wire [31:0] rf_rdata1;
     wire [31:0] rf_rdata2;
@@ -339,6 +395,26 @@ module mycpu_top(
     wire [63:0] csr_timer_64_out;
     wire [31:0] csr_tid_out;
     wire csr_has_int;
+
+    wire [1:0] csr_plv_out;
+
+    wire [9:0]  csr_asid_out;
+    wire [18:0] csr_vppn_out;
+    wire [31:0] csr_tlbehi_out;
+    wire [31:0] csr_tlbelo0_out;
+    wire [31:0] csr_tlbelo1_out;
+    wire [31:0] csr_tlbidx_out;
+    wire [5:0]  csr_rand_index;
+
+    wire        csr_pg_out;
+    wire        csr_da_out;
+    wire [31:0] csr_dmw0_out;
+    wire [31:0] csr_dmw1_out;
+    wire [1:0]  csr_datf_out;
+    wire [1:0]  csr_datm_out;
+    wire [5:0]  csr_ecode_out;
+    wire [5:0]  csr_rand_index;
+
 
     pre_IFU pre_ifu(
                 .clk (aclk),
@@ -357,16 +433,26 @@ module mycpu_top(
     IFU ifu(
             .clk        (aclk),
             .rst        (reset),
+
             .pc_i       (preifu_pc_o),
             .pc_o       (ifu_pc_o),
+
             .fs_excp_out (ifu_fs_excp_out),
             .fs_excp_num_out(ifu_fs_excp_num_out),
+
             .flush     (wbu_flush),
 
             .up_valid (preifu_state_valid),
             .state_valid (ifu_state_valid),
+
             .waite_ready_i(idu_waite_ready_o),
             .waite_ready_o(ifu_waite_ready_o),
+
+            // from csr
+            .csr_plv(csr_plv_out),
+            
+
+            // tlb
 
             // like SRAM
             .req (inst_sram_req),

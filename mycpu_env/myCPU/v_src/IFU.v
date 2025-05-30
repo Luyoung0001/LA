@@ -1,3 +1,4 @@
+`include "csr.h"
 module IFU (
         input wire clk,             // 时钟信号
         input wire rst,             // 复位信号
@@ -16,6 +17,35 @@ module IFU (
 
         input waite_ready_i,
         output waite_ready_o,
+
+        // from csr
+        input wire [1:0]  csr_plv,
+        input wire [31:0] csr_dmw0,
+        input wire [31:0] csr_dmw1,
+        input wire        csr_da,
+        input wire        csr_pg,
+        input wire [31:0] csr_tlbidx,
+        input wire [31:0] csr_tlbehi,
+        input wire [31:0] csr_tlbelo0,
+        input wire [31:0] csr_tlbelo1,
+
+        // tlb
+        output [31:0] inst_vaddr,
+        output [31:0] inst_dmw0,
+        output [31:0] inst_dmw1,
+        output        inst_da,
+        output        inst_pg,
+        output        inst_dmw0_en,
+        output        inst_dmw1_en,
+        input  [7:0]  inst_index,
+        input  [19:0] inst_tag,
+        input  [3:0]  inst_offset,
+        input         inst_tlb_found,
+        input         inst_tlb_v,
+        input         inst_tlb_d,
+        input [ 1:0]  inst_tlb_mat,
+        input [ 1:0]  inst_tlb_plv,
+
 
         // like SRAM
         output wire req, // en
@@ -58,7 +88,7 @@ module IFU (
     assign wdata = 32'b0;
     assign size = 2'b10;    // 4字节读取
     // assign req = 1'b0;      // 默认
-    assign addr = pc;
+    // assign addr = pc;
 
 
     // 这里应该设置一个握手机制：参考的是 ysyx 中的 B1 总线，也是我之前实现过的一个模块
@@ -104,5 +134,17 @@ module IFU (
     assign waite_ready_o = ifu_state == 2'b0 ? 1'b1:1'b0;
     assign state_valid = flush_sign ? 1'b0 : ifu_state == 2'd2 && data_ok;
 
+    // tlb
+    wire pg_mode;
+    assign inst_da = csr_da;
+    assign inst_pg = csr_pg;
+    assign pg_mode = csr_pg && !csr_da;
+    assign inst_vaddr = pc;
+    assign inst_dmw0 = csr_dmw0;
+    assign inst_dmw1 = csr_dmw1;
+    assign inst_dmw0_en = ((inst_dmw0[`PLV0] && csr_plv == 2'd0) || (inst_dmw0[`PLV3] && csr_plv == 2'd3)) && (pc[31:29] == inst_dmw0[`VSEG]) && pg_mode;
+    assign inst_dmw1_en = ((inst_dmw1[`PLV0] && csr_plv == 2'd0) || (inst_dmw1[`PLV3] && csr_plv == 2'd3)) && (pc[31:29] == inst_dmw1[`VSEG]) && pg_mode;
+
+    assign addr = {inst_tag, inst_index, inst_offset}; // 物理地址
 
 endmodule

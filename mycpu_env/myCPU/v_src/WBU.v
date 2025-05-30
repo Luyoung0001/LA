@@ -44,6 +44,11 @@ module WBU
          input wire [31:0]       tlbelo0_in,
          input wire [31:0]       tlbelo1_in,
          input wire [31:0]       tlbidx_in,
+         // tlbwr tlbfill
+         input wire [31:0]       tlbwr_fill_tlbehi_in,
+         input wire [31:0]       tlbwr_fill_tlbelo0_in,
+         input wire [31:0]       tlbwr_fill_tlbelo1_in,
+         input wire [31:0]       tlbwr_fill_tlbidx_in,
          // to csr
          output  wire        tlbsrch_en,
          output  wire        tlbsrch_found_o,
@@ -53,7 +58,25 @@ module WBU
          output  wire [31:0] tlbehi_o,
          output  wire [31:0] tlbelo0_o,
          output  wire [31:0] tlbelo1_o,
-         output  wire [31:0] tlbidx_o1
+         output  wire [31:0] tlbidx_o1,
+         // tlbwr to addr_trans
+         input wire [5:0] rand_index_in,
+         output wire [31:0] tlbwr_fill_tlbehi_o,
+         output wire [31:0] tlbwr_fill_tlbelo0_o,
+         output wire [31:0] tlbwr_fill_tlbelo1_o,
+         output wire [31:0] tlbwr_fill_tlbidx_o1,
+         output wire tlbwr_en_o,
+         // tlbfill
+         output wire tlbfill_en_o,
+         output wire [5:0] rand_index_o,
+         // invtlb
+         input wire [4:0]       invtlb_op_i,
+         input wire [9:0]       invtlb_asid_i,
+         input wire [18:0]      invtlb_vpn_i,
+         output wire [4:0]      invtlb_op_o,
+         output wire [9:0]      invtlb_asid_o,
+         output wire [18:0]     invtlb_vpn_o,
+         output wire            invtlb_en_o
      );
 
     wire excp_flush;
@@ -155,6 +178,16 @@ module WBU
     reg [31:0] tlbelo0_in_r;
     reg [31:0] tlbelo1_in_r;
     reg [31:0] tlbidx_in_r;
+
+    reg [31:0] tlbwr_fill_tlbehi_in_r;
+    reg [31:0] tlbwr_fill_tlbelo0_in_r;
+    reg [31:0] tlbwr_fill_tlbelo1_in_r;
+    reg [31:0] tlbwr_fill_tlbidx_in_r;
+
+    reg [4:0] invtlb_op_i_r;
+    reg [9:0] invtlb_asid_i_r;
+    reg [18:0] invtlb_vpn_i_r;
+
     always @(posedge clk) begin
         last_pc <= pc;
         last_waddr <= rf_waddr;
@@ -169,6 +202,15 @@ module WBU
             tlbelo0_in_r <= 32'd0;
             tlbelo1_in_r <= 32'd0;
             tlbidx_in_r <= 32'd0;
+            // tlbwr tlbfill
+            tlbwr_fill_tlbehi_in_r <= 32'd0;
+            tlbwr_fill_tlbelo0_in_r <= 32'd0;
+            tlbwr_fill_tlbelo1_in_r <= 32'd0;
+            tlbwr_fill_tlbidx_in_r <= 32'd0;
+            // invtlb
+            invtlb_op_i_r <= 5'd0;
+            invtlb_asid_i_r <= 10'd0;
+            invtlb_vpn_i_r <= 19'd0;
         end
         else if (wbu_state == 2'd0 && up_valid) begin
             bus_mem_to_wbu_data_r <= bus_mem_to_wbu_data;
@@ -183,7 +225,15 @@ module WBU
             tlbelo0_in_r <= tlbelo0_in;
             tlbelo1_in_r <= tlbelo1_in;
             tlbidx_in_r <= tlbidx_in;
-
+            // tlbwr tlbfill
+            tlbwr_fill_tlbehi_in_r <= tlbwr_fill_tlbehi_in;
+            tlbwr_fill_tlbelo0_in_r <= tlbwr_fill_tlbelo0_in;
+            tlbwr_fill_tlbelo1_in_r <= tlbwr_fill_tlbelo1_in;
+            tlbwr_fill_tlbidx_in_r <= tlbwr_fill_tlbidx_in;
+            // invtlb
+            invtlb_op_i_r <= invtlb_op_i;
+            invtlb_asid_i_r <= invtlb_asid_i;
+            invtlb_vpn_i_r <= invtlb_vpn_i;
         end
         else if(wbu_state == 2'd1) begin
             wbu_state <= 2'd0;
@@ -217,7 +267,22 @@ module WBU
     assign tlbelo0_o = tlbelo0_in_r;
     assign tlbelo1_o = tlbelo1_in_r;
     assign tlbidx_o1 = tlbidx_in_r;
-    
+    // tlbwr tlbfill
+    assign tlbwr_fill_tlbehi_o = tlbwr_fill_tlbehi_in_r;
+    assign tlbwr_fill_tlbelo0_o = tlbwr_fill_tlbelo0_in_r;
+    assign tlbwr_fill_tlbelo1_o = tlbwr_fill_tlbelo1_in_r;
+    assign tlbwr_fill_tlbidx_o1 = tlbwr_fill_tlbidx_in_r;
+    assign tlbwr_en_o = wire_inst_tlbwr & ws_valid & !ws_excp;
+
+    assign tlbfill_en_o = wire_inst_tlbfill & ws_valid & !ws_excp;
+    assign rand_index_o = rand_index_in;
+    // invtlb
+    assign invtlb_en_o = wire_inst_invtlb & ws_valid & !ws_excp;
+    assign invtlb_op_o = invtlb_op_i_r;
+    assign invtlb_asid_o = invtlb_asid_i_r;
+    assign invtlb_vpn_o = invtlb_vpn_i_r;
+
+
     assign ertn_flush = wire_is_inst_ertn & ws_valid & !ws_excp;
 
     // 解决数据相关

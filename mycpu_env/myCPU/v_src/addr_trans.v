@@ -53,6 +53,8 @@ module addr_trans
          //invtlb
          input                  invtlb_valid         ,
          input  [ 4:0]          invtlb_op            ,
+         input  [ 9:0]          invtlb_asid          ,
+         input  [18:0]          invtlb_vpn           ,
          //from ifu
          input  [31:0]          inst_dmw0             ,
          input  [31:0]          inst_dmw1             ,
@@ -182,10 +184,10 @@ module addr_trans
             .s1_v           (data_tlb_v     ),
 
             //invalid port
-            .invtlb_valid      (invtlb_valid   ),
-            .invtlb_op         (invtlb_op      ),
-            // .inv_asid       (invtlb_asid    ),
-            // .inv_vpn        (invtlb_vpn     )
+            .invtlb_valid    (invtlb_valid   ),
+            .invtlb_op       (invtlb_op      ),
+            .inv_asid        (invtlb_asid    ),
+            .inv_vpn         (invtlb_vpn     ),
 
             // write port
             .we             (we             ),

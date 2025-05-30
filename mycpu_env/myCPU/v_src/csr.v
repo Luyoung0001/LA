@@ -22,6 +22,9 @@ module csr
          output wire [31:0] era_out,
          output wire [31:0] eentry_out,
 
+         output [ 1:0]      plv_out,
+
+
          //from addr trans
          input wire         tlbrd_en,
          input wire [31:0]  tlbehi_in,
@@ -33,12 +36,20 @@ module csr
          input  wire        tlbsrch_en,
          input  wire        tlbsrch_found,
          input  wire [5:0]  tlbsrch_index,
+
          output wire [9:0]  asid_out,
          output wire [18:0] vppn_out,
          output wire [31:0] tlbehi_out,
          output wire [31:0] tlbelo0_out,
          output wire [31:0] tlbelo1_out,
          output wire [31:0] tlbidx_out,
+         output             pg_out,
+         output             da_out,
+         output [31:0]      dmw0_out,
+         output [31:0]      dmw1_out,
+         output [ 1:0]      datf_out,
+         output [ 1:0]      datm_out,
+         output [ 5:0]      ecode_out,
          output wire [5:0]  rand_index
      );
 
@@ -92,6 +103,8 @@ module csr
     localparam PGDH  = 14'h1a;
     localparam PGD   = 14'h1b;
     localparam TLBRENTRY = 14'h88;
+    localparam DMW0  = 14'h180;
+    localparam DMW1  = 14'h181;
 
     localparam SAVE0 = 14'h30;
     localparam SAVE1 = 14'h31;
@@ -119,6 +132,8 @@ module csr
     wire pgdh_wen   = csr_wr_en & (csr_waddr == PGDH);
     wire pgd_wen    = csr_wr_en & (csr_waddr == PGD);
     wire tlbrentry_wen = csr_wr_en & (csr_waddr == TLBRENTRY);
+    wire DMW0_wen   = csr_wr_en & (csr_waddr == DMW0);
+    wire DMW1_wen   = csr_wr_en & (csr_waddr == DMW1);
 
     wire save0_wen  = csr_wr_en & (csr_waddr == SAVE0);
     wire save1_wen  = csr_wr_en & (csr_waddr == SAVE1);
@@ -216,6 +231,27 @@ module csr
     assign tlbelo1_out  = csr_tlbelo1;
     assign tlbidx_out   = csr_tlbidx;
     assign rand_index   = timer_64[$clog2(TLBNUM)-1:0];
+
+    assign plv_out      = {2{excp_flush}} & 2'b0            |
+           {2{ertn_flush}} & csr_prmd[`PPLV] |
+           {2{crmd_wen  }} & csr_wdata[`PLV]   |
+           {2{!excp_flush && !ertn_flush && !crmd_wen}} & csr_crmd[`PLV];
+
+    assign pg_out = excp_tlbrefill ? 1'b0:
+           (eret_tlbrefill_excp && ertn_flush)? 1'b1:
+           crmd_wen ? csr_wdata[`PG]:
+           csr_crmd[`PG];
+
+    assign da_out       = excp_tlbrefill ? 1'b1:
+           (eret_tlbrefill_excp && ertn_flush) ? 1'b0:
+           crmd_wen ? csr_wdata[`DA]:
+           csr_crmd[`DA];
+
+    assign dmw0_out     = DMW0_wen ? csr_wdata : csr_dmw0;
+    assign dmw1_out     = DMW1_wen ? csr_wdata : csr_dmw1;
+    assign datf_out     = csr_crmd[`DATF];
+    assign datm_out     = csr_crmd[`DATM];
+    assign ecode_out    = csr_estat[`ECODE];
 
     //crmd
     always @(posedge clk) begin

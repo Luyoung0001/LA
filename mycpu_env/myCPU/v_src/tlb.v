@@ -33,6 +33,8 @@ module tlb
          // invalid port
          input                        invtlb_valid,
          input   [4:0]                invtlb_op,
+         input   [9:0]                invtlb_asid,
+         input   [18:0]               invtlb_vpn,
          // write port
          input                       we          ,
          input  [$clog2(TLBNUM)-1:0] w_index     ,
@@ -191,23 +193,23 @@ module tlb
                             tlb_e[i] <= 1'b0;
                         end
                     end
-                    // else if (invtlb_op == 5'd4) begin
-                    //     if (!tlb_g[i] && (tlb_asid[i] == inv_asid)) begin
-                    //         tlb_e[i] <= 1'b0;
-                    //     end
-                    // end
-                    // else if (invtlb_op == 5'd5) begin
-                    //     if (!tlb_g[i] && (tlb_asid[i] == inv_asid) &&
-                    //             ((tlb_ps[i] == 6'd12) ? (tlb_vppn[i] == inv_vpn) : (tlb_vppn[i][18:9] == inv_vpn[18:9]))) begin
-                    //         tlb_e[i] <= 1'b0;
-                    //     end
-                    // end
-                    // else if (invtlb_op == 5'd6) begin
-                    //     if ((tlb_g[i] || (tlb_asid[i] == inv_asid)) &&
-                    //             ((tlb_ps[i] == 6'd12) ? (tlb_vppn[i] == inv_vpn) : (tlb_vppn[i][18:9] == inv_vpn[18:9]))) begin
-                    //         tlb_e[i] <= 1'b0;
-                    //     end
-                    // end
+                    else if (invtlb_op == 5'd4) begin
+                        if (!tlb_g[i] && (tlb_asid[i] == invtlb_asid)) begin
+                            tlb_e[i] <= 1'b0;
+                        end
+                    end
+                    else if (invtlb_op == 5'd5) begin
+                        if (!tlb_g[i] && (tlb_asid[i] == invtlb_asid) &&
+                                ((tlb_ps[i] == 6'd12) ? (tlb_vppn[i] == invtlb_vpn) : (tlb_vppn[i][18:9] == invtlb_vpn[18:9]))) begin
+                            tlb_e[i] <= 1'b0;
+                        end
+                    end
+                    else if (invtlb_op == 5'd6) begin
+                        if ((tlb_g[i] || (tlb_asid[i] == invtlb_asid)) &&
+                                ((tlb_ps[i] == 6'd12) ? (tlb_vppn[i] == invtlb_vpn) : (tlb_vppn[i][18:9] == invtlb_vpn[18:9]))) begin
+                            tlb_e[i] <= 1'b0;
+                        end
+                    end
                 end
             end
         end
