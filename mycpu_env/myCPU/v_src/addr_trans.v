@@ -6,7 +6,8 @@ module addr_trans
      )
      (
          input                  clk                  ,
-         input  [ 9:0]          asid                 ,
+         input  [ 9:0]          inst_asid            ,
+         input  [ 9:0]          data_asid            ,
          //trans mode
          input                  inst_addr_trans_en   ,
          input                  data_addr_trans_en   ,
@@ -160,7 +161,7 @@ module addr_trans
             // search port 0
             .s0_vppn        (s0_vppn        ),
             .s0_va_bit12    (s0_va_bit12    ),
-            .s0_asid        (asid           ),
+            .s0_asid        (inst_asid      ),
             .s0_found       (inst_tlb_found ),
             .s0_index       (),
             .s0_ppn         (s0_ppn         ),
@@ -173,7 +174,7 @@ module addr_trans
             // search port 1
             .s1_vppn        (s1_vppn        ),
             .s1_va_bit12    (s1_va_bit12    ),
-            .s1_asid        (asid           ),
+            .s1_asid        (data_asid      ),
             .s1_found       (data_tlb_found ),
             .s1_index       (data_tlb_index ),
             .s1_ppn         (s1_ppn         ),
@@ -186,14 +187,14 @@ module addr_trans
             //invalid port
             .invtlb_valid    (invtlb_valid   ),
             .invtlb_op       (invtlb_op      ),
-            .inv_asid        (invtlb_asid    ),
-            .inv_vpn         (invtlb_vpn     ),
+            .invtlb_asid     (invtlb_asid    ),
+            .invtlb_vpn      (invtlb_vpn     ),
 
             // write port
             .we             (we             ),
             .w_index        (w_index        ),
             .w_vppn         (w_vppn         ),
-            .w_asid         (asid           ),
+            .w_asid         (data_asid      ),
             .w_g            (w_g            ),
             .w_ps           (w_ps           ),
             .w_e            (w_e            ),

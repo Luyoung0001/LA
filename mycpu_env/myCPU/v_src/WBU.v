@@ -18,13 +18,10 @@ module WBU
          output wire [4:0] rf_waddr,
          output wire [31:0] rf_wdata,
          output wire [31:0] pc,
-
          // bus
          output wire [85:0] bus_wbu_bypass_data,
-
          // csr
          output wire [147:0] bus_wub_to_csr_data,
-
          // exception
          output wire [1:0] flush,
          // ertn
@@ -59,7 +56,7 @@ module WBU
          output  wire [31:0] tlbelo0_o,
          output  wire [31:0] tlbelo1_o,
          output  wire [31:0] tlbidx_o1,
-         // tlbwr to addr_trans
+
          input wire [5:0] rand_index_in,
          output wire [31:0] tlbwr_fill_tlbehi_o,
          output wire [31:0] tlbwr_fill_tlbelo0_o,

@@ -29,7 +29,7 @@ module IFU (
         input wire [31:0] csr_tlbelo0,
         input wire [31:0] csr_tlbelo1,
 
-        // tlb
+        // addr_trans
         output [31:0] inst_vaddr,
         output [31:0] inst_dmw0,
         output [31:0] inst_dmw1,

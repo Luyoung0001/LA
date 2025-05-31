@@ -31,17 +31,14 @@ module EXU
          output wire [31:0] rdata_o,
 
          output wire [85:0] bus_exu_bypass_data,
-
          output wire [7:0] out_mem_op,
          output wire [3:0] out_mem_mask,
 
 
          // exception
          input wire [1:0] flush,
-
          input wire mem_excp,
          output wire exu_excp, // 发射到上游的异常信号
-
          input wire mem_in_is_ertn,
          output wire exu_is_ertn,
 
