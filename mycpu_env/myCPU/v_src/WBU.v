@@ -1,8 +1,5 @@
 `include "csr.h"
 module WBU
-    #(
-         parameter TLBNUM = 64
-     )
      (
          // from mem
          input wire clk,
@@ -33,39 +30,43 @@ module WBU
 
          // tlb
          input wire [4:0] tlb_inst_bus,
+         // from csr
+         input wire [31:0] csr_tlbidx,
+         input wire [31:0] csr_tlbehi,
+         input wire [31:0] csr_tlbelo0,
+         input wire [31:0] csr_tlbelo1,
+         input wire [4:0]  csr_rand_index,
          // tlbsrch
-         input wire[$clog2(TLBNUM)-1:0]     tlbsrch_index,
-         input wire                         tlbsrch_found,
-         // tlbrd
-         input wire [31:0]       tlbehi_in,
-         input wire [31:0]       tlbelo0_in,
-         input wire [31:0]       tlbelo1_in,
-         input wire [31:0]       tlbidx_in,
-         // tlbwr tlbfill
-         input wire [31:0]       tlbwr_fill_tlbehi_in,
-         input wire [31:0]       tlbwr_fill_tlbelo0_in,
-         input wire [31:0]       tlbwr_fill_tlbelo1_in,
-         input wire [31:0]       tlbwr_fill_tlbidx_in,
-         // to csr
          output  wire        tlbsrch_en,
+         input wire[4:0]     tlbsrch_index,
+         input wire                         tlbsrch_found,
          output  wire        tlbsrch_found_o,
-         output  wire [5:0]  tlbsrch_index_o,
-         // tlbrd
-         output wire tlbrd_en,
-         output  wire [31:0] tlbehi_o,
-         output  wire [31:0] tlbelo0_o,
-         output  wire [31:0] tlbelo1_o,
-         output  wire [31:0] tlbidx_o1,
+         output  wire [4:0]  tlbsrch_index_o,
 
-         input wire [5:0] rand_index_in,
+         // tlbrd
+         output wire [31:0]    to_trans_tlbidx_o, // 发射给 trans 模块
+         input wire [31:0]     from_trans_tlbehi_in, // 来自 tlb
+         input wire [31:0]     from_trans_tlbelo0_in,
+         input wire [31:0]     from_trans_tlbelo1_in,
+         input wire [31:0]     from_trans_tlbidx_in,
+         input wire [9:0]      from_trans_asid_in,
+         output wire csr_tlbrd_en_o, // 发射到 csr
+         output  wire [31:0] csr_tlbehi_o,
+         output  wire [31:0] csr_tlbelo0_o,
+         output  wire [31:0] csr_tlbelo1_o,
+         output  wire [31:0] csr_tlbidx_o,
+         output  wire [9:0]  csr_asid_o,
+         // tlbwr
+         output tlbwr_en_o,
          output wire [31:0] tlbwr_fill_tlbehi_o,
          output wire [31:0] tlbwr_fill_tlbelo0_o,
          output wire [31:0] tlbwr_fill_tlbelo1_o,
-         output wire [31:0] tlbwr_fill_tlbidx_o1,
-         output wire tlbwr_en_o,
+         output wire [31:0] tlbwr_fill_tlbidx_o,
+         output wire [5:0]  tlbwr_fill_ecode_o, // tlbwr tlbfill
+
          // tlbfill
          output wire tlbfill_en_o,
-         output wire [5:0] rand_index_o,
+         output wire [4:0] rand_index_o,
          // invtlb
          input wire [4:0]       invtlb_op_i,
          input wire [9:0]       invtlb_asid_i,
@@ -169,17 +170,8 @@ module WBU
     assign is_same = last_pc == pc && last_waddr == rf_waddr; // 只要 pc、rf_waddr 一致，就不再重复写
 
     reg [1:0] wbu_state;
-    reg [$clog2(TLBNUM)-1:0] tlbsrch_index_r;
+    reg [4:0] tlbsrch_index_r;
     reg tlbsrch_found_r;
-    reg [31:0] tlbehi_in_r;
-    reg [31:0] tlbelo0_in_r;
-    reg [31:0] tlbelo1_in_r;
-    reg [31:0] tlbidx_in_r;
-
-    reg [31:0] tlbwr_fill_tlbehi_in_r;
-    reg [31:0] tlbwr_fill_tlbelo0_in_r;
-    reg [31:0] tlbwr_fill_tlbelo1_in_r;
-    reg [31:0] tlbwr_fill_tlbidx_in_r;
 
     reg [4:0] invtlb_op_i_r;
     reg [9:0] invtlb_asid_i_r;
@@ -191,19 +183,10 @@ module WBU
         last_wdata <= rf_wdata;
         if (rst || flush_sign) begin
             wbu_state <= 2'd0;
+            tlb_inst_bus_r <= 5'd0;
             // tlbsrch
-            tlbsrch_index_r <= 6'd0;
+            tlbsrch_index_r <= 5'd0;
             tlbsrch_found_r <= 1'b0;
-            // tlbrd
-            tlbehi_in_r <= 32'd0;
-            tlbelo0_in_r <= 32'd0;
-            tlbelo1_in_r <= 32'd0;
-            tlbidx_in_r <= 32'd0;
-            // tlbwr tlbfill
-            tlbwr_fill_tlbehi_in_r <= 32'd0;
-            tlbwr_fill_tlbelo0_in_r <= 32'd0;
-            tlbwr_fill_tlbelo1_in_r <= 32'd0;
-            tlbwr_fill_tlbidx_in_r <= 32'd0;
             // invtlb
             invtlb_op_i_r <= 5'd0;
             invtlb_asid_i_r <= 10'd0;
@@ -214,19 +197,10 @@ module WBU
             ms_excp_num_r <= ms_excp_num;
             ms_excp_r <= ms_excp;
             wbu_state <= 2'd1;
+            tlb_inst_bus_r <= tlb_inst_bus;
             // tlbsrch
             tlbsrch_index_r <= tlbsrch_index;
             tlbsrch_found_r <= tlbsrch_found;
-            // tlbrd
-            tlbehi_in_r <= tlbehi_in;
-            tlbelo0_in_r <= tlbelo0_in;
-            tlbelo1_in_r <= tlbelo1_in;
-            tlbidx_in_r <= tlbidx_in;
-            // tlbwr tlbfill
-            tlbwr_fill_tlbehi_in_r <= tlbwr_fill_tlbehi_in;
-            tlbwr_fill_tlbelo0_in_r <= tlbwr_fill_tlbelo0_in;
-            tlbwr_fill_tlbelo1_in_r <= tlbwr_fill_tlbelo1_in;
-            tlbwr_fill_tlbidx_in_r <= tlbwr_fill_tlbidx_in;
             // invtlb
             invtlb_op_i_r <= invtlb_op_i;
             invtlb_asid_i_r <= invtlb_asid_i;
@@ -259,20 +233,23 @@ module WBU
     assign tlbsrch_found_o = tlbsrch_found_r;
     assign tlbsrch_index_o = tlbsrch_index_r;
     // tlbrd
-    assign tlbrd_en = wire_inst_tlbrd & ws_valid & !ws_excp;
-    assign tlbehi_o = tlbehi_in_r;
-    assign tlbelo0_o = tlbelo0_in_r;
-    assign tlbelo1_o = tlbelo1_in_r;
-    assign tlbidx_o1 = tlbidx_in_r;
+    assign to_trans_tlbidx_o = csr_tlbidx;
+    assign csr_tlbrd_en_o = wire_inst_tlbrd & ws_valid & !ws_excp;
+    assign csr_tlbehi_o = from_trans_tlbehi_in;
+    assign csr_tlbelo0_o = from_trans_tlbelo0_in;
+    assign csr_tlbelo1_o = from_trans_tlbelo1_in;
+    assign csr_tlbidx_o = from_trans_tlbidx_in;
+    assign csr_asid_o = from_trans_asid_in;
     // tlbwr tlbfill
-    assign tlbwr_fill_tlbehi_o = tlbwr_fill_tlbehi_in_r;
-    assign tlbwr_fill_tlbelo0_o = tlbwr_fill_tlbelo0_in_r;
-    assign tlbwr_fill_tlbelo1_o = tlbwr_fill_tlbelo1_in_r;
-    assign tlbwr_fill_tlbidx_o1 = tlbwr_fill_tlbidx_in_r;
     assign tlbwr_en_o = wire_inst_tlbwr & ws_valid & !ws_excp;
+    assign tlbwr_fill_tlbehi_o = csr_tlbehi;
+    assign tlbwr_fill_tlbelo0_o = csr_tlbelo0;
+    assign tlbwr_fill_tlbelo1_o = csr_tlbelo1;
+    assign tlbwr_fill_tlbidx_o = csr_tlbidx;
+    assign tlbwr_fill_ecode_o = csr_ecode;
 
     assign tlbfill_en_o = wire_inst_tlbfill & ws_valid & !ws_excp;
-    assign rand_index_o = rand_index_in;
+    assign rand_index_o = csr_rand_index;
     // invtlb
     assign invtlb_en_o = wire_inst_invtlb & ws_valid & !ws_excp;
     assign invtlb_op_o = invtlb_op_i_r;

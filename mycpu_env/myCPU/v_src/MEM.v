@@ -1,74 +1,54 @@
 `include "csr.h"
-module MEM    #(
-        parameter TLBNUM = 64
-    )
-    (
-        // from exu
-        input wire clk,
-        input wire rst,
+module MEM
+     (
+         // from exu
+         input wire clk,
+         input wire rst,
 
-        input wire es_excp,
-        input wire [15:0] es_excp_num,
-        output wire ms_excp_out,
-        output wire [15:0] ms_excp_num_out,
+         input wire es_excp,
+         input wire [15:0] es_excp_num,
+         output wire ms_excp_out,
+         output wire [15:0] ms_excp_num_out,
 
-        input wire [7:0] in_mem_op,
-        input wire [3:0] in_mem_mask,
+         input wire [7:0] in_mem_op,
+         input wire [3:0] in_mem_mask,
 
-        input wire [150:0] bus_exu_to_mem_data,
-        output wire [149:0] bus_mem_to_wbu_data,
+         input wire [150:0] bus_exu_to_mem_data,
+         output wire [149:0] bus_mem_to_wbu_data,
 
-        // from mem_sram
-        input wire [31:0] data_sram_rdata,
-        output wire [85:0] bus_mem_bypass_data,
+         // from mem_sram
+         input wire [31:0] data_sram_rdata,
+         output wire [85:0] bus_mem_bypass_data,
 
-        // exception
-        input wire [1:0] flush,
+         // exception
+         input wire [1:0] flush,
 
-        input wire wbu_in_is_ertn,
-        output wire mem_excp, // 发射到 exu 以实现精确异常
-        output wire is_ertn, // 这个信号的作用和异常一致，但是它归根结底不属于异常
+         input wire wbu_in_is_ertn,
+         output wire mem_excp, // 发射到 exu 以实现精确异常
+         output wire is_ertn, // 这个信号的作用和异常一致，但是它归根结底不属于异常
 
-        // 握手信号
-        input up_valid,
-        output state_valid,
-        input waite_ready_i,
-        output waite_ready_o,
-        // tlb
-        input wire [4:0] tlb_inst_bus,
-        output wire [4:0] tlb_inst_bus_o,
-        // tlbsrch
-        input wire[$clog2(TLBNUM)-1:0] tlbsrch_index,
-        input wire                     tlbsrch_found,
-        output wire [$clog2(TLBNUM)-1:0] tlbsrch_index_o,
-        output wire                     tlbsrch_found_o,
-        // tlbrd
-        input wire [31:0]       tlbehi_in,
-        input wire [31:0]       tlbelo0_in,
-        input wire [31:0]       tlbelo1_in,
-        input wire [31:0]       tlbidx_in,
-        output wire [31:0]      tlbehi_o,
-        output wire [31:0]      tlbelo0_o,
-        output wire [31:0]      tlbelo1_o,
-        output wire [31:0]      tlbidx_o1,
-        // tlbwr tlbfill
-        input wire [31:0]       tlbwr_fill_tlbehi_in,
-        input wire [31:0]       tlbwr_fill_tlbelo0_in,
-        input wire [31:0]       tlbwr_fill_tlbelo1_in,
-        input wire [31:0]       tlbwr_fill_tlbidx_in,
-        output wire [31:0]      tlbwr_fill_tlbehi_o,
-        output wire [31:0]      tlbwr_fill_tlbelo0_o,
-        output wire [31:0]      tlbwr_fill_tlbelo1_o,
-        output wire [31:0]      tlbwr_fill_tlbidx_o1,
-        // invtlb
-        input wire [4:0]       invtlb_op_i,
-        input wire [9:0]       invtlb_asid_i,
-        input wire [18:0]      invtlb_vpn_i,
-        output wire [4:0]      invtlb_op_o,
-        output wire [9:0]      invtlb_asid_o,
-        output wire [18:0]     invtlb_vpn_o
+         // 握手信号
+         input up_valid,
+         output state_valid,
+         input waite_ready_i,
+         output waite_ready_o,
+         // tlb
+         input wire [4:0] tlb_inst_bus,
+         output wire [4:0] tlb_inst_bus_o,
+         // tlbsrch
+         input wire[4:0] tlbsrch_index,
+         input wire                     tlbsrch_found,
+         output wire [4:0] tlbsrch_index_o,
+         output wire                     tlbsrch_found_o,
+         // invtlb
+         input wire [4:0]       invtlb_op_i,
+         input wire [9:0]       invtlb_asid_i,
+         input wire [18:0]      invtlb_vpn_i,
+         output wire [4:0]      invtlb_op_o,
+         output wire [9:0]      invtlb_asid_o,
+         output wire [18:0]     invtlb_vpn_o
 
-    );
+     );
 
     wire excp_flush;
     wire ertn_flush;
@@ -246,16 +226,8 @@ module MEM    #(
            };
 
     reg [1:0] mem_state;
-    reg [$clog2(TLBNUM)-1:0] tlbsrch_index_r;
+    reg [4:0] tlbsrch_index_r;
     reg tlbsrch_found_r;
-    reg [31:0] tlbehi_in_r;
-    reg [31:0] tlbelo0_in_r;
-    reg [31:0] tlbelo1_in_r;
-    reg [31:0] tlbidx_in_r;
-    reg [31:0] tlbwr_fill_tlbehi_in_r;
-    reg [31:0] tlbwr_fill_tlbelo0_in_r;
-    reg [31:0] tlbwr_fill_tlbelo1_in_r;
-    reg [31:0] tlbwr_fill_tlbidx_in_r;
 
     reg [4:0] invtlb_op_i_r;
     reg [9:0] invtlb_asid_i_r;
@@ -273,18 +245,8 @@ module MEM    #(
             // tlb
             tlb_inst_bus_r <= 5'd0;
             // tlbsrch
-            tlbsrch_index_r <= 6'd0;
+            tlbsrch_index_r <= 5'd0;
             tlbsrch_found_r <= 1'b0;
-            // tlbrd
-            tlbehi_in_r <= 32'd0;
-            tlbelo0_in_r <= 32'd0;
-            tlbelo1_in_r <= 32'd0;
-            tlbidx_in_r <= 32'd0;
-            // tlbwr
-            tlbwr_fill_tlbehi_in_r <= 32'd0;
-            tlbwr_fill_tlbelo0_in_r <= 32'd0;
-            tlbwr_fill_tlbelo1_in_r <= 32'd0;
-            tlbwr_fill_tlbidx_in_r <= 32'd0;
             // invtlb
             invtlb_op_i_r <= 5'd0;
             invtlb_asid_i_r <= 10'd0;
@@ -304,16 +266,6 @@ module MEM    #(
             // tlbsrch
             tlbsrch_index_r <= tlbsrch_index;
             tlbsrch_found_r <= tlbsrch_found;
-            // tlbrd
-            tlbehi_in_r <= tlbehi_in;
-            tlbelo0_in_r <= tlbelo0_in;
-            tlbelo1_in_r <= tlbelo1_in;
-            tlbidx_in_r <= tlbidx_in;
-            // tlbwr
-            tlbwr_fill_tlbehi_in_r <= tlbwr_fill_tlbehi_in;
-            tlbwr_fill_tlbelo0_in_r <= tlbwr_fill_tlbelo0_in;
-            tlbwr_fill_tlbelo1_in_r <= tlbwr_fill_tlbelo1_in;
-            tlbwr_fill_tlbidx_in_r <= tlbwr_fill_tlbidx_in;
             // invtlb
             invtlb_op_i_r <= invtlb_op_i;
             invtlb_asid_i_r <= invtlb_asid_i;
@@ -337,16 +289,6 @@ module MEM    #(
     // tlbsrch
     assign tlbsrch_index_o = tlbsrch_index_r;
     assign tlbsrch_found_o = tlbsrch_found_r;
-    // tlbrd
-    assign tlbehi_o = tlbehi_in_r;
-    assign tlbelo0_o = tlbelo0_in_r;
-    assign tlbelo1_o = tlbelo1_in_r;
-    assign tlbidx_o1 = tlbidx_in_r;
-    // tlbwr
-    assign tlbwr_fill_tlbehi_o = tlbwr_fill_tlbehi_in_r;
-    assign tlbwr_fill_tlbelo0_o = tlbwr_fill_tlbelo0_in_r;
-    assign tlbwr_fill_tlbelo1_o = tlbwr_fill_tlbelo1_in_r;
-    assign tlbwr_fill_tlbidx_o1 = tlbwr_fill_tlbidx_in_r;
     // for invtlb
     assign invtlb_op_o = invtlb_op_i_r;
     assign invtlb_asid_o = invtlb_asid_i_r;

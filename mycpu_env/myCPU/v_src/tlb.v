@@ -1,6 +1,6 @@
 module tlb
     #(
-         parameter TLBNUM = 64
+         parameter TLBNUM = 32
      )
      (
          input        clk,
@@ -9,7 +9,7 @@ module tlb
          input                        s0_va_bit12 , // for odd page
          input   [ 9:0]               s0_asid     ,
          output                       s0_found    ,
-         output  [ 5:0]               s0_index    ,
+         output  [ 4:0]               s0_index    ,
          output  [19:0]               s0_ppn      ,
          output  [ 5:0]               s0_ps       ,
          output  [ 1:0]               s0_plv      ,
@@ -22,7 +22,7 @@ module tlb
          input                        s1_va_bit12 , // for odd page
          input   [ 9:0]               s1_asid     ,
          output                       s1_found    ,
-         output  [ 5:0]               s1_index    ,
+         output  [ 4:0]               s1_index    ,
          output  [19:0]               s1_ppn      ,
          output  [ 5:0]               s1_ps       ,
          output  [ 1:0]               s1_plv      ,
@@ -37,7 +37,7 @@ module tlb
          input   [18:0]               invtlb_vpn,
          // write port
          input                       we          ,
-         input  [$clog2(TLBNUM)-1:0] w_index     ,
+         input  [4:0]                w_index     ,
          input                       w_e         ,
          input  [18:0]               w_vppn      ,
          input  [ 5:0]               w_ps        ,
@@ -55,7 +55,7 @@ module tlb
          input                       w_v1        ,
 
          // read port
-         input  [$clog2(TLBNUM)-1:0] r_index     ,
+         input  [4:0]                r_index     ,
          output                      r_e         ,
          output [18:0]               r_vppn      ,
          output [ 5:0]               r_ps        ,
@@ -73,21 +73,21 @@ module tlb
          output                      r_v1
      );
 
-    reg [18:0] tlb_vppn     [TLBNUM-1:0];
-    reg        tlb_e        [TLBNUM-1:0];
-    reg [ 9:0] tlb_asid     [TLBNUM-1:0];
-    reg        tlb_g        [TLBNUM-1:0];
-    reg [ 5:0] tlb_ps       [TLBNUM-1:0];
-    reg [19:0] tlb_ppn0     [TLBNUM-1:0];
-    reg [ 1:0] tlb_plv0     [TLBNUM-1:0];
-    reg [ 1:0] tlb_mat0     [TLBNUM-1:0];
-    reg        tlb_d0       [TLBNUM-1:0];
-    reg        tlb_v0       [TLBNUM-1:0];
-    reg [19:0] tlb_ppn1     [TLBNUM-1:0];
-    reg [ 1:0] tlb_plv1     [TLBNUM-1:0];
-    reg [ 1:0] tlb_mat1     [TLBNUM-1:0];
-    reg        tlb_d1       [TLBNUM-1:0];
-    reg        tlb_v1       [TLBNUM-1:0];
+    reg [18:0] tlb_vppn     [31:0];
+    reg        tlb_e        [31:0];
+    reg [ 9:0] tlb_asid     [31:0];
+    reg        tlb_g        [31:0];
+    reg [ 5:0] tlb_ps       [31:0];
+    reg [19:0] tlb_ppn0     [31:0];
+    reg [ 1:0] tlb_plv0     [31:0];
+    reg [ 1:0] tlb_mat0     [31:0];
+    reg        tlb_d0       [31:0];
+    reg        tlb_v0       [31:0];
+    reg [19:0] tlb_ppn1     [31:0];
+    reg [ 1:0] tlb_plv1     [31:0];
+    reg [ 1:0] tlb_mat1     [31:0];
+    reg        tlb_d1       [31:0];
+    reg        tlb_v1       [31:0];
 
 
     wire [TLBNUM-1:0] match0;
@@ -96,12 +96,12 @@ module tlb
     wire [$clog2(TLBNUM)-1:0] match0_en;
     wire [$clog2(TLBNUM)-1:0] match1_en;
 
-    wire [TLBNUM-1:0] s0_odd_page_buffer;
-    wire [TLBNUM-1:0] s1_odd_page_buffer;
+    wire [31:0] s0_odd_page_buffer;
+    wire [31:0] s1_odd_page_buffer;
 
     genvar i;
     generate
-        for (i = 0; i < TLBNUM; i = i + 1) begin: match
+        for (i = 0; i < 32; i = i + 1) begin: match
             assign match0[i] = tlb_e[i] && ((tlb_ps[i] == 6'd12) ? s0_vppn == tlb_vppn[i] : s0_vppn[18: 9] == tlb_vppn[i][18: 9]) && ((s0_asid == tlb_asid[i]) || tlb_g[i]);
             assign match1[i] = tlb_e[i] && ((tlb_ps[i] == 6'd12) ? s1_vppn == tlb_vppn[i] : s1_vppn[18: 9] == tlb_vppn[i][18: 9]) && ((s1_asid == tlb_asid[i]) || tlb_g[i]);
 
@@ -115,12 +115,12 @@ module tlb
         end
     endgenerate
 
-    encoder_64_6 en_match0 (.in({{(64-TLBNUM){1'b0}},match0}), .out(match0_en));
-    encoder_64_6 en_match1 (.in({{(64-TLBNUM){1'b0}},match1}), .out(match1_en));
+    encoder_32_5 en_match0 (.in({{(32-TLBNUM){1'b0}},match0}), .out(match0_en));
+    encoder_32_5 en_match1 (.in({{(32-TLBNUM){1'b0}},match1}), .out(match1_en));
 
 
     assign s0_found = |match0;
-    assign s0_index = {{(6-$clog2(TLBNUM)){1'b0}},match0_en};
+    assign s0_index = {{(5-$clog2(TLBNUM)){1'b0}},match0_en};
     assign s0_ps    = tlb_ps[match0_en];
     assign s0_ppn   = s0_odd_page_buffer[match0_en] ? tlb_ppn1[match0_en] : tlb_ppn0[match0_en];
     assign s0_v     = s0_odd_page_buffer[match0_en] ? tlb_v1[match0_en]   : tlb_v0[match0_en]  ;
@@ -129,7 +129,7 @@ module tlb
     assign s0_plv   = s0_odd_page_buffer[match0_en] ? tlb_plv1[match0_en] : tlb_plv0[match0_en];
 
     assign s1_found = |match1;
-    assign s1_index = {{(6-$clog2(TLBNUM)){1'b0}},match1_en};
+    assign s1_index = {{(5-$clog2(TLBNUM)){1'b0}},match1_en};
     assign s1_ps    = tlb_ps[match1_en];
     assign s1_ppn   = s1_odd_page_buffer[match1_en] ? tlb_ppn1[match1_en] : tlb_ppn0[match1_en];
     assign s1_v     = s1_odd_page_buffer[match1_en] ? tlb_v1[match1_en]   : tlb_v0[match1_en]  ;
@@ -174,7 +174,7 @@ module tlb
 
     //tlb entry invalid
     generate
-        for (i = 0; i < TLBNUM; i = i + 1) begin: invalid_tlb_entry
+        for (i = 0; i < 32; i = i + 1) begin: invalid_tlb_entry
             always @(posedge clk) begin
                 if (we && (w_index == i)) begin
                     tlb_e[i] <= w_e;

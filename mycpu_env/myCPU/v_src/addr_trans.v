@@ -1,20 +1,20 @@
 `include "csr.h"
 
 module addr_trans
-    #(
-         parameter TLBNUM = 64
-     )
      (
          input                  clk                  ,
-         input  [ 9:0]          inst_asid            ,
-         input  [ 9:0]          data_asid            ,
-         //trans mode
-         input                  inst_addr_trans_en   ,
-         input                  data_addr_trans_en   ,
          //inst addr trans
+         input                  inst_addr_trans_en   ,
+         input  [ 9:0]          inst_asid            ,
          input  [31:0]          inst_vaddr           ,
          input                  inst_dmw0_en         ,
          input                  inst_dmw1_en         ,
+
+         input  [31:0]          inst_dmw0             ,
+         input  [31:0]          inst_dmw1             ,
+         input                  inst_da               ,
+         input                  inst_pg,
+
          output [ 7:0]          inst_index           ,
          output [19:0]          inst_tag             ,
          output [ 3:0]          inst_offset          ,
@@ -24,28 +24,36 @@ module addr_trans
          output [ 1:0]          inst_tlb_mat         ,
          output [ 1:0]          inst_tlb_plv         ,
          //data addr trans
+         input                  data_addr_trans_en   ,
+         input  [ 9:0]          data_asid            ,
          input  [31:0]          data_vaddr           ,
          input                  data_dmw0_en         ,
          input                  data_dmw1_en         ,
+
+         input  [31:0]          data_dmw0             ,
+         input  [31:0]          data_dmw1             ,
+         input                  data_da               ,
+         input                  data_pg,
+
          output [ 7:0]          data_index           ,
          output [19:0]          data_tag             ,
          output [ 3:0]          data_offset          ,
          output                 data_tlb_found       ,
-         output [ 5:0]          data_tlb_index       ,
+         output [ 4:0]          data_tlb_index       , // for tlbsrch
          output                 data_tlb_v           ,
          output                 data_tlb_d           ,
          output [ 1:0]          data_tlb_mat         ,
          output [ 1:0]          data_tlb_plv         ,
-         //tlbwi tlbwr tlb write
+         // tlbwr tlbfill
          input                  tlbfill_en           ,
          input                  tlbwr_en             ,
-         input  [ 5:0]          rand_index           ,
+         input  [ 4:0]          rand_index           , // tlbfill
          input  [31:0]          tlbehi_in            ,
          input  [31:0]          tlbelo0_in           ,
          input  [31:0]          tlbelo1_in           ,
-         input  [31:0]          tlbidx_in            ,
+         input  [31:0]          tlbidx_in            , // tlbrd tlbwr
          input  [ 5:0]          ecode_in             ,
-         //tlbr tlb read
+         // for tlbrd
          output [31:0]          tlbehi_out           ,
          output [31:0]          tlbelo0_out          ,
          output [31:0]          tlbelo1_out          ,
@@ -55,17 +63,8 @@ module addr_trans
          input                  invtlb_valid         ,
          input  [ 4:0]          invtlb_op            ,
          input  [ 9:0]          invtlb_asid          ,
-         input  [18:0]          invtlb_vpn           ,
-         //from ifu
-         input  [31:0]          inst_dmw0             ,
-         input  [31:0]          inst_dmw1             ,
-         input                  inst_da               ,
-         input                  inst_pg,
-         // from exu
-         input  [31:0]          data_dmw0             ,
-         input  [31:0]          data_dmw1             ,
-         input                  data_da               ,
-         input                  data_pg
+         input  [18:0]          invtlb_vpn
+
      );
 
     wire [18:0] s0_vppn     ;
@@ -81,7 +80,7 @@ module addr_trans
     wire s1_va_bit12        ;
 
     wire        we          ;
-    wire [ 5:0] w_index     ;
+    wire [ 4:0] w_index     ;
     wire [18:0] w_vppn      ;
     wire        w_g         ;
     wire [ 5:0] w_ps        ;
@@ -97,7 +96,7 @@ module addr_trans
     wire [ 1:0] w_plv1      ;
     wire [19:0] w_ppn1      ;
 
-    wire [ 5:0] r_index     ;
+    wire [ 4:0] r_index     ;
     wire [18:0] r_vppn      ;
     wire [ 9:0] r_asid      ;
     wire        r_g         ;
@@ -130,7 +129,7 @@ module addr_trans
 
     // 写
     assign we      = tlbfill_en || tlbwr_en;
-    assign w_index = ({6{tlbfill_en}} & rand_index) | ({6{tlbwr_en}} & tlbidx_in[`INDEX]);
+    assign w_index = ({5{tlbfill_en}} & rand_index) | ({5{tlbwr_en}} & tlbidx_in[`INDEX]);
     assign w_vppn  = tlbehi_in[`VPPN];
     assign w_g     = tlbelo0_in[`TLB_G] && tlbelo1_in[`TLB_G];
     assign w_ps    = tlbidx_in[`PS];
@@ -156,7 +155,7 @@ module addr_trans
     assign tlbidx_out   = {!r_e, 1'b0, r_ps, 24'b0}; //note do not write index
     assign asid_out     = r_asid;
 
-    tlb o(
+    tlb  blt_o(
             .clk            (clk            ),
             // search port 0
             .s0_vppn        (s0_vppn        ),
@@ -229,11 +228,13 @@ module addr_trans
 
         );
 
-    assign inst_pg_mode = !inst_da && inst_pg; // page 模式
-    assign inst_da_mode = inst_da && !inst_pg; // 直接映射地址翻译模式
-    assign data_pg_mode = !data_da && data_pg; // page 模式
-    assign data_da_mode = data_da && !data_pg; // 直接映射地址翻译模式
+    assign inst_pg_mode = !inst_da && inst_pg; // 映射地址翻译模式
+    assign inst_da_mode = inst_da && !inst_pg; // 直接地址翻译模式
 
+    assign data_pg_mode = !data_da && data_pg;
+    assign data_da_mode = data_da && !data_pg;
+    // 在映射地址翻译模式下, 地址翻译时将优先看其能否按照直接映射
+    // 模式进行地址翻译, 无法进行后再通过页表映射模式进行翻译。
     assign inst_paddr = (inst_pg_mode && inst_dmw0_en) ? {inst_dmw0[`PSEG], inst_vaddr[28:0]} :
            (inst_pg_mode && inst_dmw1_en) ? {inst_dmw1[`PSEG], inst_vaddr[28:0]} : inst_vaddr;
 

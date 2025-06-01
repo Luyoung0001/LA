@@ -3430,7 +3430,7 @@ module SimpleLACore(
   assign io_debug_wnum = _wbIdx_T_9 | _wbIdx_T_7;
   assign io_debug_wdata = _wbData_T_23 | _GEN_2370;
   assign io_debug_inst = dStallReg ? inst_reg : io_inst_resp_bits;
-  
+
   always @(posedge clock) begin
     if (GR_MPORT_en & GR_MPORT_mask) begin
       GR[GR_MPORT_addr] <= GR_MPORT_data;

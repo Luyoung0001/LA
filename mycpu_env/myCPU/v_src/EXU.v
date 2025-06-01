@@ -1,8 +1,5 @@
 `include "csr.h"
 module EXU
-    #(
-         parameter TLBNUM = 64
-     )
      (
          input wire clk,
          input wire rst,
@@ -62,43 +59,34 @@ module EXU
          input wire [31:0] csr_tlbehi,
          input wire [31:0] csr_tlbelo0,
          input wire [31:0] csr_tlbelo1,
+         input wire [18:0] csr_vppn,
+         input wire [9:0]  csr_asid,
 
          // from or to addr_trans
-         // for tlbsrch
+         // for tlbsrch and access mem
+         output wire           data_addr_trans_en,
+         output wire [9:0]     data_asid,
          output wire [31:0]    data_vaddr,
+         output wire           data_dmw0_en,
+         output wire           data_dmw1_en,
          output wire [31:0]    data_dmw0,
          output wire [31:0]    data_dmw1,
          output wire           data_da,
          output wire           data_pg,
-         output wire           data_dmw0_en,
-         output wire           data_dmw1_en,
-         input wire            data_tlb_found,
-         input wire[ 5:0]      data_tlb_index,
 
-         // for load store
          input wire  [ 7:0]    data_index,
          input wire  [19:0]    data_tag,
          input wire  [ 3:0]    data_offset,
-         // for tlbrd
-         output wire [31:0]    tlbidx_o,
-         input wire [31:0]     tlbehi_in,
-         input wire [31:0]     tlbelo0_in,
-         input wire [31:0]     tlbelo1_in,
-         input wire [31:0]     tlbidx_in,
+         input wire            data_tlb_found,
+         input wire  [4:0]     data_tlb_index,
+         input wire            data_tlb_v,
+         input wire            data_tlb_d,
+         input wire  [1:0]     data_tlb_mat,
+         input wire  [1:0]     data_tlb_plv,
 
          // for tlbsrch
-         output wire[$clog2(TLBNUM)-1:0] tlbsrch_index,
-         output wire                     tlbsrch_found,
-         // for tlbrd
-         output wire [31:0]     tlbehi_o,
-         output wire [31:0]     tlbelo0_o,
-         output wire [31:0]     tlbelo1_o,
-         output wire [31:0]     tlbidx_o1,
-         // for tlbwr tlbfill
-         output wire [31:0]     tlbwr_fill_tlbehi_o1,
-         output wire [31:0]     tlbwr_fill_tlbelo0_o1,
-         output wire [31:0]     tlbwr_fill_tlbelo1_o1,
-         output wire [31:0]     tlbwr_fill_tlbidx_o1,
+         output wire[4:0]      tlbsrch_index,
+         output wire           tlbsrch_found,
          // for invtlb
          input wire [4:0]       invtlb_op_i,
          input wire [9:0]       invtlb_asid_i,
@@ -499,7 +487,7 @@ module EXU
     assign rdata_o = flush_sign ? 32'd0 : rdata;
     assign req = (mem_excp | es_excp | flush_sign | mem_in_is_ertn) ? 1'b0 : exu_state == 2'd1 && access_memo && waite_ready_i && !addr_ok;
     assign state_valid =  access_memo && !(mem_excp | es_excp | flush_sign | mem_in_is_ertn) ? exu_state == 2'd2 && data_ok : exu_state == 2'd0;
-    assign waite_ready_o = exu_state == 2'b0 ? 1'b1:1'b0;
+    assign waite_ready_o = exu_state == 2'b0 ? 1'b1 : 1'b0;
 
     assign exu_over = exu_state == 2'b0;
 
@@ -510,7 +498,7 @@ module EXU
     // 加上 tlb 之后，地址的意义发生了变化
     // 假设是 pg 映射模式，那么地址就得从 addr_trans 返回
     // 这里将会考虑数据前递技术解决数据相关
-    assign data_vaddr = alu_result;
+    assign data_vaddr = wire_inst_tlbsrch ? {csr_vppn,13'd0} : alu_result;
     assign data_dmw0 = csr_dmw0;
     assign data_dmw1 = csr_dmw1;
     assign data_da = csr_da;
@@ -518,21 +506,12 @@ module EXU
     assign pg_mode = csr_pg && !csr_da;
     assign data_dmw0_en = ((data_dmw0[`PLV0] && csr_plv == 2'd0) || (data_dmw0[`PLV3] && csr_plv == 2'd3)) && (alu_result[31:29] == data_dmw0[`VSEG]) && pg_mode;
     assign data_dmw1_en = ((data_dmw1[`PLV0] && csr_plv == 2'd0) || (data_dmw1[`PLV3] && csr_plv == 2'd3)) && (alu_result[31:29] == data_dmw1[`VSEG]) && pg_mode;
-    assign addr = {data_tag,data_index, data_offset}; // 物理地址
+    assign data_addr_trans_en = pg_mode && !data_dmw0_en && !data_dmw1_en;
+    assign addr = {data_tag, data_index, data_offset}; // 物理地址
 
     // for tlbsrch
-    assign tlbsrch_index = data_tlb_index[5:0];
+    assign tlbsrch_index = data_tlb_index;
     assign tlbsrch_found = data_tlb_found;
-    // for tlbrd
-    assign tlbehi_o = tlbehi_in;
-    assign tlbelo0_o = tlbelo0_in;
-    assign tlbelo1_o = tlbelo1_in;
-    assign tlbidx_o1 = tlbidx_in;
-    // for tlbwr tlbfill
-    assign tlbwr_fill_tlbehi_o1 = csr_tlbehi;
-    assign tlbwr_fill_tlbelo0_o1 = csr_tlbelo0;
-    assign tlbwr_fill_tlbelo1_o1 = csr_tlbelo1;
-    assign tlbwr_fill_tlbidx_o1 = csr_tlbidx;
     // for invtlb
     assign invtlb_op_o = invtlb_op_i_r;
     assign invtlb_asid_o = invtlb_asid_i_r;

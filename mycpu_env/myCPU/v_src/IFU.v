@@ -14,7 +14,6 @@ module IFU (
         // 握手信号
         input up_valid,
         output state_valid,
-
         input waite_ready_i,
         output waite_ready_o,
 
@@ -28,15 +27,20 @@ module IFU (
         input wire [31:0] csr_tlbehi,
         input wire [31:0] csr_tlbelo0,
         input wire [31:0] csr_tlbelo1,
+        input wire [9:0]  csr_asid,
 
         // addr_trans
+        output        inst_addr_trans_en,
+        output [9:0]  inst_asid,
         output [31:0] inst_vaddr,
+        output        inst_dmw0_en,
+        output        inst_dmw1_en,
         output [31:0] inst_dmw0,
         output [31:0] inst_dmw1,
         output        inst_da,
         output        inst_pg,
-        output        inst_dmw0_en,
-        output        inst_dmw1_en,
+
+
         input  [7:0]  inst_index,
         input  [19:0] inst_tag,
         input  [3:0]  inst_offset,
@@ -144,6 +148,8 @@ module IFU (
     assign inst_dmw1 = csr_dmw1;
     assign inst_dmw0_en = ((inst_dmw0[`PLV0] && csr_plv == 2'd0) || (inst_dmw0[`PLV3] && csr_plv == 2'd3)) && (pc[31:29] == inst_dmw0[`VSEG]) && pg_mode;
     assign inst_dmw1_en = ((inst_dmw1[`PLV0] && csr_plv == 2'd0) || (inst_dmw1[`PLV3] && csr_plv == 2'd3)) && (pc[31:29] == inst_dmw1[`VSEG]) && pg_mode;
+    assign inst_addr_trans_en = pg_mode && !inst_dmw0_en && !inst_dmw1_en;
+    assign inst_asid = csr_asid;
 
     assign addr = {inst_tag, inst_index, inst_offset}; // 物理地址
 

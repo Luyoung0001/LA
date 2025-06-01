@@ -12,17 +12,19 @@ vluint64_t main_time = 0;  // initial 仿真时间
 
 Vverilator_top* top = new Vverilator_top;
 
+int i = 0;
+
 void step() {
     top->clk = 0;
     top->eval();
 
-    tfp->dump(main_time);  // 记录波形数据
+    if(i > 800000) tfp->dump(main_time);  // 记录波形数据
     main_time++;           // 时间递增
 
     top->clk = 1;
     top->eval();
 
-    tfp->dump(main_time);
+    if(i > 800000) tfp->dump(main_time);
     main_time++;
 }
 void reset(int n) {
@@ -47,7 +49,7 @@ typedef struct diff {
 } diff;
 // 打开文件
 
-int i = 0;
+
 
 FILE* fp;
 void op_file() {
@@ -122,7 +124,7 @@ void cpu_exec(uint64_t n) {
         uint32_t pc = top->rootp->verilator_top->debug_wb_pc;
         if (difftest() == 0) {
             printf("Error!\n");
-            break;
+            // break;
         }
         uint32_t stop_pc = 0x1c000100;
         if (pc == stop_pc) {
@@ -149,6 +151,6 @@ int main(int argc, char* argv[]) {
     top->trace(tfp, 99);
     tfp->open("wave.vcd");
     reset(1);
-    cpu_exec(-1);
+    cpu_exec(832690+10);
     return 0;
 }

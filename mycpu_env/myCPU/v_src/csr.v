@@ -1,8 +1,5 @@
 `include "csr.h"
-module csr
-    #(
-         parameter TLBNUM = 64
-     )(
+module csr(
          input wire clk,
          input wire rst,
          //from ds for read
@@ -35,7 +32,7 @@ module csr
          // tlb
          input  wire        tlbsrch_en,
          input  wire        tlbsrch_found,
-         input  wire [5:0]  tlbsrch_index,
+         input  wire [4:0]  tlbsrch_index,
 
          output wire [9:0]  asid_out,
          output wire [18:0] vppn_out,
@@ -50,7 +47,7 @@ module csr
          output [ 1:0]      datf_out,
          output [ 1:0]      datm_out,
          output [ 5:0]      ecode_out,
-         output wire [5:0]  rand_index
+         output wire [4:0]  rand_index
      );
 
     wire excp_flush;
@@ -230,7 +227,7 @@ module csr
     assign tlbelo0_out  = csr_tlbelo0;
     assign tlbelo1_out  = csr_tlbelo1;
     assign tlbidx_out   = csr_tlbidx;
-    assign rand_index   = timer_64[$clog2(TLBNUM)-1:0];
+    assign rand_index   = timer_64[4:0];
 
     assign plv_out      = {2{excp_flush}} & 2'b0            |
            {2{ertn_flush}} & csr_prmd[`PPLV] |
@@ -461,16 +458,16 @@ module csr
         if (rst) begin
             csr_tlbidx[23: 5] <= 19'b0;
             csr_tlbidx[30]    <= 1'b0;
-            csr_tlbidx[`INDEX]<= 6'b0;
+            csr_tlbidx[4:0]<= 5'd0;
         end
         else if (tlbidx_wen) begin
-            csr_tlbidx[$clog2(TLBNUM)-1:0] <= csr_wdata[$clog2(TLBNUM)-1:0];
+            csr_tlbidx[4:0] <= csr_wdata[4:0];
             csr_tlbidx[`PS]    <= csr_wdata[`PS];
             csr_tlbidx[`NE]    <= csr_wdata[`NE];
         end
         else if (tlbsrch_en) begin
             if (tlbsrch_found) begin
-                csr_tlbidx[`INDEX] <= tlbsrch_index;
+                csr_tlbidx[4:0] <= tlbsrch_index;
                 csr_tlbidx[`NE]    <= 1'b0;
             end
             else begin

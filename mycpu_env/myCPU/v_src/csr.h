@@ -17,7 +17,7 @@
 `define ECODE     21:16
 `define ESUBCODE  30:22
 //TLBIDX
-`define INDEX     5:0
+// `define INDEX     5:0
 `define PS        29:24
 `define NE        31
 //TLBEHI
