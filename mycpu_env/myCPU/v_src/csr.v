@@ -1,54 +1,82 @@
 `include "csr.h"
 module csr(
-         input wire clk,
-         input wire rst,
-         //from ds for read
-         input wire [13:0] rd_addr,
-         output wire [31:0] rd_data,
+        input wire clk,
+        input wire rst,
+        //from ds for read
+        input wire [13:0] rd_addr,
+        output wire [31:0] rd_data,
 
-         //interrupt
-         input wire [7:0] interuption,
-         //timer 64
-         output wire [63:0] timer_64_out ,
-         output wire [31:0] tid_out,
+        //interrupt
+        input wire [7:0] interuption,
+        //timer 64
+        output wire [63:0] timer_64_out ,
+        output wire [31:0] tid_out,
 
-         input wire [147:0] bus_wbu_to_csr_data,
-         input wire [1:0] flush,
-         output wire has_int,
-         // to ifu
-         output wire [31:0] era_out,
-         output wire [31:0] eentry_out,
+        input wire [147:0] bus_wbu_to_csr_data,
+        input wire [1:0] flush,
+        output wire has_int,
+        // to ifu
+        output wire [31:0] era_out,
+        output wire [31:0] eentry_out,
 
-         output [ 1:0]      plv_out,
+        output [ 1:0]      plv_out,
 
 
-         //from addr trans
-         input wire         tlbrd_en,
-         input wire [31:0]  tlbehi_in,
-         input wire [31:0]  tlbelo0_in,
-         input wire [31:0]  tlbelo1_in,
-         input wire [31:0]  tlbidx_in,
-         input wire [ 9:0]  asid_in,
-         // tlb
-         input  wire        tlbsrch_en,
-         input  wire        tlbsrch_found,
-         input  wire [4:0]  tlbsrch_index,
+        //from addr trans
+        input wire         tlbrd_en,
+        input wire [31:0]  tlbehi_in,
+        input wire [31:0]  tlbelo0_in,
+        input wire [31:0]  tlbelo1_in,
+        input wire [31:0]  tlbidx_in,
+        input wire [ 9:0]  asid_in,
+        // tlb
+        input  wire        tlbsrch_en,
+        input  wire        tlbsrch_found,
+        input  wire [4:0]  tlbsrch_index,
 
-         output wire [9:0]  asid_out,
-         output wire [18:0] vppn_out,
-         output wire [31:0] tlbehi_out,
-         output wire [31:0] tlbelo0_out,
-         output wire [31:0] tlbelo1_out,
-         output wire [31:0] tlbidx_out,
-         output             pg_out,
-         output             da_out,
-         output [31:0]      dmw0_out,
-         output [31:0]      dmw1_out,
-         output [ 1:0]      datf_out,
-         output [ 1:0]      datm_out,
-         output [ 5:0]      ecode_out,
-         output wire [4:0]  rand_index
-     );
+        output wire [9:0]  asid_out,
+        output wire [18:0] vppn_out,
+        output wire [31:0] tlbehi_out,
+        output wire [31:0] tlbelo0_out,
+        output wire [31:0] tlbelo1_out,
+        output wire [31:0] tlbidx_out,
+        output             pg_out,
+        output             da_out,
+        output [31:0]      dmw0_out,
+        output [31:0]      dmw1_out,
+        output [ 1:0]      datf_out,
+        output [ 1:0]      datm_out,
+        output [ 5:0]      ecode_out,
+        output wire [4:0]  rand_index,
+
+        // csr regs for diff
+        output [31:0]                   csr_crmd_diff,
+        output [31:0]                   csr_prmd_diff,
+        output [31:0]                   csr_ecfg_diff,
+        output [31:0]                   csr_estat_diff,
+        output [31:0]                   csr_era_diff,
+        output [31:0]                   csr_badv_diff,
+        output [31:0]                   csr_eentry_diff,
+        output [31:0]                   csr_tlbidx_diff,
+        output [31:0]                   csr_tlbehi_diff,
+        output [31:0]                   csr_tlbelo0_diff,
+        output [31:0]                   csr_tlbelo1_diff,
+        output [31:0]                   csr_asid_diff,
+        output [31:0]                   csr_save0_diff,
+        output [31:0]                   csr_save1_diff,
+        output [31:0]                   csr_save2_diff,
+        output [31:0]                   csr_save3_diff,
+        output [31:0]                   csr_tid_diff,
+        output [31:0]                   csr_tcfg_diff,
+        output [31:0]                   csr_tval_diff,
+        output [31:0]                   csr_ticlr_diff,
+        output [31:0]                   csr_llbctl_diff,
+        output [31:0]                   csr_tlbrentry_diff,
+        output [31:0]                   csr_dmw0_diff,
+        output [31:0]                   csr_dmw1_diff,
+        output [31:0]                   csr_pgdl_diff,
+        output [31:0]                   csr_pgdh_diff
+    );
 
     wire excp_flush;
     wire ertn_flush;
@@ -112,6 +140,8 @@ module csr(
     localparam TVAL  = 14'h42;
     localparam TICLR = 14'h44;
 
+    localparam LLBCTL= 14'h60;
+
     wire crmd_wen   = csr_wr_en & (csr_waddr == CRMD);
     wire prmd_wen   = csr_wr_en & (csr_waddr == PRMD);
     wire ecfg_wen   = csr_wr_en & (csr_waddr == ECFG);
@@ -141,6 +171,8 @@ module csr(
     wire tcfg_wen   = csr_wr_en & (csr_waddr == TCFG);
     wire tval_wen   = csr_wr_en & (csr_waddr == TVAL);
     wire ticlr_wen  = csr_wr_en & (csr_waddr == TICLR);
+
+    wire llbctl_wen = csr_wr_en & (csr_waddr == LLBCTL);
 
     reg [31:0] csr_crmd;
     reg [31:0] csr_prmd;
@@ -186,6 +218,8 @@ module csr(
     reg [31:0] csr_tcfg;
     reg [31:0] csr_tval;
     reg [31:0] csr_ticlr;
+
+    reg [31:0] csr_llbctl;
 
     // csr 读取发生在 idu 中
     assign rd_data = {32{rd_addr == CRMD  }}  & csr_crmd    |
@@ -590,6 +624,36 @@ module csr(
             csr_tlbrentry[`TLBRENTRY_PA] <= csr_wdata[`TLBRENTRY_PA];
         end
     end
+
+
+    // difftest
+    assign csr_crmd_diff        = csr_crmd;
+    assign csr_prmd_diff        = csr_prmd;
+    assign csr_ecfg_diff        = csr_ecfg;
+    assign csr_estat_diff       = csr_estat;
+    assign csr_era_diff         = csr_era;
+    assign csr_badv_diff        = csr_badv;
+    assign csr_eentry_diff      = csr_eentry;
+    assign csr_tlbidx_diff      = csr_tlbidx;
+    assign csr_tlbehi_diff      = csr_tlbehi;
+    assign csr_tlbelo0_diff     = csr_tlbelo0;
+    assign csr_tlbelo1_diff     = csr_tlbelo1;
+    assign csr_asid_diff        = csr_asid;
+    assign csr_save0_diff       = csr_save0;
+    assign csr_save1_diff       = csr_save1;
+    assign csr_save2_diff       = csr_save2;
+    assign csr_save3_diff       = csr_save3;
+    assign csr_tid_diff         = csr_tid;
+    assign csr_tcfg_diff        = csr_tcfg;
+    assign csr_tval_diff        = csr_tval;
+    assign csr_ticlr_diff       = csr_ticlr;
+    // assign csr_llbctl_diff      = {csr_llbctl[31:1], llbit};
+    assign csr_llbctl_diff      = csr_llbctl;
+    assign csr_tlbrentry_diff   = csr_tlbrentry;
+    assign csr_dmw0_diff        = csr_dmw0;
+    assign csr_dmw1_diff        = csr_dmw1;
+    assign csr_pgdl_diff        = csr_pgdl;
+    assign csr_pgdh_diff        = csr_pgdh;
 
 
 

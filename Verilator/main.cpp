@@ -14,17 +14,66 @@ Vverilator_top* top = new Vverilator_top;
 
 int i = 0;
 
+// 这里会生成基于 OpenLA500 的 golden_trace.txt
+
+typedef struct golden_trace {
+    uint32_t we;
+    uint32_t wnum;
+    uint32_t pc;
+    uint32_t value;
+    uint32_t inst;
+    // 每一项多了 CSR 的信息，由于一条指令可能修改多个 CSR，因此这里将记录多个
+    // CSR
+    uint32_t csr_crmd;
+    uint32_t csr_prmd;
+    uint32_t csr_ecfg;
+    uint32_t csr_estat;
+    uint32_t csr_era;
+    uint32_t csr_badv;
+    uint32_t csr_eentry;
+    uint32_t csr_tlbidx;
+    uint32_t csr_tlbehi;
+    uint32_t csr_tlbelo0;
+    uint32_t csr_tlbelo1;
+    uint32_t csr_asid;
+    uint32_t csr_save0;
+    uint32_t csr_save1;
+    uint32_t csr_save2;
+    uint32_t csr_save3;
+    uint32_t csr_tid;
+    uint32_t csr_tcfg;
+    uint32_t csr_tval;
+    uint32_t csr_ticlr;
+    uint32_t csr_llbctl;
+    uint32_t csr_tlbrentry;
+    uint32_t csr_dmw0;
+    uint32_t csr_dmw1;
+    uint32_t csr_pgdl;
+    uint32_t csr_pgdh;
+
+} golden_trace;
+golden_trace trace_info;
+golden_trace mycpu_trace_info;
+// 打开文件
+FILE* fp;
+
+void op_file() {
+    fp = fopen("/home/luyoung/LA/open_la500_golden_difftest.txt", "r");
+}
+
 void step() {
     top->clk = 0;
     top->eval();
 
-    if(i > 800000) tfp->dump(main_time);  // 记录波形数据
-    main_time++;           // 时间递增
+    // if (i >= 800000)
+        tfp->dump(main_time);  // 记录波形数据
+    main_time++;               // 时间递增
 
     top->clk = 1;
     top->eval();
 
-    if(i > 800000) tfp->dump(main_time);
+    // if (i >= 800000)
+        tfp->dump(main_time);
     main_time++;
 }
 void reset(int n) {
@@ -42,29 +91,31 @@ void stepi() {
 
 typedef struct diff {
     uint32_t we;
-    uint32_t wnum;
     uint32_t pc;
+    uint32_t wnum;
     uint32_t value;
 
 } diff;
-// 打开文件
 
-
-
-FILE* fp;
-void op_file() {
-    fp = fopen("/home/luyoung/LA/mycpu_env/gettrace/golden_trace.txt", "r");
-}
 // 读取 ref
-
 diff ref_struct;
 
 void read_ref() {
-    fscanf(fp, "%x%x%x%x", &ref_struct.we, &ref_struct.pc, &ref_struct.wnum,
-           &ref_struct.value);
-
-    printf("-->REF %d %08x %02x %08x\n", ref_struct.we, ref_struct.pc,
-           ref_struct.wnum, ref_struct.value);
+    fscanf(fp,
+           "%d %02X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X "
+           "%08X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X "
+           "%08X %08X %08X %08X %08X\n",
+           &trace_info.we, &trace_info.wnum, &trace_info.pc, &trace_info.value,
+           &trace_info.inst, &trace_info.csr_crmd, &trace_info.csr_prmd,
+           &trace_info.csr_ecfg, &trace_info.csr_estat, &trace_info.csr_era,
+           &trace_info.csr_badv, &trace_info.csr_eentry, &trace_info.csr_tlbidx,
+           &trace_info.csr_tlbehi, &trace_info.csr_tlbelo0,
+           &trace_info.csr_tlbelo1, &trace_info.csr_asid, &trace_info.csr_save0,
+           &trace_info.csr_save1, &trace_info.csr_save2, &trace_info.csr_save3,
+           &trace_info.csr_tid, &trace_info.csr_tcfg, &trace_info.csr_tval,
+           &trace_info.csr_ticlr, &trace_info.csr_llbctl,
+           &trace_info.csr_tlbrentry, &trace_info.csr_dmw0,
+           &trace_info.csr_dmw1, &trace_info.csr_pgdl, &trace_info.csr_pgdh);
 }
 
 // 读取 trace，与拉到的信号进行比对
@@ -72,39 +123,79 @@ void read_ref() {
 diff last_op;
 
 int difftest() {
-    uint32_t we = top->rootp->verilator_top->debug_wb_rf_we;
-    uint32_t wnum = top->rootp->verilator_top->debug_wb_rf_wnum;
-    uint32_t pc = top->rootp->verilator_top->debug_wb_pc;
-    uint32_t value = top->rootp->verilator_top->debug_wb_rf_wdata;
+    mycpu_trace_info.we = top->rootp->verilator_top->debug_wb_rf_we;
+    mycpu_trace_info.wnum = top->rootp->verilator_top->debug_wb_rf_wnum;
+    mycpu_trace_info.pc = top->rootp->verilator_top->debug_wb_pc;
+    mycpu_trace_info.value = top->rootp->verilator_top->debug_wb_rf_wdata;
+    mycpu_trace_info.inst = top->rootp->verilator_top->debug_wb_inst;
+    mycpu_trace_info.csr_crmd = top->rootp->verilator_top->csr_crmd_diff;
+    mycpu_trace_info.csr_prmd = top->rootp->verilator_top->csr_prmd_diff;
+    mycpu_trace_info.csr_ecfg = top->rootp->verilator_top->csr_ecfg_diff;
+    mycpu_trace_info.csr_estat = top->rootp->verilator_top->csr_estat_diff;
+    mycpu_trace_info.csr_era = top->rootp->verilator_top->csr_era_diff;
+    mycpu_trace_info.csr_badv = top->rootp->verilator_top->csr_badv_diff;
+    mycpu_trace_info.csr_eentry = top->rootp->verilator_top->csr_eentry_diff;
+    mycpu_trace_info.csr_tlbidx = top->rootp->verilator_top->csr_tlbidx_diff;
+    mycpu_trace_info.csr_tlbehi = top->rootp->verilator_top->csr_tlbehi_diff;
+    mycpu_trace_info.csr_tlbelo0 = top->rootp->verilator_top->csr_tlbelo0_diff;
+    mycpu_trace_info.csr_tlbelo1 = top->rootp->verilator_top->csr_tlbelo1_diff;
+    mycpu_trace_info.csr_asid = top->rootp->verilator_top->csr_asid_diff;
+    mycpu_trace_info.csr_save0 = top->rootp->verilator_top->csr_save0_diff;
+    mycpu_trace_info.csr_save1 = top->rootp->verilator_top->csr_save1_diff;
+    mycpu_trace_info.csr_save2 = top->rootp->verilator_top->csr_save2_diff;
+    mycpu_trace_info.csr_save3 = top->rootp->verilator_top->csr_save3_diff;
+    mycpu_trace_info.csr_tid = top->rootp->verilator_top->csr_tid_diff;
+    mycpu_trace_info.csr_tcfg = top->rootp->verilator_top->csr_tcfg_diff;
+    mycpu_trace_info.csr_tval = top->rootp->verilator_top->csr_tval_diff;
+    mycpu_trace_info.csr_ticlr = top->rootp->verilator_top->csr_ticlr_diff;
+    mycpu_trace_info.csr_llbctl = top->rootp->verilator_top->csr_llbctl_diff;
+    mycpu_trace_info.csr_tlbrentry =
+        top->rootp->verilator_top->csr_tlbrentry_diff;
+    mycpu_trace_info.csr_dmw0 = top->rootp->verilator_top->csr_dmw0_diff;
+    mycpu_trace_info.csr_dmw1 = top->rootp->verilator_top->csr_dmw1_diff;
+    mycpu_trace_info.csr_pgdl = top->rootp->verilator_top->csr_pgdl_diff;
+    mycpu_trace_info.csr_pgdh = top->rootp->verilator_top->csr_pgdh_diff;
 
-    if (we == 15 && last_op.we == we && last_op.wnum == wnum &&
-        last_op.pc == pc && last_op.value == value) {
+    // 防止一个指令保持多个周期，这里需要判断等幂性，如果等幂直接退出
+    // 如果当前指令写的寄存器是 0 号，直接退出
+    if (mycpu_trace_info.we == 15 && last_op.we == mycpu_trace_info.we &&
+            last_op.wnum == mycpu_trace_info.wnum &&
+            last_op.pc == mycpu_trace_info.pc &&
+            last_op.value == mycpu_trace_info.value ||
+        mycpu_trace_info.wnum == 0) {
         return 1;
     }
-    if(wnum == 0){
-        return 1;
 
-    }
-    if (we && wnum !=0) {
-        last_op.we = we;
-        last_op.wnum = wnum;
-        last_op.pc = pc;
-        last_op.value = value;
-    }
-    if (we)
-        printf("-->CPU %d %08x %02x %08x\n", we == 15, pc, wnum, value);
+    if (mycpu_trace_info.we) {
+        // 保存最新的状态
+        last_op.we = mycpu_trace_info.we;
+        last_op.wnum = mycpu_trace_info.wnum;
+        last_op.pc = mycpu_trace_info.pc;
+        last_op.value = mycpu_trace_info.value;
 
-    int temp_we = (we == 15 ? 1 : 0);
-    if (temp_we == 1 && wnum != 0) {
         read_ref();
-        // 如果执行读取内核时钟指令，ref 的 difftest we 信号为 0，此时不应该进行
-        // difftest 直接返回 1 即可
-        if (ref_struct.we == 0) {
+        // 这里打印和 ref 对齐
+        // 如果 cpu 的 we 是 1，但是 ref 为 0，直接返回，因为这个 difftest
+        // 没有意义
+
+        int good = trace_info.wnum == mycpu_trace_info.wnum &&
+                   trace_info.pc == mycpu_trace_info.pc &&
+                   trace_info.value == mycpu_trace_info.value;
+        if (!good) {
+            printf("-->CPU %d %08x %02x %08x\n", mycpu_trace_info.we == 15,
+                   mycpu_trace_info.pc, mycpu_trace_info.wnum,
+                   mycpu_trace_info.value);
+            printf("-->REF %d %08x %02x %08x\n", trace_info.we, trace_info.pc,
+                   trace_info.wnum, trace_info.value);
+        }
+        
+        if (trace_info.we == 0) {
             return 1;
         }
-        return wnum == ref_struct.wnum && pc == ref_struct.pc &&
-               value == ref_struct.value;
+
+        return good;
     }
+
     return -1;
 }
 
@@ -118,13 +209,11 @@ void run(int n) {
 void cpu_exec(uint64_t n) {
     while (n) {
         i++;
-        printf("i:%d\n", i);
-
         // 停机信号
         uint32_t pc = top->rootp->verilator_top->debug_wb_pc;
         if (difftest() == 0) {
-            printf("Error!\n");
-            // break;
+            printf("i:%d -->Error!\n", i);
+            break;
         }
         uint32_t stop_pc = 0x1c000100;
         if (pc == stop_pc) {
@@ -151,6 +240,6 @@ int main(int argc, char* argv[]) {
     top->trace(tfp, 99);
     tfp->open("wave.vcd");
     reset(1);
-    cpu_exec(832690+10);
+    cpu_exec(-1);
     return 0;
 }

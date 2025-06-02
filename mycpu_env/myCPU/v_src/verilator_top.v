@@ -25,6 +25,33 @@ module verilator_top(
     wire [ 3:0] debug_wb_rf_we/* verilator public */;
     wire [ 4:0] debug_wb_rf_wnum/* verilator public */;
     wire [31:0] debug_wb_rf_wdata/* verilator public */;
+    wire [31:0] debug_wb_inst/* verilator public */;
+    wire [31:0] csr_crmd_diff/* verilator public */;
+    wire [31:0] csr_prmd_diff/* verilator public */;
+    wire [31:0] csr_ecfg_diff/* verilator public */;
+    wire [31:0] csr_estat_diff/* verilator public */;
+    wire [31:0] csr_era_diff/* verilator public */;
+    wire [31:0] csr_badv_diff/* verilator public */;
+    wire [31:0] csr_eentry_diff/* verilator public */;
+    wire [31:0] csr_tlbidx_diff/* verilator public */;
+    wire [31:0] csr_tlbehi_diff/* verilator public */;
+    wire [31:0] csr_tlbelo0_diff/* verilator public */;
+    wire [31:0] csr_tlbelo1_diff/* verilator public */;
+    wire [31:0] csr_asid_diff/* verilator public */;
+    wire [31:0] csr_save0_diff/* verilator public */;
+    wire [31:0] csr_save1_diff/* verilator public */;
+    wire [31:0] csr_save2_diff/* verilator public */;
+    wire [31:0] csr_save3_diff/* verilator public */;
+    wire [31:0] csr_tid_diff/* verilator public */;
+    wire [31:0] csr_tcfg_diff/* verilator public */;
+    wire [31:0] csr_tval_diff/* verilator public */;
+    wire [31:0] csr_ticlr_diff/* verilator public */;
+    wire [31:0] csr_llbctl_diff/* verilator public */;
+    wire [31:0] csr_tlbrentry_diff/* verilator public */;
+    wire [31:0] csr_dmw0_diff/* verilator public */;
+    wire [31:0] csr_dmw1_diff/* verilator public */;
+    wire [31:0] csr_pgdl_diff/* verilator public */;
+    wire [31:0] csr_pgdh_diff/* verilator public */;
 
     //data sram
     wire        data_sram_en;
@@ -102,166 +129,82 @@ module verilator_top(
 
     //cpu
     mycpu_top cpu(
-                .aclk              (clk       ),
-                .aresetn           (cpu_resetn    ),  //low active
+                  .aclk              (clk       ),
+                  .aresetn           (cpu_resetn    ),  //low active
+
+                  .arid           (wire_arid),
+                  .araddr         (wire_araddr),
+                  .arlen          (wire_arlen),
+                  .arsize         (wire_arsize),
+                  .arburst        (wire_arburst),
+                  .arlock         (wire_arlock),
+                  .arcache        (wire_arcache),
+                  .arprot         (wire_arprot),
+                  .arvalid        (wire_arvalid),
+                  .arready        (wire_arready),
+                  .rid            (wire_rid),
+                  .rdata          (wire_rdata),
+                  .rresp          (wire_rresp),
+                  .rlast          (wire_rlast),
+                  .rvalid         (wire_rvalid),
+                  .rready         (wire_rready),
+                  .awid           (wire_awid),
+                  .awaddr         (wire_awaddr),
+                  .awlen          (wire_awlen),
+                  .awsize         (wire_awsize),
+                  .awburst        (wire_awburst),
+                  .awlock         (wire_awlock),
+                  .awcache        (wire_awcache),
+                  .awprot         (wire_awprot),
+                  .awvalid        (wire_awvalid),
+                  .awready        (wire_awready),
+
+                  .wid            (wire_wid),
+                  .wdata          (wire_wdata),
+                  .wstrb          (wire_wstrb),
+                  .wlast          (wire_wlast),
+                  .wvalid         (wire_wvalid),
+                  .wready         (wire_wready),
+
+                  .bresp          (wire_bresp),
+                  .bvalid         (wire_bvalid),
+                  .bready         (wire_bready),
+                  .bid            (wire_bid),
 
 
-                // .inst_sram_req    (cpu_inst_req    ),
-                // .inst_sram_wr     (cpu_inst_wr     ),
-                // .inst_sram_size   (cpu_inst_size   ),
-                // .inst_sram_wstrb  (cpu_inst_wstrb  ),
-                // .inst_sram_addr   (cpu_inst_addr   ),
-                // .inst_sram_wdata  (cpu_inst_wdata  ),
-                // .inst_sram_addr_ok(cpu_inst_addr_ok),
-                // .inst_sram_data_ok(cpu_inst_data_ok),
-                // .inst_sram_rdata  (cpu_inst_rdata  ),
+                  .debug_wb_pc      (debug_wb_pc),
+                  .debug_wb_rf_we   (debug_wb_rf_we),
+                  .debug_wb_rf_wnum (debug_wb_rf_wnum),
+                  .debug_wb_rf_wdata(debug_wb_rf_wdata),
+                  .debug_wb_inst    (debug_wb_inst    ),
+                  .csr_crmd_diff      (csr_crmd_diff    ),
+                  .csr_prmd_diff      (csr_prmd_diff    ),
+                  .csr_ecfg_diff      (csr_ecfg_diff    ),
+                  .csr_estat_diff     (csr_estat_diff   ),
+                  .csr_era_diff       (csr_era_diff     ),
+                  .csr_badv_diff      (csr_badv_diff    ),
+                  .csr_eentry_diff    (csr_eentry_diff  ),
+                  .csr_tlbidx_diff    (csr_tlbidx_diff  ),
+                  .csr_tlbehi_diff    (csr_tlbehi_diff  ),
+                  .csr_tlbelo0_diff   (csr_tlbelo0_diff ),
+                  .csr_tlbelo1_diff   (csr_tlbelo1_diff ),
+                  .csr_asid_diff      (csr_asid_diff    ),
+                  .csr_save0_diff     (csr_save0_diff   ),
+                  .csr_save1_diff     (csr_save1_diff   ),
+                  .csr_save2_diff     (csr_save2_diff   ),
+                  .csr_save3_diff     (csr_save3_diff   ),
+                  .csr_tid_diff       (csr_tid_diff     ),
+                  .csr_tcfg_diff      (csr_tcfg_diff    ),
+                  .csr_tval_diff      (csr_tval_diff    ),
+                  .csr_ticlr_diff     (csr_ticlr_diff   ),
+                  .csr_llbctl_diff    (csr_llbctl_diff  ),
+                  .csr_tlbrentry_diff (csr_tlbrentry_diff),
+                  .csr_dmw0_diff      (csr_dmw0_diff    ),
+                  .csr_dmw1_diff      (csr_dmw1_diff    ),
+                  .csr_pgdl_diff      (csr_pgdl_diff    ),
+                  .csr_pgdh_diff      (csr_pgdh_diff    )
 
-                .arid           (wire_arid),
-                .araddr         (wire_araddr),
-                .arlen          (wire_arlen),
-                .arsize         (wire_arsize),
-                .arburst        (wire_arburst),
-                .arlock         (wire_arlock),
-                .arcache        (wire_arcache),
-                .arprot         (wire_arprot),
-                .arvalid        (wire_arvalid),
-                .arready        (wire_arready),
-                .rid            (wire_rid),
-                .rdata          (wire_rdata),
-                .rresp          (wire_rresp),
-                .rlast          (wire_rlast),
-                .rvalid         (wire_rvalid),
-                .rready         (wire_rready),
-                .awid           (wire_awid),
-                .awaddr         (wire_awaddr),
-                .awlen          (wire_awlen),
-                .awsize         (wire_awsize),
-                .awburst        (wire_awburst),
-                .awlock         (wire_awlock),
-                .awcache        (wire_awcache),
-                .awprot         (wire_awprot),
-                .awvalid        (wire_awvalid),
-                .awready        (wire_awready),
-
-                .wid            (wire_wid),
-                .wdata          (wire_wdata),
-                .wstrb          (wire_wstrb),
-                .wlast          (wire_wlast),
-                .wvalid         (wire_wvalid),
-                .wready         (wire_wready),
-
-                .bresp          (wire_bresp),
-                .bvalid         (wire_bvalid),
-                .bready         (wire_bready),
-                .bid            (wire_bid),
-
-
-                // .data_sram_req    (cpu_data_req    ),
-                // .data_sram_wr     (cpu_data_wr     ),
-                // .data_sram_size   (cpu_data_size   ),
-                // .data_sram_wstrb  (cpu_data_wstrb  ),
-                // .data_sram_addr   (cpu_data_addr   ),
-                // .data_sram_wdata  (cpu_data_wdata  ),
-                // .data_sram_addr_ok(cpu_data_addr_ok),
-                // .data_sram_data_ok(cpu_data_data_ok),
-                // .data_sram_rdata  (cpu_data_rdata  ),
-
-
-                .debug_wb_pc      (debug_wb_pc),
-                .debug_wb_rf_we   (debug_wb_rf_we),
-                .debug_wb_rf_wnum (debug_wb_rf_wnum),
-                .debug_wb_rf_wdata(debug_wb_rf_wdata)
-            );
-
-
-    // 包装器
-
-    // wire        inst_ram_en   ;
-    // wire [3 :0] inst_ram_we   ;
-    // wire [31:0] inst_ram_addr ;
-    // wire [31:0] inst_ram_wdata;
-    // wire [31:0] inst_ram_rdata;
-
-    // sram_wrap u_inst_sram_wrap(
-    //               .clk              (clk   ),
-    //               .resetn           (cpu_resetn),  //low active
-
-    //               .req             (cpu_inst_req    ),
-    //               .wr              (cpu_inst_wr     ),
-    //               .size            (cpu_inst_size   ),
-    //               .wstrb           (cpu_inst_wstrb  ),
-    //               .addr            (cpu_inst_addr   ),
-    //               .wdata           (cpu_inst_wdata  ),
-    //               .addr_ok         (cpu_inst_addr_ok),
-    //               .data_ok         (cpu_inst_data_ok),
-    //               .rdata           (cpu_inst_rdata  ),
-
-    //               //slave
-    //               .ram_en          (inst_ram_en     ),
-    //               .ram_we          (inst_ram_we     ),
-    //               .ram_addr        (inst_ram_addr   ),
-    //               .ram_wdata       (inst_ram_wdata  ),
-    //               .ram_rdata       (inst_ram_rdata  )
-    //           );
-
-    // //inst ram
-    // inst_ram inst_ram
-    //          (
-    //              .clk   (clk            ),
-    //              .we    (inst_ram_we        ),
-    //              .en    (inst_ram_en),
-    //              .a     (inst_ram_addr),
-    //              .d     (inst_ram_wdata     ),
-    //              .spo   (inst_ram_rdata     )
-    //          );
-
-
-    // // data ram
-    // wire        data_ram_en   ;
-    // wire [3 :0] data_ram_we   ;
-    // wire [31:0] data_ram_addr ;
-    // wire [31:0] data_ram_wdata;
-    // wire [31:0] data_ram_rdata;
-
-    // sram_wrap u_data_sram_wrap(
-    //               .clk             (clk          ),
-    //               .resetn          (cpu_resetn       ),  //low active
-
-    //               .req             (cpu_data_req    ),
-    //               .wr              (cpu_data_wr     ),
-    //               .size            (cpu_data_size   ),
-    //               .wstrb           (cpu_data_wstrb  ),
-    //               .addr            (cpu_data_addr   ),
-    //               .wdata           (cpu_data_wdata  ),
-    //               .addr_ok         (cpu_data_addr_ok),
-    //               .data_ok         (cpu_data_data_ok),
-    //               .rdata           (cpu_data_rdata  ),
-
-    //               //slave
-    //               .ram_en          (data_ram_en     ),
-    //               .ram_we          (data_ram_we     ),
-    //               .ram_addr        (data_ram_addr   ),
-    //               .ram_wdata       (data_ram_wdata  ),
-    //               .ram_rdata       (data_ram_rdata  )
-    //           );
-
-
-    // data_ram data_ram
-    //          (
-    //              .clk   (clk            ),
-    //              .we    (data_ram_we        ),
-    //              .en    (data_ram_en        ),
-    //              .a     (data_ram_addr),
-    //              .d     (data_ram_wdata     ),
-    //              .spo   (data_ram_rdata     )
-    //          );
-
-    debug debug
-          (   .debug_wb_pc(debug_wb_pc),
-              .debug_wb_rf_we(debug_wb_rf_we),
-              .debug_wb_rf_wnum(debug_wb_rf_wnum),
-              .debug_wb_rf_wdata(debug_wb_rf_wdata)
-          );
+              );
 
     axi_ram axi_ram (
                 .clock (clk),

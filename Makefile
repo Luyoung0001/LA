@@ -1,13 +1,5 @@
 CPU_HOME = $(shell pwd)
 
-## minicpu
-VSRC_minicpu_env_miniCPU = $(CPU_HOME)/minicpu_env/miniCPU/*.v
-
-VSRC_minicpu_env_soc_verify_rtl = $(CPU_HOME)/minicpu_env/soc_verify/rtl/*.v
-VSRC_minicpu_env_soc_verify_rtl_xilinx_ip = $(CPU_HOME)/minicpu_env/soc_verify/rtl/xilinx_ip/*.v
-
-VSRC_minicpu = $(VSRC_minicpu_env_miniCPU) $(VSRC_minicpu_env_soc_verify_rtl) $(VSRC_minicpu_env_soc_verify_rtl_xilinx_ip)
-
 # mycpu
 VSRC_mycpu_env_vsrc = $(CPU_HOME)/mycpu_env/myCPU/v_src/*.v
 VSRC_dpic = $(CPU_HOME)/mycpu_env/myCPU/DPIC

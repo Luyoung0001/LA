@@ -1,57 +1,85 @@
 module mycpu_top
-     (
-         input  wire        aclk,
-         input  wire        aresetn,
+    (
+        input  wire        aclk,
+        input  wire        aresetn,
 
-         // AXI
-         // read request
-         output   wire [ 3:0] arid,
-         output   wire[31:0] araddr,
-         output   wire[ 7:0] arlen,
-         output   wire[ 2:0] arsize,
-         output    wire  [ 1:0] arburst,
-         output   wire   [ 1:0] arlock,
-         output   wire   [ 3:0] arcache,
-         output   wire   [ 2:0] arprot,
-         output   wire       arvalid,
-         input     wire         arready,
+        // AXI
+        // read request
+        output   wire [ 3:0] arid,
+        output   wire[31:0] araddr,
+        output   wire[ 7:0] arlen,
+        output   wire[ 2:0] arsize,
+        output    wire  [ 1:0] arburst,
+        output   wire   [ 1:0] arlock,
+        output   wire   [ 3:0] arcache,
+        output   wire   [ 2:0] arprot,
+        output   wire       arvalid,
+        input     wire         arready,
 
-         input  wire  [ 3:0] rid,
-         input  wire  [31:0] rdata,
-         input  wire  [ 1:0] rresp,
-         input   wire        rlast,
-         input   wire        rvalid,
-         output   wire    rready,
+        input  wire  [ 3:0] rid,
+        input  wire  [31:0] rdata,
+        input  wire  [ 1:0] rresp,
+        input   wire        rlast,
+        input   wire        rvalid,
+        output   wire    rready,
 
-         output   wire   [ 3:0] awid,
-         output   wire[31:0] awaddr,
-         output   wire[ 7:0] awlen,
-         output   wire[ 2:0] awsize,
-         output   wire   [ 1:0] awburst,
-         output   wire   [ 1:0] awlock,
-         output  wire    [ 3:0] awcache,
-         output  wire    [ 2:0] awprot,
-         output   wire       awvalid,
-         input     wire         awready,
+        output   wire   [ 3:0] awid,
+        output   wire[31:0] awaddr,
+        output   wire[ 7:0] awlen,
+        output   wire[ 2:0] awsize,
+        output   wire   [ 1:0] awburst,
+        output   wire   [ 1:0] awlock,
+        output  wire    [ 3:0] awcache,
+        output  wire    [ 2:0] awprot,
+        output   wire       awvalid,
+        input     wire         awready,
 
-         output    wire  [ 3:0] wid,
-         output   wire[31:0] wdata,
-         output   wire[ 3:0] wstrb,
-         output   wire       wlast,
-         output   wire       wvalid,
-         input     wire         wready,
+        output    wire  [ 3:0] wid,
+        output   wire[31:0] wdata,
+        output   wire[ 3:0] wstrb,
+        output   wire       wlast,
+        output   wire       wvalid,
+        input     wire         wready,
 
-         input  wire  [ 3:0] bid,
-         input   wire [ 1:0] bresp,
-         input   wire        bvalid,
-         output   wire    bready,
+        input  wire  [ 3:0] bid,
+        input   wire [ 1:0] bresp,
+        input   wire        bvalid,
+        output   wire    bready,
 
-         // trace debug interface
-         output wire [31:0] debug_wb_pc,
-         output wire [ 3:0] debug_wb_rf_we,
-         output wire [ 4:0] debug_wb_rf_wnum,
-         output wire [31:0] debug_wb_rf_wdata
-     );
+        // trace debug interface
+        output wire [31:0] debug_wb_pc,
+        output wire [ 3:0] debug_wb_rf_we,
+        output wire [ 4:0] debug_wb_rf_wnum,
+        output wire [31:0] debug_wb_rf_wdata,
+        output wire [31:0] debug_wb_inst,
+
+        output [31:0] csr_crmd_diff,
+        output [31:0] csr_prmd_diff,
+        output [31:0] csr_ecfg_diff,
+        output [31:0] csr_estat_diff,
+        output [31:0] csr_era_diff,
+        output [31:0] csr_badv_diff,
+        output [31:0] csr_eentry_diff,
+        output [31:0] csr_tlbidx_diff,
+        output [31:0] csr_tlbehi_diff,
+        output [31:0] csr_tlbelo0_diff,
+        output [31:0] csr_tlbelo1_diff,
+        output [31:0] csr_asid_diff,
+        output [31:0] csr_save0_diff,
+        output [31:0] csr_save1_diff,
+        output [31:0] csr_save2_diff,
+        output [31:0] csr_save3_diff,
+        output [31:0] csr_tid_diff,
+        output [31:0] csr_tcfg_diff,
+        output [31:0] csr_tval_diff,
+        output [31:0] csr_ticlr_diff,
+        output [31:0] csr_llbctl_diff,
+        output [31:0] csr_tlbrentry_diff,
+        output [31:0] csr_dmw0_diff,
+        output [31:0] csr_dmw1_diff,
+        output [31:0] csr_pgdl_diff,
+        output [31:0] csr_pgdh_diff
+    );
     wire [7:0] intrpt;
     assign intrpt = 8'b0;
 
@@ -548,222 +576,222 @@ module mycpu_top
 
     // exu
     EXU  exu(
-            .clk        (aclk),
-            .rst        (reset),
+             .clk        (aclk),
+             .rst        (reset),
 
-            .ds_excp (idu_ds_excp_out),
-            .ds_excp_num (idu_ds_excp_num_out),
-            .es_excp_out (exu_es_excp_out),
-            .es_excp_num_out (exu_es_excp_num_out),
+             .ds_excp (idu_ds_excp_out),
+             .ds_excp_num (idu_ds_excp_num_out),
+             .es_excp_out (exu_es_excp_out),
+             .es_excp_num_out (exu_es_excp_num_out),
 
-            .bus_ds_to_es_data(idu_bus_ds_to_es_data),
-            .bus_exu_to_mem_data(exu_bus_exu_to_mem_data),
+             .bus_ds_to_es_data(idu_bus_ds_to_es_data),
+             .bus_exu_to_mem_data(exu_bus_exu_to_mem_data),
 
-            .in_mem_op(idu_out_mem_op),
+             .in_mem_op(idu_out_mem_op),
 
-            .req(data_sram_req),
-            .wr(data_sram_wr),
-            .size(data_sram_size),
-            .wstrb(data_sram_wstrb),
-            .addr(data_sram_addr),
-            .wdata(data_sram_wdata),
-            .addr_ok(data_sram_addr_ok),
-            .data_ok(data_sram_data_ok),
-            .rdata (data_sram_rdata),
+             .req(data_sram_req),
+             .wr(data_sram_wr),
+             .size(data_sram_size),
+             .wstrb(data_sram_wstrb),
+             .addr(data_sram_addr),
+             .wdata(data_sram_wdata),
+             .addr_ok(data_sram_addr_ok),
+             .data_ok(data_sram_data_ok),
+             .rdata (data_sram_rdata),
 
-            .rdata_o(exu_rdata_o),
+             .rdata_o(exu_rdata_o),
 
 
-            //  bus
-            .bus_exu_bypass_data(exu_bus_exu_bypass_data),
-            .out_mem_op(exu_out_mem_op),
-            .out_mem_mask(exu_out_mem_mask),
+             //  bus
+             .bus_exu_bypass_data(exu_bus_exu_bypass_data),
+             .out_mem_op(exu_out_mem_op),
+             .out_mem_mask(exu_out_mem_mask),
 
-            .flush     (wbu_flush),
-            .mem_excp (mem_mem_excp),
-            .exu_excp (exu_exu_excp),
-            .mem_in_is_ertn(mem_is_ertn),
-            .exu_is_ertn(exu_exu_is_etrn), // 传给 idu
+             .flush     (wbu_flush),
+             .mem_excp (mem_mem_excp),
+             .exu_excp (exu_exu_excp),
+             .mem_in_is_ertn(mem_is_ertn),
+             .exu_is_ertn(exu_exu_is_etrn), // 传给 idu
 
-            .up_valid(idu_state_valid),
-            .state_valid(exu_state_valid),
-            .waite_ready_i(mem_waite_ready_o),
-            .waite_ready_o(exu_waite_ready_o),
+             .up_valid(idu_state_valid),
+             .state_valid(exu_state_valid),
+             .waite_ready_i(mem_waite_ready_o),
+             .waite_ready_o(exu_waite_ready_o),
 
-            //tlb
-            .tlb_inst_bus(idu_tlb_inst_bus),
-            .tlb_inst_bus_o(exu_tlb_inst_bus_o),
+             //tlb
+             .tlb_inst_bus(idu_tlb_inst_bus),
+             .tlb_inst_bus_o(exu_tlb_inst_bus_o),
 
-            // from csr
-            .csr_plv(csr_plv_out),
-            .csr_dmw0(csr_dmw0_out),
-            .csr_dmw1(csr_dmw1_out),
-            .csr_da(csr_da_out),
-            .csr_pg(csr_pg_out),
-            .csr_tlbidx(csr_tlbidx_out),
-            .csr_tlbehi(csr_tlbehi_out),
-            .csr_tlbelo0(csr_tlbelo0_out),
-            .csr_tlbelo1(csr_tlbelo1_out),
-            .csr_vppn(csr_vppn_out),
-            .csr_asid(csr_asid_out),
+             // from csr
+             .csr_plv(csr_plv_out),
+             .csr_dmw0(csr_dmw0_out),
+             .csr_dmw1(csr_dmw1_out),
+             .csr_da(csr_da_out),
+             .csr_pg(csr_pg_out),
+             .csr_tlbidx(csr_tlbidx_out),
+             .csr_tlbehi(csr_tlbehi_out),
+             .csr_tlbelo0(csr_tlbelo0_out),
+             .csr_tlbelo1(csr_tlbelo1_out),
+             .csr_vppn(csr_vppn_out),
+             .csr_asid(csr_asid_out),
 
-            // from or to addr_trans
-            // for tlbsrch
-            .data_addr_trans_en(exu_data_addr_trans_en),
-            .data_asid(exu_data_asid),
-            .data_vaddr(exu_data_vaddr),
-            .data_dmw0_en(exu_data_dmw0_en),
-            .data_dmw1_en(exu_data_dmw1_en),
-            .data_dmw0(exu_data_dmw0),
-            .data_dmw1(exu_data_dmw1),
-            .data_da(exu_data_da),
-            .data_pg(exu_data_pg),
+             // from or to addr_trans
+             // for tlbsrch
+             .data_addr_trans_en(exu_data_addr_trans_en),
+             .data_asid(exu_data_asid),
+             .data_vaddr(exu_data_vaddr),
+             .data_dmw0_en(exu_data_dmw0_en),
+             .data_dmw1_en(exu_data_dmw1_en),
+             .data_dmw0(exu_data_dmw0),
+             .data_dmw1(exu_data_dmw1),
+             .data_da(exu_data_da),
+             .data_pg(exu_data_pg),
 
-            .data_index(trans_data_index),
-            .data_tag(trans_data_tag),
-            .data_offset(trans_data_offset),
-            .data_tlb_found(trans_data_tlb_found),
-            .data_tlb_index(trans_data_tlb_index),
-            .data_tlb_v(trans_data_tlb_v),
-            .data_tlb_d(trans_data_tlb_d),
-            .data_tlb_mat(trans_data_tlb_mat),
-            .data_tlb_plv(trans_data_tlb_plv),
+             .data_index(trans_data_index),
+             .data_tag(trans_data_tag),
+             .data_offset(trans_data_offset),
+             .data_tlb_found(trans_data_tlb_found),
+             .data_tlb_index(trans_data_tlb_index),
+             .data_tlb_v(trans_data_tlb_v),
+             .data_tlb_d(trans_data_tlb_d),
+             .data_tlb_mat(trans_data_tlb_mat),
+             .data_tlb_plv(trans_data_tlb_plv),
 
-            // for tlbsrch
-            .tlbsrch_index(exu_tlbsrch_index),
-            .tlbsrch_found(exu_tlbsrch_found),
-            // for invtlb
-            .invtlb_op_i(idu_invtlb_op),
-            .invtlb_asid_i(idu_invtlb_asid),
-            .invtlb_vpn_i(idu_invtlb_vpn),
-            .invtlb_op_o(exu_invtlb_op_o),
-            .invtlb_asid_o(exu_invtlb_asid_o),
-            .invtlb_vpn_o(exu_invtlb_vpn_o)
-        );
+             // for tlbsrch
+             .tlbsrch_index(exu_tlbsrch_index),
+             .tlbsrch_found(exu_tlbsrch_found),
+             // for invtlb
+             .invtlb_op_i(idu_invtlb_op),
+             .invtlb_asid_i(idu_invtlb_asid),
+             .invtlb_vpn_i(idu_invtlb_vpn),
+             .invtlb_op_o(exu_invtlb_op_o),
+             .invtlb_asid_o(exu_invtlb_asid_o),
+             .invtlb_vpn_o(exu_invtlb_vpn_o)
+         );
 
     // mem
 
     MEM  mem(
-            .clk        (aclk),
-            .rst        (reset),
+             .clk        (aclk),
+             .rst        (reset),
 
-            .es_excp (exu_es_excp_out),
-            .es_excp_num (exu_es_excp_num_out),
-            .ms_excp_out (mem_ms_excp_out),
-            .ms_excp_num_out (mem_ms_excp_num_out),
+             .es_excp (exu_es_excp_out),
+             .es_excp_num (exu_es_excp_num_out),
+             .ms_excp_out (mem_ms_excp_out),
+             .ms_excp_num_out (mem_ms_excp_num_out),
 
-            .in_mem_op  (exu_out_mem_op),
-            .in_mem_mask(exu_out_mem_mask),
+             .in_mem_op  (exu_out_mem_op),
+             .in_mem_mask(exu_out_mem_mask),
 
-            .bus_exu_to_mem_data(exu_bus_exu_to_mem_data),
-            .bus_mem_to_wbu_data(mem_bus_mem_to_wbu_data),
-            // from mem_sram
-            .data_sram_rdata(exu_rdata_o),
-            .bus_mem_bypass_data(mem_bus_mem_bypass_data),
+             .bus_exu_to_mem_data(exu_bus_exu_to_mem_data),
+             .bus_mem_to_wbu_data(mem_bus_mem_to_wbu_data),
+             // from mem_sram
+             .data_sram_rdata(exu_rdata_o),
+             .bus_mem_bypass_data(mem_bus_mem_bypass_data),
 
-            .flush     (wbu_flush),
+             .flush     (wbu_flush),
 
-            .wbu_in_is_ertn(wbu_is_ertn),
-            .mem_excp(mem_mem_excp),
-            .is_ertn (mem_is_ertn),
+             .wbu_in_is_ertn(wbu_is_ertn),
+             .mem_excp(mem_mem_excp),
+             .is_ertn (mem_is_ertn),
 
-            .up_valid(exu_state_valid),
-            .state_valid(mem_state_valid),
-            .waite_ready_i(wbu_waite_ready_o),
-            .waite_ready_o(mem_waite_ready_o),
+             .up_valid(exu_state_valid),
+             .state_valid(mem_state_valid),
+             .waite_ready_i(wbu_waite_ready_o),
+             .waite_ready_o(mem_waite_ready_o),
 
-            // tlb
-            .tlb_inst_bus(exu_tlb_inst_bus_o),
-            .tlb_inst_bus_o(mem_tlb_inst_bus_o),
+             // tlb
+             .tlb_inst_bus(exu_tlb_inst_bus_o),
+             .tlb_inst_bus_o(mem_tlb_inst_bus_o),
 
-            // tlbsrch
-            .tlbsrch_index(exu_tlbsrch_index),
-            .tlbsrch_found(exu_tlbsrch_found),
-            .tlbsrch_index_o(mem_tlbsrch_index_o),
-            .tlbsrch_found_o(mem_tlbsrch_found_o),
-            // invtlb
-            .invtlb_op_i(exu_invtlb_op_o),
-            .invtlb_asid_i(exu_invtlb_asid_o),
-            .invtlb_vpn_i(exu_invtlb_vpn_o),
-            .invtlb_op_o(mem_invtlb_op_o),
-            .invtlb_asid_o(mem_invtlb_asid_o),
-            .invtlb_vpn_o(mem_invtlb_vpn_o)
-        );
+             // tlbsrch
+             .tlbsrch_index(exu_tlbsrch_index),
+             .tlbsrch_found(exu_tlbsrch_found),
+             .tlbsrch_index_o(mem_tlbsrch_index_o),
+             .tlbsrch_found_o(mem_tlbsrch_found_o),
+             // invtlb
+             .invtlb_op_i(exu_invtlb_op_o),
+             .invtlb_asid_i(exu_invtlb_asid_o),
+             .invtlb_vpn_i(exu_invtlb_vpn_o),
+             .invtlb_op_o(mem_invtlb_op_o),
+             .invtlb_asid_o(mem_invtlb_asid_o),
+             .invtlb_vpn_o(mem_invtlb_vpn_o)
+         );
 
     // wbu
 
     WBU  wbu(
-            .clk        (aclk),
-            .rst        (reset),
+             .clk        (aclk),
+             .rst        (reset),
 
-            .bus_mem_to_wbu_data(mem_bus_mem_to_wbu_data),
+             .bus_mem_to_wbu_data(mem_bus_mem_to_wbu_data),
 
-            .ms_excp(mem_ms_excp_out),
-            .ms_excp_num(mem_ms_excp_num_out),
+             .ms_excp(mem_ms_excp_out),
+             .ms_excp_num(mem_ms_excp_num_out),
 
-            // to rf
-            .rf_we      (wbu_rf_we),
-            .rf_waddr   (wbu_rf_waddr),
-            .rf_wdata   (wbu_rf_wdata),
-            .pc         (wbu_pc),
-            // 数据相关
-            .bus_wbu_bypass_data(wbu_bus_wbu_bypass_data),
-            .bus_wub_to_csr_data(wbu_bus_wbu_to_csr_data),
-            .flush     (wbu_flush),
-            .is_ertn    (wbu_is_ertn),
+             // to rf
+             .rf_we      (wbu_rf_we),
+             .rf_waddr   (wbu_rf_waddr),
+             .rf_wdata   (wbu_rf_wdata),
+             .pc         (wbu_pc),
+             // 数据相关
+             .bus_wbu_bypass_data(wbu_bus_wbu_bypass_data),
+             .bus_wub_to_csr_data(wbu_bus_wbu_to_csr_data),
+             .flush     (wbu_flush),
+             .is_ertn    (wbu_is_ertn),
 
-            .up_valid(mem_state_valid),
-            .waite_ready_o(wbu_waite_ready_o),
+             .up_valid(mem_state_valid),
+             .waite_ready_o(wbu_waite_ready_o),
 
-            // tlb
-            .tlb_inst_bus(mem_tlb_inst_bus_o),
-            // from csr
-            .csr_tlbidx(csr_tlbidx_out),
-            .csr_tlbehi(csr_tlbehi_out),
-            .csr_tlbelo0(csr_tlbelo0_out),
-            .csr_tlbelo1(csr_tlbelo1_out),
-            .csr_rand_index(csr_rand_index),
-            // tlbsrch
-            .tlbsrch_en(wbu_tlbsrch_en),
-            .tlbsrch_index(mem_tlbsrch_index_o),
-            .tlbsrch_found(mem_tlbsrch_found_o),
-            .tlbsrch_found_o(wbu_tlbsrch_found_o),
-            .tlbsrch_index_o(wbu_tlbsrch_index_o),
-            // tlbrd
-            .to_trans_tlbidx_o(wbu_to_trans_tlbidx_o),
-            .from_trans_tlbehi_in(trans_tlbehi_out),
-            .from_trans_tlbelo0_in(trans_tlbelo0_out),
-            .from_trans_tlbelo1_in(trans_tlbelo1_out),
-            .from_trans_tlbidx_in(trans_tlbidx_out),
-            .from_trans_asid_in(trans_asid_out),
-            .csr_tlbrd_en_o(wbu_csr_tlbrd_en_o),
-            .csr_tlbehi_o(wbu_csr_tlbehi_o),
-            .csr_tlbelo0_o(wbu_csr_tlbelo0_o),
-            .csr_tlbelo1_o(wbu_csr_tlbelo1_o),
-            .csr_tlbidx_o(wbu_csr_tlbidx_o),
-            .csr_asid_o(wbu_csr_asid_o),
-            // tlbwr
-            .tlbwr_en_o(wbu_tlbwr_en_o),
-            .tlbwr_fill_tlbehi_o(wbu_tlbwr_fill_tlbehi_o),
-            .tlbwr_fill_tlbelo0_o(wbu_tlbwr_fill_tlbelo0_o),
-            .tlbwr_fill_tlbelo1_o(wbu_tlbwr_fill_tlbelo1_o),
-            .tlbwr_fill_tlbidx_o(wbu_tlbwr_fill_tlbidx_o),
-            .tlbwr_fill_ecode_o(wbu_tlbwr_fill_ecode_o),
+             // tlb
+             .tlb_inst_bus(mem_tlb_inst_bus_o),
+             // from csr
+             .csr_tlbidx(csr_tlbidx_out),
+             .csr_tlbehi(csr_tlbehi_out),
+             .csr_tlbelo0(csr_tlbelo0_out),
+             .csr_tlbelo1(csr_tlbelo1_out),
+             .csr_rand_index(csr_rand_index),
+             // tlbsrch
+             .tlbsrch_en(wbu_tlbsrch_en),
+             .tlbsrch_index(mem_tlbsrch_index_o),
+             .tlbsrch_found(mem_tlbsrch_found_o),
+             .tlbsrch_found_o(wbu_tlbsrch_found_o),
+             .tlbsrch_index_o(wbu_tlbsrch_index_o),
+             // tlbrd
+             .to_trans_tlbidx_o(wbu_to_trans_tlbidx_o),
+             .from_trans_tlbehi_in(trans_tlbehi_out),
+             .from_trans_tlbelo0_in(trans_tlbelo0_out),
+             .from_trans_tlbelo1_in(trans_tlbelo1_out),
+             .from_trans_tlbidx_in(trans_tlbidx_out),
+             .from_trans_asid_in(trans_asid_out),
+             .csr_tlbrd_en_o(wbu_csr_tlbrd_en_o),
+             .csr_tlbehi_o(wbu_csr_tlbehi_o),
+             .csr_tlbelo0_o(wbu_csr_tlbelo0_o),
+             .csr_tlbelo1_o(wbu_csr_tlbelo1_o),
+             .csr_tlbidx_o(wbu_csr_tlbidx_o),
+             .csr_asid_o(wbu_csr_asid_o),
+             // tlbwr
+             .tlbwr_en_o(wbu_tlbwr_en_o),
+             .tlbwr_fill_tlbehi_o(wbu_tlbwr_fill_tlbehi_o),
+             .tlbwr_fill_tlbelo0_o(wbu_tlbwr_fill_tlbelo0_o),
+             .tlbwr_fill_tlbelo1_o(wbu_tlbwr_fill_tlbelo1_o),
+             .tlbwr_fill_tlbidx_o(wbu_tlbwr_fill_tlbidx_o),
+             .tlbwr_fill_ecode_o(wbu_tlbwr_fill_ecode_o),
 
-            // tlbfill
-            .tlbfill_en_o(wbu_tlbfill_en_o),
-            .rand_index_o(wbu_rand_index_o),
-            // invtlb
-            .invtlb_op_i(mem_invtlb_op_o),
-            .invtlb_asid_i(mem_invtlb_asid_o),
-            .invtlb_vpn_i(mem_invtlb_vpn_o),
+             // tlbfill
+             .tlbfill_en_o(wbu_tlbfill_en_o),
+             .rand_index_o(wbu_rand_index_o),
+             // invtlb
+             .invtlb_op_i(mem_invtlb_op_o),
+             .invtlb_asid_i(mem_invtlb_asid_o),
+             .invtlb_vpn_i(mem_invtlb_vpn_o),
 
-            .invtlb_op_o(wbu_invtlb_op_o),
-            .invtlb_asid_o(wbu_invtlb_asid_o),
-            .invtlb_vpn_o(wbu_invtlb_vpn_o),
-            .invtlb_en_o(wbu_invtlb_en_o)
+             .invtlb_op_o(wbu_invtlb_op_o),
+             .invtlb_asid_o(wbu_invtlb_asid_o),
+             .invtlb_vpn_o(wbu_invtlb_vpn_o),
+             .invtlb_en_o(wbu_invtlb_en_o)
 
-        );
+         );
 
     csr csr_o(
             .clk        (aclk),
@@ -812,7 +840,36 @@ module mycpu_top
             .datf_out(csr_datf_out),
             .datm_out(csr_datm_out),
             .ecode_out(csr_ecode_out),
-            .rand_index(csr_rand_index)
+            .rand_index(csr_rand_index),
+
+            .csr_crmd_diff      (csr_crmd_diff    ),
+            .csr_prmd_diff      (csr_prmd_diff    ),
+            .csr_ecfg_diff      (csr_ecfg_diff    ),
+            .csr_estat_diff     (csr_estat_diff   ),
+            .csr_era_diff       (csr_era_diff     ),
+            .csr_badv_diff      (csr_badv_diff    ),
+            .csr_eentry_diff    (csr_eentry_diff  ),
+            .csr_tlbidx_diff    (csr_tlbidx_diff  ),
+            .csr_tlbehi_diff    (csr_tlbehi_diff  ),
+            .csr_tlbelo0_diff   (csr_tlbelo0_diff ),
+            .csr_tlbelo1_diff   (csr_tlbelo1_diff ),
+            .csr_asid_diff      (csr_asid_diff    ),
+            .csr_save0_diff     (csr_save0_diff   ),
+            .csr_save1_diff     (csr_save1_diff   ),
+            .csr_save2_diff     (csr_save2_diff   ),
+            .csr_save3_diff     (csr_save3_diff   ),
+            .csr_tid_diff       (csr_tid_diff     ),
+            .csr_tcfg_diff      (csr_tcfg_diff    ),
+            .csr_tval_diff      (csr_tval_diff    ),
+            .csr_ticlr_diff     (csr_ticlr_diff   ),
+            .csr_llbctl_diff    (csr_llbctl_diff  ),
+            .csr_tlbrentry_diff (csr_tlbrentry_diff),
+            .csr_dmw0_diff      (csr_dmw0_diff    ),
+            .csr_dmw1_diff      (csr_dmw1_diff    ),
+            .csr_pgdl_diff      (csr_pgdl_diff    ),
+            .csr_pgdh_diff      (csr_pgdh_diff    )
+
+
         );
 
     addr_trans addr_trans_o(
