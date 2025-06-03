@@ -55,6 +55,7 @@ module mycpu_top
          output wire [ 4:0] debug_wb_rf_wnum,
          output wire [31:0] debug_wb_rf_wdata,
          output wire [31:0] debug_wb_inst,
+         output  debug_wb_is_csr_wr_o,
 
          output [31:0] csr_crmd_diff,
          output [31:0] csr_prmd_diff,
@@ -214,12 +215,14 @@ module mycpu_top
     wire [4:0] idu_rf_raddr2;
 
     wire [258:0] idu_bus_ds_to_es_data;
+    wire [31:0] idu_idu_inst_o;
     wire [7:0] idu_out_mem_op;
 
     wire [13:0] idu_rd_csr_addr;
 
     wire idu_state_valid;
     wire idu_waite_ready_o;
+    wire idu_is_csr_wr;
 
 
     // tlb
@@ -233,6 +236,7 @@ module mycpu_top
     wire exu_es_excp_out;
     wire [15:0] exu_es_excp_num_out;
 
+    wire [31:0] exu_inst_data_o;
     wire [150:0] exu_bus_exu_to_mem_data;
 
     wire [31:0] exu_rdata_o;
@@ -267,9 +271,12 @@ module mycpu_top
     wire [9:0]  exu_invtlb_asid_o;
     wire [18:0] exu_invtlb_vpn_o;
 
+    wire exu_is_csr_wr_o;
+
     // mem
     wire mem_ms_excp_out;
     wire [15:0] mem_ms_excp_num_out;
+    wire [31:0] mem_inst_data_o;
     wire [149:0] mem_bus_mem_to_wbu_data;
 
     wire [85:0] mem_bus_mem_bypass_data;
@@ -288,6 +295,7 @@ module mycpu_top
     wire [4:0] mem_invtlb_op_o;
     wire [9:0] mem_invtlb_asid_o;
     wire [18:0] mem_invtlb_vpn_o;
+    wire mem_is_csr_wr_o;
 
     // wbu
     wire        wbu_rf_we;
@@ -303,6 +311,8 @@ module mycpu_top
     wire wbu_is_ertn;
 
     wire wbu_waite_ready_o;
+
+    wire [31:0] wbu_inst_data_o;
 
     // tlbsrch
     wire wbu_tlbsrch_en;
@@ -543,6 +553,7 @@ module mycpu_top
 
             // from inst_ram
             .bus_ds_to_es_data(idu_bus_ds_to_es_data),
+            .idu_inst_o(idu_idu_inst_o),
             .out_mem_op       (idu_out_mem_op),
 
             .rd_csr_addr      (idu_rd_csr_addr),
@@ -572,7 +583,9 @@ module mycpu_top
             // invtlb
             .invtlb_op(idu_invtlb_op),
             .invtlb_asid(idu_invtlb_asid),
-            .invtlb_vpn(idu_invtlb_vpn)
+            .invtlb_vpn(idu_invtlb_vpn),
+
+            .is_csr_wr(idu_is_csr_wr)
         );
 
 
@@ -588,6 +601,8 @@ module mycpu_top
              .es_excp_num_out (exu_es_excp_num_out),
 
              .bus_ds_to_es_data(idu_bus_ds_to_es_data),
+             .inst_data_i(idu_idu_inst_o),
+             .inst_data_o(exu_inst_data_o),
              .bus_exu_to_mem_data(exu_bus_exu_to_mem_data),
 
              .in_mem_op(idu_out_mem_op),
@@ -669,7 +684,10 @@ module mycpu_top
              .invtlb_vpn_i(idu_invtlb_vpn),
              .invtlb_op_o(exu_invtlb_op_o),
              .invtlb_asid_o(exu_invtlb_asid_o),
-             .invtlb_vpn_o(exu_invtlb_vpn_o)
+             .invtlb_vpn_o(exu_invtlb_vpn_o),
+
+             .is_csr_wr_i(idu_is_csr_wr),
+             .is_csr_wr_o(exu_is_csr_wr_o)
          );
 
     // mem
@@ -687,6 +705,8 @@ module mycpu_top
              .in_mem_mask(exu_out_mem_mask),
 
              .bus_exu_to_mem_data(exu_bus_exu_to_mem_data),
+             .inst_data_i(exu_inst_data_o),
+             .inst_data_o(mem_inst_data_o),
              .bus_mem_to_wbu_data(mem_bus_mem_to_wbu_data),
              // from mem_sram
              .data_sram_rdata(exu_rdata_o),
@@ -718,7 +738,10 @@ module mycpu_top
              .invtlb_vpn_i(exu_invtlb_vpn_o),
              .invtlb_op_o(mem_invtlb_op_o),
              .invtlb_asid_o(mem_invtlb_asid_o),
-             .invtlb_vpn_o(mem_invtlb_vpn_o)
+             .invtlb_vpn_o(mem_invtlb_vpn_o),
+
+             .is_csr_wr_i(exu_is_csr_wr_o),
+             .is_csr_wr_o(mem_is_csr_wr_o)
          );
 
     // wbu
@@ -728,6 +751,7 @@ module mycpu_top
              .rst        (reset),
 
              .bus_mem_to_wbu_data(mem_bus_mem_to_wbu_data),
+             .inst_data_i(mem_inst_data_o),
 
              .ms_excp(mem_ms_excp_out),
              .ms_excp_num(mem_ms_excp_num_out),
@@ -792,7 +816,11 @@ module mycpu_top
              .invtlb_op_o(wbu_invtlb_op_o),
              .invtlb_asid_o(wbu_invtlb_asid_o),
              .invtlb_vpn_o(wbu_invtlb_vpn_o),
-             .invtlb_en_o(wbu_invtlb_en_o)
+             .invtlb_en_o(wbu_invtlb_en_o),
+             .inst_data_o(wbu_inst_data_o),
+
+             .is_csr_wr_i(mem_is_csr_wr_o),
+             .is_csr_wr_o(debug_wb_is_csr_wr_o)
 
          );
 
@@ -946,6 +974,7 @@ module mycpu_top
     assign debug_wb_rf_we   = {4{wbu_rf_we}};
     assign debug_wb_rf_wnum  = wbu_rf_waddr;
     assign debug_wb_rf_wdata = wbu_rf_wdata;
+    assign debug_wb_inst = wbu_inst_data_o;
 
 
 endmodule

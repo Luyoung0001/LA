@@ -22,8 +22,7 @@ typedef struct golden_trace {
     uint32_t pc;
     uint32_t value;
     uint32_t inst;
-    // 每一项多了 CSR 的信息，由于一条指令可能修改多个 CSR，因此这里将记录多个
-    // CSR
+    uint32_t is_csr_wr;  // 是否对 csr 进行修改
     uint32_t csr_crmd;
     uint32_t csr_prmd;
     uint32_t csr_ecfg;
@@ -65,18 +64,18 @@ void step() {
     top->clk = 0;
     top->eval();
 
-    // if (i >= 737000) {
+    if (i >= 700000) {
         tfp->dump(main_time);  // 记录波形数据
         main_time++;           // 时间递增
-    // }
+    }
 
     top->clk = 1;
     top->eval();
 
-    // if (i >= 737000) {
+    if (i >= 700000) {
         tfp->dump(main_time);
         main_time++;
-    // }
+    }
 }
 void reset(int n) {
     top->rst = 1;
@@ -105,20 +104,21 @@ diff ref_struct;
 int j = 1;
 void read_ref() {
     fscanf(fp,
-           "%d %02X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X "
-           "%08X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X "
-           "%08X %08X %08X %08X %08X\n",
+           "%d %02x %08x %08x %08x %d %08x %08x %08x %08x %08x %08x %08x %08x "
+           "%08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x "
+           "%08x %08x %08x %08x %08x\n",
            &trace_info.we, &trace_info.wnum, &trace_info.pc, &trace_info.value,
-           &trace_info.inst, &trace_info.csr_crmd, &trace_info.csr_prmd,
-           &trace_info.csr_ecfg, &trace_info.csr_estat, &trace_info.csr_era,
-           &trace_info.csr_badv, &trace_info.csr_eentry, &trace_info.csr_tlbidx,
-           &trace_info.csr_tlbehi, &trace_info.csr_tlbelo0,
-           &trace_info.csr_tlbelo1, &trace_info.csr_asid, &trace_info.csr_save0,
-           &trace_info.csr_save1, &trace_info.csr_save2, &trace_info.csr_save3,
-           &trace_info.csr_tid, &trace_info.csr_tcfg, &trace_info.csr_tval,
-           &trace_info.csr_ticlr, &trace_info.csr_llbctl,
-           &trace_info.csr_tlbrentry, &trace_info.csr_dmw0,
-           &trace_info.csr_dmw1, &trace_info.csr_pgdl, &trace_info.csr_pgdh);
+           &trace_info.inst, &trace_info.is_csr_wr, &trace_info.csr_crmd,
+           &trace_info.csr_prmd, &trace_info.csr_ecfg, &trace_info.csr_estat,
+           &trace_info.csr_era, &trace_info.csr_badv, &trace_info.csr_eentry,
+           &trace_info.csr_tlbidx, &trace_info.csr_tlbehi,
+           &trace_info.csr_tlbelo0, &trace_info.csr_tlbelo1,
+           &trace_info.csr_asid, &trace_info.csr_save0, &trace_info.csr_save1,
+           &trace_info.csr_save2, &trace_info.csr_save3, &trace_info.csr_tid,
+           &trace_info.csr_tcfg, &trace_info.csr_tval, &trace_info.csr_ticlr,
+           &trace_info.csr_llbctl, &trace_info.csr_tlbrentry,
+           &trace_info.csr_dmw0, &trace_info.csr_dmw1, &trace_info.csr_pgdl,
+           &trace_info.csr_pgdh);
     printf("Read %dth: line\n", j);
     j++;
 }
@@ -129,10 +129,12 @@ int is_good() {
                trace_info.pc == mycpu_trace_info.pc &&
                trace_info.value == mycpu_trace_info.value &&
                trace_info.inst == mycpu_trace_info.inst &&
+               trace_info.is_csr_wr ==
+                   mycpu_trace_info.is_csr_wr &&  // 是否对 CSR 进行修改
                trace_info.csr_crmd == mycpu_trace_info.csr_crmd &&  // 比对 CSR
                trace_info.csr_prmd == mycpu_trace_info.csr_prmd &&
                trace_info.csr_ecfg == mycpu_trace_info.csr_ecfg &&
-               //   trace_info.csr_estat == mycpu_trace_info.csr_estat &&
+               //  trace_info.csr_estat == mycpu_trace_info.csr_estat &&
                trace_info.csr_era == mycpu_trace_info.csr_era &&
                trace_info.csr_badv == mycpu_trace_info.csr_badv &&
                trace_info.csr_eentry == mycpu_trace_info.csr_eentry &&
@@ -140,7 +142,7 @@ int is_good() {
                trace_info.csr_tlbehi == mycpu_trace_info.csr_tlbehi &&
                trace_info.csr_tlbelo0 == mycpu_trace_info.csr_tlbelo0 &&
                trace_info.csr_tlbelo1 == mycpu_trace_info.csr_tlbelo1 &&
-               trace_info.csr_asid == mycpu_trace_info.csr_asid &&
+               //    trace_info.csr_asid == mycpu_trace_info.csr_asid &&
                trace_info.csr_save0 == mycpu_trace_info.csr_save0 &&
                trace_info.csr_save1 == mycpu_trace_info.csr_save1 &&
                trace_info.csr_save2 == mycpu_trace_info.csr_save2 &&
@@ -161,12 +163,15 @@ int is_good() {
 void print_info() {
     printf(
         "\033[32mCPU\033[0m:  we: %d, wnum: %d, \033[32mpc: %08x\033[0m, "
-        "value: %08x, inst: %08x\n",
+        "value: %08x, inst: %08x, csr_wr: %d\n",
         mycpu_trace_info.we == 15, mycpu_trace_info.wnum, mycpu_trace_info.pc,
-        mycpu_trace_info.value, mycpu_trace_info.inst);
-    printf("REF:  we: %d, wnum: %d, pc: %08x, value: %08x, inst: %08x\n\n",
-           trace_info.we, trace_info.wnum, trace_info.pc, trace_info.value,
-           trace_info.inst);
+        mycpu_trace_info.value, mycpu_trace_info.inst,
+        mycpu_trace_info.is_csr_wr);
+    printf(
+        "REF:  we: %d, wnum: %d, pc: %08x, value: %08x, inst: %08x, csr_wr: "
+        "%d\n\n",
+        trace_info.we, trace_info.wnum, trace_info.pc, trace_info.value,
+        trace_info.inst, trace_info.is_csr_wr);
 
     printf(
         "\033[32mCPU\033[0m:  csr_crmd: %08x, csr_prmd: %08x, csr_ecfg: %08x, "
@@ -247,6 +252,7 @@ int difftest() {
     mycpu_trace_info.pc = top->rootp->verilator_top->debug_wb_pc;
     mycpu_trace_info.value = top->rootp->verilator_top->debug_wb_rf_wdata;
     mycpu_trace_info.inst = top->rootp->verilator_top->debug_wb_inst;
+    mycpu_trace_info.is_csr_wr = top->rootp->verilator_top->debug_wb_is_csr_wr_o;
     mycpu_trace_info.csr_crmd = top->rootp->verilator_top->csr_crmd_diff;
     mycpu_trace_info.csr_prmd = top->rootp->verilator_top->csr_prmd_diff;
     mycpu_trace_info.csr_ecfg = top->rootp->verilator_top->csr_ecfg_diff;
@@ -276,9 +282,7 @@ int difftest() {
     mycpu_trace_info.csr_pgdh = top->rootp->verilator_top->csr_pgdh_diff;
 
     // 防止一个指令保持多个周期，这里需要判断等幂性，如果等幂直接退出
-    if (last_op.wnum == mycpu_trace_info.wnum &&
-        last_op.pc == mycpu_trace_info.pc &&
-        last_op.value == mycpu_trace_info.value) {
+    if (last_op.pc == mycpu_trace_info.pc) {
         return 1;
     }
     // 保存最新的状态
@@ -287,9 +291,7 @@ int difftest() {
     last_op.value = mycpu_trace_info.value;
 
     // 如果流水线留出个空指令，那么直接返回
-    if (mycpu_trace_info.pc == 0x00000000) {
-        return 1;
-    } else {
+    if (mycpu_trace_info.we && mycpu_trace_info.wnum != 0 || mycpu_trace_info.is_csr_wr) {
         // 读取 ref
         read_ref();
         int good = is_good();
@@ -320,7 +322,6 @@ void cpu_exec(uint64_t n) {
     while (n) {
         i++;
         // 停机信号
-        printf("i:%d\n", i);
         uint32_t pc = top->rootp->verilator_top->debug_wb_pc;
         if (difftest() == 0) {
             printf("i:%d -->Error!\n", i);

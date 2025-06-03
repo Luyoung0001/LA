@@ -22,6 +22,7 @@ module IDU (
         input wire [31:0] rf_rdata2,
         // bus
         output wire [258:0] bus_ds_to_es_data,
+        output wire [31:0] idu_inst_o,
         output wire [7:0] out_mem_op,
 
         // csr
@@ -54,7 +55,8 @@ module IDU (
         // invtlb
         output wire [4:0] invtlb_op,
         output wire [9:0] invtlb_asid,
-        output wire [18:0] invtlb_vpn
+        output wire [18:0] invtlb_vpn,
+        output wire is_csr_wr
     );
 
     wire excp_flush;
@@ -283,7 +285,6 @@ module IDU (
     wire        need_si20;
     wire        need_si26;
     wire        src2_is_4;
-
     wire        need_ui12;
 
 
@@ -332,9 +333,7 @@ module IDU (
         // idle
         else if (idu_state == 2'd0 && up_valid) begin
             // 取出数据
-            // pc_reg <= in_pc;
-            // 如果当前是跳转，那么下一条指令的 PC 标记为 0x00000000，这是为了 difftest
-            pc_reg <= br_taken ? 32'h00000000 : in_pc;
+            pc_reg <= br_taken ? pc_reg : in_pc;
             // 如果当前是跳转，那么下一条指令置 NOP
             inst_sram_rdata_reg <= br_taken ? inst_nop_data : in_rdata;
             fs_excp_num_r <= fs_excp_num;
@@ -826,4 +825,12 @@ module IDU (
     assign invtlb_op = rd;
     assign invtlb_asid = rj_value[9:0];
     assign invtlb_vpn = rkd_value[31:13];
+
+    //debug
+    assign idu_inst_o = inst_sram_rdata_reg;
+
+    assign is_csr_wr = inst_csrwr |
+           inst_csrxchg |
+           inst_tlbrd|
+           inst_tlbsrch;
 endmodule

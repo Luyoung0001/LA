@@ -17,6 +17,8 @@ module MEM
          input wire [3:0] in_mem_mask,
 
          input wire [150:0] bus_exu_to_mem_data,
+         input wire [31:0] inst_data_i,
+         output wire [31:0] inst_data_o,
          output wire [149:0] bus_mem_to_wbu_data,
 
          // from mem_sram
@@ -49,9 +51,14 @@ module MEM
          input wire [18:0]      invtlb_vpn_i,
          output wire [4:0]      invtlb_op_o,
          output wire [9:0]      invtlb_asid_o,
-         output wire [18:0]     invtlb_vpn_o
+         output wire [18:0]     invtlb_vpn_o,
+
+         input wire is_csr_wr_i,
+         output wire is_csr_wr_o
 
      );
+    reg is_csr_wr_i_r;
+
 
     wire excp_flush;
     wire ertn_flush;
@@ -89,6 +96,7 @@ module MEM
 
 
     reg [150:0] bus_exu_to_mem_data_r;
+    reg [31:0] inst_data_i_r;
     reg [31:0] reg_rdata;
 
     wire    [31:0] wire_exu_result;
@@ -241,6 +249,7 @@ module MEM
             mem_state <= 2'd0;
             reg_rdata <= 32'd0;
             bus_exu_to_mem_data_r <= 151'd0;
+            inst_data_i_r <= 32'd0;
             mem_op_reg <= 8'd0;
             mem_mask_reg <= 4'd0;
             es_excp_num_r <= 16'd0;
@@ -255,10 +264,13 @@ module MEM
             invtlb_asid_i_r <= 10'd0;
             invtlb_vpn_i_r <= 19'd0;
 
+            is_csr_wr_i_r <= 1'b0;
+
         end
         else if (mem_state == 2'd0 && up_valid) begin
             reg_rdata <= data_sram_rdata;
             bus_exu_to_mem_data_r <= bus_exu_to_mem_data;
+            inst_data_i_r <= inst_data_i;
             mem_op_reg <= in_mem_op;
             mem_mask_reg <= in_mem_mask;
             es_excp_num_r <= es_excp_num;
@@ -273,6 +285,8 @@ module MEM
             invtlb_op_i_r <= invtlb_op_i;
             invtlb_asid_i_r <= invtlb_asid_i;
             invtlb_vpn_i_r <= invtlb_vpn_i;
+
+            is_csr_wr_i_r <= is_csr_wr_i;
         end
 
         else if(mem_state == 2'd1) begin
@@ -296,6 +310,10 @@ module MEM
     assign invtlb_op_o = invtlb_op_i_r;
     assign invtlb_asid_o = invtlb_asid_i_r;
     assign invtlb_vpn_o = invtlb_vpn_i_r;
+
+    assign inst_data_o = inst_data_i_r;
+
+    assign is_csr_wr_o = is_csr_wr_i_r;
 
 
 endmodule

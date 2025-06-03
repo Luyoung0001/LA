@@ -62,6 +62,7 @@ module core_top
          output [ 4:0] debug0_wb_rf_wnum,
          output [31:0] debug0_wb_rf_wdata,
          output [31:0] debug0_wb_inst,
+         output  debug0_wb_is_csr_wr_o,
 
          output [31:0] csr_crmd_diff,
          output [31:0] csr_prmd_diff,
@@ -443,6 +444,7 @@ module core_top
                  .inst_tlb_plv      (inst_tlb_plv     )
              );
     // ID stage
+    wire idu_is_csr_wr;
     id_stage id_stage(
                  .clk                  (aclk                ),
                  .reset                (reset               ),
@@ -508,13 +510,15 @@ module core_top
                  .reg_num              (reg_num             ),
                  .debug_rf_rdata1      (rf_rdata            ),
                  //to rf: for write back
-                 .ws_to_rf_bus         (ws_to_rf_bus        )
+                 .ws_to_rf_bus         (ws_to_rf_bus        ),
+                 .is_csr_wr            (idu_is_csr_wr       )
 `ifdef DIFFTEST_EN
                  ,
                  .rf_to_diff           (regs                )
 `endif
              );
     // EXE stage
+    wire exu_is_csr_wr_o;
     exe_stage exe_stage(
                   .clk                  (aclk                ),
                   .reset                (reset               ),
@@ -568,7 +572,10 @@ module core_top
                   .data_fetch           (data_fetch          ),
                   //from ms
                   .ms_wr_tlbehi         (ms_wr_tlbehi        ),
-                  .ms_flush             (ms_flush            )
+                  .ms_flush             (ms_flush            ),
+
+                  .is_csr_wr_i(idu_is_csr_wr),
+                  .is_csr_wr_o(exu_is_csr_wr_o)
               );
 
     div u_div(
@@ -593,6 +600,7 @@ module core_top
         );
 
     // MEM stage
+    wire mem_is_csr_wr_o;
     mem_stage mem_stage(
                   .clk                  (aclk                ),
                   .reset                (reset               ),
@@ -657,7 +665,10 @@ module core_top
                   .data_tlb_d           (data_tlb_d          ),
                   .data_tlb_mat         (data_tlb_mat        ),
                   .data_tlb_plv         (data_tlb_plv        ),
-                  .data_tlb_ppn         (data_tag            )
+                  .data_tlb_ppn         (data_tag            ),
+
+                  .is_csr_wr_i(exu_is_csr_wr_o),
+                  .is_csr_wr_o(mem_is_csr_wr_o)
               );
     // WB stage
     wb_stage wb_stage(
@@ -737,7 +748,9 @@ module core_top
                  .ws_st_vaddr_diff   (st_vaddr_diff     ),
                  .ws_st_data_diff    (st_data_diff      ),
                  .ws_csr_rstat_en_diff (csr_rstat_en_diff    ),
-                 .ws_csr_data_diff   (csr_data_diff     )
+                 .ws_csr_data_diff   (csr_data_diff     ),
+                 .is_csr_wr_i(mem_is_csr_wr_o),
+                 .is_csr_wr_o(debug0_wb_is_csr_wr_o)
              );
 
     csr #(TLBNUM) u_csr(

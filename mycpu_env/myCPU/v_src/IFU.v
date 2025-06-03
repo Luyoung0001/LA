@@ -133,10 +133,10 @@ module IFU (
         end
     end
     assign req = flush_sign ? 1'b0: ifu_state == 2'b1 && waite_ready_i && !addr_ok;
-    assign pc_o = flush_sign ? 32'd0 : pc;
-    assign rdata_o = flush_sign ? 32'd0 : rdata;
+    assign pc_o =  pc;
+    assign rdata_o = rdata;
     assign waite_ready_o = ifu_state == 2'b0 ? 1'b1:1'b0;
-    assign state_valid = flush_sign ? 1'b0 : ifu_state == 2'd2 && data_ok;
+    assign state_valid = ifu_state == 2'd2 && data_ok;
 
     // tlb
     wire pg_mode;

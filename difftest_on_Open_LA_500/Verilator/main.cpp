@@ -33,8 +33,7 @@ typedef struct golden_trace {
     uint32_t pc;
     uint32_t value;
     uint32_t inst;
-    // 每一项多了 CSR 的信息，由于一条指令可能修改多个 CSR，因此这里将记录多个
-    // CSR
+    uint32_t is_csr_wr;  // 是否对 csr 进行修改
     uint32_t csr_crmd;
     uint32_t csr_prmd;
     uint32_t csr_ectl;
@@ -76,36 +75,36 @@ void op_file() {
 
 void gen_golden_trace_file1() {
     fprintf(golden_trace_fp,
-            "%d %02x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x "
+            "%d %02x %08x %08x %08x %d %08x %08x %08x %08x %08x %08x %08x %08x "
             "%08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x "
             "%08x %08x %08x %08x %08x\n",
-            trace_info.we == 15, trace_info.wnum, trace_info.pc, trace_info.value,
-            trace_info.inst, trace_info.csr_crmd, trace_info.csr_prmd,
-            trace_info.csr_ectl, trace_info.csr_estat, trace_info.csr_era,
-            trace_info.csr_badv, trace_info.csr_eentry, trace_info.csr_tlbidx,
-            trace_info.csr_tlbehi, trace_info.csr_tlbelo0,
-            trace_info.csr_tlbelo1, trace_info.csr_asid, trace_info.csr_save0,
-            trace_info.csr_save1, trace_info.csr_save2, trace_info.csr_save3,
-            trace_info.csr_tid, trace_info.csr_tcfg, trace_info.csr_tval,
-            trace_info.csr_ticlr, trace_info.csr_llbctl,
+            trace_info.we == 15, trace_info.wnum, trace_info.pc,
+            trace_info.value, trace_info.inst, trace_info.is_csr_wr,
+            trace_info.csr_crmd, trace_info.csr_prmd, trace_info.csr_ectl,
+            trace_info.csr_estat, trace_info.csr_era, trace_info.csr_badv,
+            trace_info.csr_eentry, trace_info.csr_tlbidx, trace_info.csr_tlbehi,
+            trace_info.csr_tlbelo0, trace_info.csr_tlbelo1, trace_info.csr_asid,
+            trace_info.csr_save0, trace_info.csr_save1, trace_info.csr_save2,
+            trace_info.csr_save3, trace_info.csr_tid, trace_info.csr_tcfg,
+            trace_info.csr_tval, trace_info.csr_ticlr, trace_info.csr_llbctl,
             trace_info.csr_tlbrentry, trace_info.csr_dmw0, trace_info.csr_dmw1,
             trace_info.csr_pgdl, trace_info.csr_pgdh);
 }
 
 void gen_golden_trace_file2() {
     fprintf(golden_trace_fp,
-            "%d %02x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x "
+            "%d %02x %08x %08x %08x %d %08x %08x %08x %08x %08x %08x %08x %08x "
             "%08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x "
             "%08x %08x %08x %08x %08x\n",
-            ref_struct.we, trace_info.wnum, trace_info.pc, trace_info.value,
-            trace_info.inst, trace_info.csr_crmd, trace_info.csr_prmd,
-            trace_info.csr_ectl, trace_info.csr_estat, trace_info.csr_era,
-            trace_info.csr_badv, trace_info.csr_eentry, trace_info.csr_tlbidx,
-            trace_info.csr_tlbehi, trace_info.csr_tlbelo0,
-            trace_info.csr_tlbelo1, trace_info.csr_asid, trace_info.csr_save0,
-            trace_info.csr_save1, trace_info.csr_save2, trace_info.csr_save3,
-            trace_info.csr_tid, trace_info.csr_tcfg, trace_info.csr_tval,
-            trace_info.csr_ticlr, trace_info.csr_llbctl,
+            ref_struct.we, trace_info.wnum, trace_info.pc,
+            trace_info.value, trace_info.inst, trace_info.is_csr_wr,
+            trace_info.csr_crmd, trace_info.csr_prmd, trace_info.csr_ectl,
+            trace_info.csr_estat, trace_info.csr_era, trace_info.csr_badv,
+            trace_info.csr_eentry, trace_info.csr_tlbidx, trace_info.csr_tlbehi,
+            trace_info.csr_tlbelo0, trace_info.csr_tlbelo1, trace_info.csr_asid,
+            trace_info.csr_save0, trace_info.csr_save1, trace_info.csr_save2,
+            trace_info.csr_save3, trace_info.csr_tid, trace_info.csr_tcfg,
+            trace_info.csr_tval, trace_info.csr_ticlr, trace_info.csr_llbctl,
             trace_info.csr_tlbrentry, trace_info.csr_dmw0, trace_info.csr_dmw1,
             trace_info.csr_pgdl, trace_info.csr_pgdh);
 }
@@ -152,7 +151,8 @@ int difftest() {
     trace_info.wnum = top->rootp->verilator_top->debug_wb_rf_wnum;
     trace_info.pc = top->rootp->verilator_top->debug_wb_pc;
     trace_info.value = top->rootp->verilator_top->debug_wb_rf_wdata;
-
+    trace_info.inst = top->rootp->verilator_top->debug_wb_inst;
+    trace_info.is_csr_wr = top->rootp->verilator_top->debug_wb_is_csr_wr_o;
     trace_info.csr_crmd = top->rootp->verilator_top->csr_crmd_diff;
     trace_info.csr_prmd = top->rootp->verilator_top->csr_prmd_diff;
     trace_info.csr_ectl = top->rootp->verilator_top->csr_ectl_diff;
@@ -191,18 +191,17 @@ int difftest() {
     last_op.pc = trace_info.pc;
     last_op.value = trace_info.value;
 
-    // 如果 we 是 0，说明当前指令没有写寄存器
-    // 如果 wnum 是 0，说明当前指令没有写寄存器
-    // 但是也有可能执行的是 csr 指令
-    // 这几种情况都要考虑，全部生成 trace
-
-    if (trace_info.we == 0 || trace_info.wnum == 0) {
+    // 如果修改 csr，那么 trace
+    // 这里其实增加了一种情况，那就是原生的 difftest 中只记录了对 GPR 的修改信息
+    // 事实上，完善的 difftest 应该记录对 CSR 的修改信息
+    // 因此，当某条指令的 trace_info.we == 0 且 trace_info.is_csr_wr == 1 的时候，正好补充了这点
+    if (trace_info.is_csr_wr && trace_info.we == 0) {
         gen_golden_trace_file1();
-    } else {
+    } else if (trace_info.we != 0 && trace_info.wnum != 0) {
         // 这种情况意味着 trace_info.we != 0
-        // 当 trace_info.we != 0 时，有一种可能就是这个指令是收到 CSR 寄存器影响的
-        // 比如读取的 CSR.TVAL，这个结果不应卡在 difftest 过不去，因此这种情况应该将
-        // trace_info.we 标记为 0 生成 trace
+        // 当 trace_info.we != 0 时，可能就是这个指令是受到 CSR
+        // 寄存器影响的，比如读取的 CSR.TVAL，这个结果不应卡在 difftest
+        // 过不去，因此这种情况应该将 trace_info.we 标记为 0 生成 trace
         // 好消息是，这个信息trace_info.we 已经在上面被赋值了
         read_ref();
         int good = trace_info.wnum == ref_struct.wnum &&
@@ -221,12 +220,12 @@ int difftest() {
             printf("-->REF %d %08x %02x %08x\n", ref_struct.we, ref_struct.pc,
                    ref_struct.wnum, ref_struct.value);
         }
-
         if (ref_struct.we == 0) {
             return 1;
         }
-
         return good;
+    } else {
+        return 1;
     }
 
     return -1;

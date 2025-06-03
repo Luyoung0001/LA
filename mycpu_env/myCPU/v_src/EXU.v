@@ -14,6 +14,8 @@ module EXU
 
          // bus
          input wire [258:0] bus_ds_to_es_data,
+         input wire [31:0] inst_data_i,
+         output wire [31:0] inst_data_o,
          output wire [150:0] bus_exu_to_mem_data,
 
          input wire [7:0] in_mem_op,
@@ -96,8 +98,13 @@ module EXU
          input wire [18:0]      invtlb_vpn_i,
          output wire [4:0]      invtlb_op_o,
          output wire [9:0]      invtlb_asid_o,
-         output wire [18:0]     invtlb_vpn_o
+         output wire [18:0]     invtlb_vpn_o,
+
+
+         input wire is_csr_wr_i,
+         output wire is_csr_wr_o
      );
+    reg is_csr_wr_i_r;
     wire excp_flush;
     wire ertn_flush;
     assign {excp_flush, ertn_flush} = flush;
@@ -135,6 +142,7 @@ module EXU
     wire [31:0] exu_csr_wdata;
 
     reg [258:0] ds_to_es_bus_data_r;
+    reg [31:0] inst_data_i_r;
 
     reg [7:0] mem_op_reg;
 
@@ -431,6 +439,7 @@ module EXU
         if (rst || flush_sign) begin
             exu_state <= 2'd0;
             ds_to_es_bus_data_r <= 259'd0;
+            inst_data_i_r <= 32'd0;
             mem_op_reg <= 8'd0;
             ds_excp_num_r <= 16'd0;
             ds_excp_r <= 1'b0;
@@ -440,11 +449,14 @@ module EXU
             invtlb_op_i_r <= 5'd0;
             invtlb_asid_i_r <= 10'd0;
             invtlb_vpn_i_r <= 19'd0;
+
+            is_csr_wr_i_r <= 1'b0;
         end
         else if (exu_state == 2'd0 && up_valid) begin
             ds_to_es_bus_data_r <= bus_ds_to_es_data;
             mem_op_reg <= in_mem_op;
             ds_excp_num_r <= ds_excp_num;
+            inst_data_i_r <= inst_data_i;
             ds_excp_r <= ds_excp;
             exu_state <= 2'd1;
             // tlb
@@ -453,6 +465,8 @@ module EXU
             invtlb_op_i_r <= invtlb_op_i;
             invtlb_asid_i_r <= invtlb_asid_i;
             invtlb_vpn_i_r <= invtlb_vpn_i;
+
+            is_csr_wr_i_r <= is_csr_wr_i;
 
         end
         // 这里要处理，进入处理阶段
@@ -521,5 +535,9 @@ module EXU
     assign invtlb_vpn_o = invtlb_vpn_i_r;
 
     assign tlb_inst_bus_o = tlb_inst_bus_r;
+
+    assign inst_data_o = inst_data_i_r;
+
+    assign is_csr_wr_o = is_csr_wr_i_r;
 
 endmodule
