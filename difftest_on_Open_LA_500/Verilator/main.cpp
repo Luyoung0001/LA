@@ -74,11 +74,29 @@ void op_file() {
         fopen("/home/luyoung/LA/open_la500_golden_difftest.txt", "w");
 }
 
-void gen_golden_trace_file() {
+void gen_golden_trace_file1() {
     fprintf(golden_trace_fp,
-            "%d %02X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X "
-            "%08X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X "
-            "%08X %08X %08X %08X %08X\n",
+            "%d %02x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x "
+            "%08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x "
+            "%08x %08x %08x %08x %08x\n",
+            trace_info.we == 15, trace_info.wnum, trace_info.pc, trace_info.value,
+            trace_info.inst, trace_info.csr_crmd, trace_info.csr_prmd,
+            trace_info.csr_ectl, trace_info.csr_estat, trace_info.csr_era,
+            trace_info.csr_badv, trace_info.csr_eentry, trace_info.csr_tlbidx,
+            trace_info.csr_tlbehi, trace_info.csr_tlbelo0,
+            trace_info.csr_tlbelo1, trace_info.csr_asid, trace_info.csr_save0,
+            trace_info.csr_save1, trace_info.csr_save2, trace_info.csr_save3,
+            trace_info.csr_tid, trace_info.csr_tcfg, trace_info.csr_tval,
+            trace_info.csr_ticlr, trace_info.csr_llbctl,
+            trace_info.csr_tlbrentry, trace_info.csr_dmw0, trace_info.csr_dmw1,
+            trace_info.csr_pgdl, trace_info.csr_pgdh);
+}
+
+void gen_golden_trace_file2() {
+    fprintf(golden_trace_fp,
+            "%d %02x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x "
+            "%08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x "
+            "%08x %08x %08x %08x %08x\n",
             ref_struct.we, trace_info.wnum, trace_info.pc, trace_info.value,
             trace_info.inst, trace_info.csr_crmd, trace_info.csr_prmd,
             trace_info.csr_ectl, trace_info.csr_estat, trace_info.csr_era,
@@ -97,14 +115,14 @@ void step() {
     top->eval();
 
     // if (i >= 800000)
-        tfp->dump(main_time);  // 记录波形数据
-    main_time++;               // 时间递增
+    // tfp->dump(main_time);  // 记录波形数据
+    main_time++;  // 时间递增
 
     top->clk = 1;
     top->eval();
 
     // if (i >= 800000)
-        tfp->dump(main_time);
+    // tfp->dump(main_time);
     main_time++;
 }
 void reset(int n) {
@@ -163,34 +181,43 @@ int difftest() {
     trace_info.csr_pgdh = top->rootp->verilator_top->csr_pgdh_diff;
 
     // 防止一个指令保持多个周期，这里需要判断等幂性，如果等幂直接退出
-    // 如果当前指令写的寄存器是 0 号，直接退出
-    if (trace_info.we == 15 && last_op.we == trace_info.we &&
-            last_op.wnum == trace_info.wnum && last_op.pc == trace_info.pc &&
-            last_op.value == trace_info.value ||
-        trace_info.wnum == 0) {
+    if (last_op.wnum == trace_info.wnum && last_op.pc == trace_info.pc &&
+        last_op.value == trace_info.value) {
         return 1;
     }
 
-    if (trace_info.we) {
-        // 保存最新的状态
-        last_op.we = trace_info.we;
-        last_op.wnum = trace_info.wnum;
-        last_op.pc = trace_info.pc;
-        last_op.value = trace_info.value;
+    // 保存最新的状态
+    last_op.wnum = trace_info.wnum;
+    last_op.pc = trace_info.pc;
+    last_op.value = trace_info.value;
 
+    // 如果 we 是 0，说明当前指令没有写寄存器
+    // 如果 wnum 是 0，说明当前指令没有写寄存器
+    // 但是也有可能执行的是 csr 指令
+    // 这几种情况都要考虑，全部生成 trace
+
+    if (trace_info.we == 0 || trace_info.wnum == 0) {
+        gen_golden_trace_file1();
+    } else {
+        // 这种情况意味着 trace_info.we != 0
+        // 当 trace_info.we != 0 时，有一种可能就是这个指令是收到 CSR 寄存器影响的
+        // 比如读取的 CSR.TVAL，这个结果不应卡在 difftest 过不去，因此这种情况应该将
+        // trace_info.we 标记为 0 生成 trace
+        // 好消息是，这个信息trace_info.we 已经在上面被赋值了
         read_ref();
-
         int good = trace_info.wnum == ref_struct.wnum &&
                    trace_info.pc == ref_struct.pc &&
                    trace_info.value == ref_struct.value;
-        if (good) {
-            gen_golden_trace_file();
-        } else {
+
+        // 全部生成 difftest
+        gen_golden_trace_file2();
+
+        if (!good) {
             // 这里打印和 ref 对齐
             // 如果 cpu 的 we 是 1，但是 ref 为 0，直接返回，因为这个 difftest
             // 没有意义
-            printf("-->CPU %d %08x %02x %08x\n", trace_info.we==15, trace_info.pc,
-                   trace_info.wnum, trace_info.value);
+            printf("-->CPU %d %08x %02x %08x\n", trace_info.we == 15,
+                   trace_info.pc, trace_info.wnum, trace_info.value);
             printf("-->REF %d %08x %02x %08x\n", ref_struct.we, ref_struct.pc,
                    ref_struct.wnum, ref_struct.value);
         }
@@ -218,7 +245,7 @@ void cpu_exec(uint64_t n) {
         // 停机信号
         uint32_t pc = top->rootp->verilator_top->debug_wb_pc;
         if (difftest() == 0) {
-            printf("i:%d -->Error!\n",i);
+            printf("i:%d -->Error!\n", i);
             break;
         }
         uint32_t stop_pc = 0x1c000100;

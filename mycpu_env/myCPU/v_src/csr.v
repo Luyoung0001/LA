@@ -1,82 +1,86 @@
 `include "csr.h"
-module csr(
-        input wire clk,
-        input wire rst,
-        //from ds for read
-        input wire [13:0] rd_addr,
-        output wire [31:0] rd_data,
+module csr
+    #(
+         parameter TLBNUM = 16
+     )
+     (
+         input wire clk,
+         input wire rst,
+         //from ds for read
+         input wire [13:0] rd_addr,
+         output wire [31:0] rd_data,
 
-        //interrupt
-        input wire [7:0] interuption,
-        //timer 64
-        output wire [63:0] timer_64_out ,
-        output wire [31:0] tid_out,
+         //interrupt
+         input wire [7:0] interuption,
+         //timer 64
+         output wire [63:0] timer_64_out ,
+         output wire [31:0] tid_out,
 
-        input wire [147:0] bus_wbu_to_csr_data,
-        input wire [1:0] flush,
-        output wire has_int,
-        // to ifu
-        output wire [31:0] era_out,
-        output wire [31:0] eentry_out,
+         input wire [147:0] bus_wbu_to_csr_data,
+         input wire [1:0] flush,
+         output wire has_int,
+         // to ifu
+         output wire [31:0] era_out,
+         output wire [31:0] eentry_out,
 
-        output [ 1:0]      plv_out,
+         output [ 1:0]      plv_out,
 
 
-        //from addr trans
-        input wire         tlbrd_en,
-        input wire [31:0]  tlbehi_in,
-        input wire [31:0]  tlbelo0_in,
-        input wire [31:0]  tlbelo1_in,
-        input wire [31:0]  tlbidx_in,
-        input wire [ 9:0]  asid_in,
-        // tlb
-        input  wire        tlbsrch_en,
-        input  wire        tlbsrch_found,
-        input  wire [4:0]  tlbsrch_index,
+         //from addr trans
+         input wire         tlbrd_en,
+         input wire [31:0]  tlbehi_in,
+         input wire [31:0]  tlbelo0_in,
+         input wire [31:0]  tlbelo1_in,
+         input wire [31:0]  tlbidx_in,
+         input wire [ 9:0]  asid_in,
+         // tlb
+         input  wire        tlbsrch_en,
+         input  wire        tlbsrch_found,
+         input  wire [$clog2(TLBNUM)-1:0]  tlbsrch_index,
 
-        output wire [9:0]  asid_out,
-        output wire [18:0] vppn_out,
-        output wire [31:0] tlbehi_out,
-        output wire [31:0] tlbelo0_out,
-        output wire [31:0] tlbelo1_out,
-        output wire [31:0] tlbidx_out,
-        output             pg_out,
-        output             da_out,
-        output [31:0]      dmw0_out,
-        output [31:0]      dmw1_out,
-        output [ 1:0]      datf_out,
-        output [ 1:0]      datm_out,
-        output [ 5:0]      ecode_out,
-        output wire [4:0]  rand_index,
+         output wire [9:0]  asid_out,
+         output wire [18:0] vppn_out,
+         output wire [31:0] tlbehi_out,
+         output wire [31:0] tlbelo0_out,
+         output wire [31:0] tlbelo1_out,
+         output wire [31:0] tlbidx_out,
+         output             pg_out,
+         output             da_out,
+         output [31:0]      dmw0_out,
+         output [31:0]      dmw1_out,
+         output [ 1:0]      datf_out,
+         output [ 1:0]      datm_out,
+         output [ 5:0]      ecode_out,
+         output wire [$clog2(TLBNUM)-1:0]  rand_index,
 
-        // csr regs for diff
-        output [31:0]                   csr_crmd_diff,
-        output [31:0]                   csr_prmd_diff,
-        output [31:0]                   csr_ecfg_diff,
-        output [31:0]                   csr_estat_diff,
-        output [31:0]                   csr_era_diff,
-        output [31:0]                   csr_badv_diff,
-        output [31:0]                   csr_eentry_diff,
-        output [31:0]                   csr_tlbidx_diff,
-        output [31:0]                   csr_tlbehi_diff,
-        output [31:0]                   csr_tlbelo0_diff,
-        output [31:0]                   csr_tlbelo1_diff,
-        output [31:0]                   csr_asid_diff,
-        output [31:0]                   csr_save0_diff,
-        output [31:0]                   csr_save1_diff,
-        output [31:0]                   csr_save2_diff,
-        output [31:0]                   csr_save3_diff,
-        output [31:0]                   csr_tid_diff,
-        output [31:0]                   csr_tcfg_diff,
-        output [31:0]                   csr_tval_diff,
-        output [31:0]                   csr_ticlr_diff,
-        output [31:0]                   csr_llbctl_diff,
-        output [31:0]                   csr_tlbrentry_diff,
-        output [31:0]                   csr_dmw0_diff,
-        output [31:0]                   csr_dmw1_diff,
-        output [31:0]                   csr_pgdl_diff,
-        output [31:0]                   csr_pgdh_diff
-    );
+         // csr regs for diff
+         output [31:0]                   csr_crmd_diff,
+         output [31:0]                   csr_prmd_diff,
+         output [31:0]                   csr_ecfg_diff,
+         output [31:0]                   csr_estat_diff,
+         output [31:0]                   csr_era_diff,
+         output [31:0]                   csr_badv_diff,
+         output [31:0]                   csr_eentry_diff,
+         output [31:0]                   csr_tlbidx_diff,
+         output [31:0]                   csr_tlbehi_diff,
+         output [31:0]                   csr_tlbelo0_diff,
+         output [31:0]                   csr_tlbelo1_diff,
+         output [31:0]                   csr_asid_diff,
+         output [31:0]                   csr_save0_diff,
+         output [31:0]                   csr_save1_diff,
+         output [31:0]                   csr_save2_diff,
+         output [31:0]                   csr_save3_diff,
+         output [31:0]                   csr_tid_diff,
+         output [31:0]                   csr_tcfg_diff,
+         output [31:0]                   csr_tval_diff,
+         output [31:0]                   csr_ticlr_diff,
+         output [31:0]                   csr_llbctl_diff,
+         output [31:0]                   csr_tlbrentry_diff,
+         output [31:0]                   csr_dmw0_diff,
+         output [31:0]                   csr_dmw1_diff,
+         output [31:0]                   csr_pgdl_diff,
+         output [31:0]                   csr_pgdh_diff
+     );
 
     wire excp_flush;
     wire ertn_flush;
@@ -261,7 +265,7 @@ module csr(
     assign tlbelo0_out  = csr_tlbelo0;
     assign tlbelo1_out  = csr_tlbelo1;
     assign tlbidx_out   = csr_tlbidx;
-    assign rand_index   = timer_64[4:0];
+    assign rand_index   = timer_64[$clog2(TLBNUM)-1:0];
 
     assign plv_out      = {2{excp_flush}} & 2'b0            |
            {2{ertn_flush}} & csr_prmd[`PPLV] |
@@ -501,7 +505,7 @@ module csr(
         end
         else if (tlbsrch_en) begin
             if (tlbsrch_found) begin
-                csr_tlbidx[4:0] <= tlbsrch_index;
+                csr_tlbidx[$clog2(TLBNUM)-1:0] <= tlbsrch_index;
                 csr_tlbidx[`NE]    <= 1'b0;
             end
             else begin

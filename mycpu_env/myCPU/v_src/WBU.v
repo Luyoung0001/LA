@@ -35,13 +35,13 @@ module WBU
          input wire [31:0] csr_tlbehi,
          input wire [31:0] csr_tlbelo0,
          input wire [31:0] csr_tlbelo1,
-         input wire [4:0]  csr_rand_index,
+         input wire [3:0]  csr_rand_index,
          // tlbsrch
          output  wire        tlbsrch_en,
-         input wire[4:0]     tlbsrch_index,
+         input wire[3:0]     tlbsrch_index,
          input wire                         tlbsrch_found,
          output  wire        tlbsrch_found_o,
-         output  wire [4:0]  tlbsrch_index_o,
+         output  wire [3:0]  tlbsrch_index_o,
 
          // tlbrd
          output wire [31:0]    to_trans_tlbidx_o, // 发射给 trans 模块
@@ -66,7 +66,7 @@ module WBU
 
          // tlbfill
          output wire tlbfill_en_o,
-         output wire [4:0] rand_index_o,
+         output wire [3:0] rand_index_o,
          // invtlb
          input wire [4:0]       invtlb_op_i,
          input wire [9:0]       invtlb_asid_i,
@@ -170,7 +170,7 @@ module WBU
     assign is_same = last_pc == pc && last_waddr == rf_waddr; // 只要 pc、rf_waddr 一致，就不再重复写
 
     reg [1:0] wbu_state;
-    reg [4:0] tlbsrch_index_r;
+    reg [3:0] tlbsrch_index_r;
     reg tlbsrch_found_r;
 
     reg [4:0] invtlb_op_i_r;
@@ -185,7 +185,7 @@ module WBU
             wbu_state <= 2'd0;
             tlb_inst_bus_r <= 5'd0;
             // tlbsrch
-            tlbsrch_index_r <= 5'd0;
+            tlbsrch_index_r <= 4'd0;
             tlbsrch_found_r <= 1'b0;
             // invtlb
             invtlb_op_i_r <= 5'd0;

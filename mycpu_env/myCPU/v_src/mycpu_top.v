@@ -1,85 +1,88 @@
 module mycpu_top
-    (
-        input  wire        aclk,
-        input  wire        aresetn,
+    #(
+         parameter TLBNUM = 16
+     )
+     (
+         input  wire        aclk,
+         input  wire        aresetn,
 
-        // AXI
-        // read request
-        output   wire [ 3:0] arid,
-        output   wire[31:0] araddr,
-        output   wire[ 7:0] arlen,
-        output   wire[ 2:0] arsize,
-        output    wire  [ 1:0] arburst,
-        output   wire   [ 1:0] arlock,
-        output   wire   [ 3:0] arcache,
-        output   wire   [ 2:0] arprot,
-        output   wire       arvalid,
-        input     wire         arready,
+         // AXI
+         // read request
+         output   wire [ 3:0] arid,
+         output   wire[31:0] araddr,
+         output   wire[ 7:0] arlen,
+         output   wire[ 2:0] arsize,
+         output    wire  [ 1:0] arburst,
+         output   wire   [ 1:0] arlock,
+         output   wire   [ 3:0] arcache,
+         output   wire   [ 2:0] arprot,
+         output   wire       arvalid,
+         input     wire         arready,
 
-        input  wire  [ 3:0] rid,
-        input  wire  [31:0] rdata,
-        input  wire  [ 1:0] rresp,
-        input   wire        rlast,
-        input   wire        rvalid,
-        output   wire    rready,
+         input  wire  [ 3:0] rid,
+         input  wire  [31:0] rdata,
+         input  wire  [ 1:0] rresp,
+         input   wire        rlast,
+         input   wire        rvalid,
+         output   wire    rready,
 
-        output   wire   [ 3:0] awid,
-        output   wire[31:0] awaddr,
-        output   wire[ 7:0] awlen,
-        output   wire[ 2:0] awsize,
-        output   wire   [ 1:0] awburst,
-        output   wire   [ 1:0] awlock,
-        output  wire    [ 3:0] awcache,
-        output  wire    [ 2:0] awprot,
-        output   wire       awvalid,
-        input     wire         awready,
+         output   wire   [ 3:0] awid,
+         output   wire[31:0] awaddr,
+         output   wire[ 7:0] awlen,
+         output   wire[ 2:0] awsize,
+         output   wire   [ 1:0] awburst,
+         output   wire   [ 1:0] awlock,
+         output  wire    [ 3:0] awcache,
+         output  wire    [ 2:0] awprot,
+         output   wire       awvalid,
+         input     wire         awready,
 
-        output    wire  [ 3:0] wid,
-        output   wire[31:0] wdata,
-        output   wire[ 3:0] wstrb,
-        output   wire       wlast,
-        output   wire       wvalid,
-        input     wire         wready,
+         output    wire  [ 3:0] wid,
+         output   wire[31:0] wdata,
+         output   wire[ 3:0] wstrb,
+         output   wire       wlast,
+         output   wire       wvalid,
+         input     wire         wready,
 
-        input  wire  [ 3:0] bid,
-        input   wire [ 1:0] bresp,
-        input   wire        bvalid,
-        output   wire    bready,
+         input  wire  [ 3:0] bid,
+         input   wire [ 1:0] bresp,
+         input   wire        bvalid,
+         output   wire    bready,
 
-        // trace debug interface
-        output wire [31:0] debug_wb_pc,
-        output wire [ 3:0] debug_wb_rf_we,
-        output wire [ 4:0] debug_wb_rf_wnum,
-        output wire [31:0] debug_wb_rf_wdata,
-        output wire [31:0] debug_wb_inst,
+         // trace debug interface
+         output wire [31:0] debug_wb_pc,
+         output wire [ 3:0] debug_wb_rf_we,
+         output wire [ 4:0] debug_wb_rf_wnum,
+         output wire [31:0] debug_wb_rf_wdata,
+         output wire [31:0] debug_wb_inst,
 
-        output [31:0] csr_crmd_diff,
-        output [31:0] csr_prmd_diff,
-        output [31:0] csr_ecfg_diff,
-        output [31:0] csr_estat_diff,
-        output [31:0] csr_era_diff,
-        output [31:0] csr_badv_diff,
-        output [31:0] csr_eentry_diff,
-        output [31:0] csr_tlbidx_diff,
-        output [31:0] csr_tlbehi_diff,
-        output [31:0] csr_tlbelo0_diff,
-        output [31:0] csr_tlbelo1_diff,
-        output [31:0] csr_asid_diff,
-        output [31:0] csr_save0_diff,
-        output [31:0] csr_save1_diff,
-        output [31:0] csr_save2_diff,
-        output [31:0] csr_save3_diff,
-        output [31:0] csr_tid_diff,
-        output [31:0] csr_tcfg_diff,
-        output [31:0] csr_tval_diff,
-        output [31:0] csr_ticlr_diff,
-        output [31:0] csr_llbctl_diff,
-        output [31:0] csr_tlbrentry_diff,
-        output [31:0] csr_dmw0_diff,
-        output [31:0] csr_dmw1_diff,
-        output [31:0] csr_pgdl_diff,
-        output [31:0] csr_pgdh_diff
-    );
+         output [31:0] csr_crmd_diff,
+         output [31:0] csr_prmd_diff,
+         output [31:0] csr_ecfg_diff,
+         output [31:0] csr_estat_diff,
+         output [31:0] csr_era_diff,
+         output [31:0] csr_badv_diff,
+         output [31:0] csr_eentry_diff,
+         output [31:0] csr_tlbidx_diff,
+         output [31:0] csr_tlbehi_diff,
+         output [31:0] csr_tlbelo0_diff,
+         output [31:0] csr_tlbelo1_diff,
+         output [31:0] csr_asid_diff,
+         output [31:0] csr_save0_diff,
+         output [31:0] csr_save1_diff,
+         output [31:0] csr_save2_diff,
+         output [31:0] csr_save3_diff,
+         output [31:0] csr_tid_diff,
+         output [31:0] csr_tcfg_diff,
+         output [31:0] csr_tval_diff,
+         output [31:0] csr_ticlr_diff,
+         output [31:0] csr_llbctl_diff,
+         output [31:0] csr_tlbrentry_diff,
+         output [31:0] csr_dmw0_diff,
+         output [31:0] csr_dmw1_diff,
+         output [31:0] csr_pgdl_diff,
+         output [31:0] csr_pgdh_diff
+     );
     wire [7:0] intrpt;
     assign intrpt = 8'b0;
 
@@ -257,7 +260,7 @@ module mycpu_top
     wire exu_data_da;
     wire exu_data_pg;
 
-    wire [4:0] exu_tlbsrch_index;
+    wire [$clog2(TLBNUM)-1:0] exu_tlbsrch_index;
     wire exu_tlbsrch_found;
 
     wire [4:0]  exu_invtlb_op_o;
@@ -279,7 +282,7 @@ module mycpu_top
 
     wire [4:0] mem_tlb_inst_bus_o;
 
-    wire [4:0] mem_tlbsrch_index_o;
+    wire [$clog2(TLBNUM)-1:0] mem_tlbsrch_index_o;
     wire mem_tlbsrch_found_o;
 
     wire [4:0] mem_invtlb_op_o;
@@ -304,7 +307,7 @@ module mycpu_top
     // tlbsrch
     wire wbu_tlbsrch_en;
     wire wbu_tlbsrch_found_o;
-    wire [4:0] wbu_tlbsrch_index_o;
+    wire [$clog2(TLBNUM)-1:0] wbu_tlbsrch_index_o;
     // tblrd
     wire [31:0] wbu_to_trans_tlbidx_o;
     wire wbu_csr_tlbrd_en_o;
@@ -323,7 +326,7 @@ module mycpu_top
     wire [5:0] wbu_tlbwr_fill_ecode_o;
 
     wire       wbu_tlbfill_en_o;
-    wire [4:0] wbu_rand_index_o;
+    wire [$clog2(TLBNUM)-1:0] wbu_rand_index_o;
 
     wire [4:0]  wbu_invtlb_op_o;
     wire [9:0]  wbu_invtlb_asid_o;
@@ -359,11 +362,11 @@ module mycpu_top
     wire [1:0]  csr_datf_out;
     wire [1:0]  csr_datm_out;
     wire [5:0]  csr_ecode_out;
-    wire [4:0]  csr_rand_index;
+    wire [$clog2(TLBNUM)-1:0]  csr_rand_index;
 
     // tlb
     wire tlb_s0_found;
-    wire [4:0] tlb_s0_index;
+    wire [$clog2(TLBNUM)-1:0] tlb_s0_index;
     wire [19:0] tlb_s0_ppn;
     wire [5:0] tlb_s0_ps;
     wire [1:0] tlb_s0_plv;
@@ -372,7 +375,7 @@ module mycpu_top
     wire tlb_s0_v;
 
     wire tlb_s1_found;
-    wire [4:0] tlb_s1_index;
+    wire [$clog2(TLBNUM)-1:0] tlb_s1_index;
     wire [19:0] tlb_s1_ppn;
     wire [5:0] tlb_s1_ps;
     wire [1:0] tlb_s1_plv;
@@ -410,7 +413,7 @@ module mycpu_top
     wire [19:0] trans_data_tag;
     wire [3:0] trans_data_offset;
     wire trans_data_tlb_found;
-    wire [4:0] trans_data_tlb_index;
+    wire [$clog2(TLBNUM)-1:0] trans_data_tlb_index;
     wire trans_data_tlb_v;
     wire trans_data_tlb_d;
     wire [1:0] trans_data_tlb_mat;

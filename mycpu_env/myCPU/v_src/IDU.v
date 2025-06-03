@@ -332,7 +332,9 @@ module IDU (
         // idle
         else if (idu_state == 2'd0 && up_valid) begin
             // 取出数据
-            pc_reg <= in_pc;
+            // pc_reg <= in_pc;
+            // 如果当前是跳转，那么下一条指令的 PC 标记为 0x00000000，这是为了 difftest
+            pc_reg <= br_taken ? 32'h00000000 : in_pc;
             // 如果当前是跳转，那么下一条指令置 NOP
             inst_sram_rdata_reg <= br_taken ? inst_nop_data : in_rdata;
             fs_excp_num_r <= fs_excp_num;

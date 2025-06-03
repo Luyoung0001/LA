@@ -1,5 +1,8 @@
 `include "csr.h"
 module MEM
+    #(
+         parameter TLBNUM = 16
+     )
      (
          // from exu
          input wire clk,
@@ -36,9 +39,9 @@ module MEM
          input wire [4:0] tlb_inst_bus,
          output wire [4:0] tlb_inst_bus_o,
          // tlbsrch
-         input wire[4:0] tlbsrch_index,
+         input wire[$clog2(TLBNUM)-1:0] tlbsrch_index,
          input wire                     tlbsrch_found,
-         output wire [4:0] tlbsrch_index_o,
+         output wire [$clog2(TLBNUM)-1:0] tlbsrch_index_o,
          output wire                     tlbsrch_found_o,
          // invtlb
          input wire [4:0]       invtlb_op_i,
@@ -226,7 +229,7 @@ module MEM
            };
 
     reg [1:0] mem_state;
-    reg [4:0] tlbsrch_index_r;
+    reg [$clog2(TLBNUM)-1:0] tlbsrch_index_r;
     reg tlbsrch_found_r;
 
     reg [4:0] invtlb_op_i_r;
@@ -245,7 +248,7 @@ module MEM
             // tlb
             tlb_inst_bus_r <= 5'd0;
             // tlbsrch
-            tlbsrch_index_r <= 5'd0;
+            tlbsrch_index_r <= 4'd0;
             tlbsrch_found_r <= 1'b0;
             // invtlb
             invtlb_op_i_r <= 5'd0;

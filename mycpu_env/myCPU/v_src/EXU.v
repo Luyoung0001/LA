@@ -1,5 +1,8 @@
 `include "csr.h"
 module EXU
+    #(
+         parameter TLBNUM = 16
+     )
      (
          input wire clk,
          input wire rst,
@@ -78,14 +81,14 @@ module EXU
          input wire  [19:0]    data_tag,
          input wire  [ 3:0]    data_offset,
          input wire            data_tlb_found,
-         input wire  [4:0]     data_tlb_index,
+         input wire  [$clog2(TLBNUM)-1:0]     data_tlb_index,
          input wire            data_tlb_v,
          input wire            data_tlb_d,
          input wire  [1:0]     data_tlb_mat,
          input wire  [1:0]     data_tlb_plv,
 
          // for tlbsrch
-         output wire[4:0]      tlbsrch_index,
+         output wire[$clog2(TLBNUM)-1:0]      tlbsrch_index,
          output wire           tlbsrch_found,
          // for invtlb
          input wire [4:0]       invtlb_op_i,

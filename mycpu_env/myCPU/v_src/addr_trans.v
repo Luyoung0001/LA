@@ -1,6 +1,9 @@
 `include "csr.h"
 
 module addr_trans
+    #(
+         parameter TLBNUM = 16
+     )
      (
          input                  clk                  ,
          //inst addr trans
@@ -39,7 +42,7 @@ module addr_trans
          output [19:0]          data_tag             ,
          output [ 3:0]          data_offset          ,
          output                 data_tlb_found       ,
-         output [ 4:0]          data_tlb_index       , // for tlbsrch
+         output [ $clog2(TLBNUM)-1:0]          data_tlb_index       , // for tlbsrch
          output                 data_tlb_v           ,
          output                 data_tlb_d           ,
          output [ 1:0]          data_tlb_mat         ,
@@ -47,7 +50,7 @@ module addr_trans
          // tlbwr tlbfill
          input                  tlbfill_en           ,
          input                  tlbwr_en             ,
-         input  [ 4:0]          rand_index           , // tlbfill
+         input  [ $clog2(TLBNUM)-1:0]          rand_index           , // tlbfill
          input  [31:0]          tlbehi_in            ,
          input  [31:0]          tlbelo0_in           ,
          input  [31:0]          tlbelo1_in           ,
@@ -80,7 +83,7 @@ module addr_trans
     wire s1_va_bit12        ;
 
     wire        we          ;
-    wire [ 4:0] w_index     ;
+    wire [ $clog2(TLBNUM)-1 :0] w_index     ;
     wire [18:0] w_vppn      ;
     wire        w_g         ;
     wire [ 5:0] w_ps        ;
@@ -96,7 +99,7 @@ module addr_trans
     wire [ 1:0] w_plv1      ;
     wire [19:0] w_ppn1      ;
 
-    wire [ 4:0] r_index     ;
+    wire [ $clog2(TLBNUM)-1:0] r_index     ;
     wire [18:0] r_vppn      ;
     wire [ 9:0] r_asid      ;
     wire        r_g         ;
@@ -129,7 +132,7 @@ module addr_trans
 
     // 写
     assign we      = tlbfill_en || tlbwr_en;
-    assign w_index = ({5{tlbfill_en}} & rand_index) | ({5{tlbwr_en}} & tlbidx_in[`INDEX]);
+    assign w_index = ({$clog2(TLBNUM){tlbfill_en}} & rand_index) | ({$clog2(TLBNUM){tlbwr_en}} & tlbidx_in[`INDEX]);
     assign w_vppn  = tlbehi_in[`VPPN];
     assign w_g     = tlbelo0_in[`TLB_G] && tlbelo1_in[`TLB_G];
     assign w_ps    = tlbidx_in[`PS];
@@ -156,77 +159,77 @@ module addr_trans
     assign asid_out     = r_asid;
 
     tlb  blt_o(
-            .clk            (clk            ),
-            // search port 0
-            .s0_vppn        (s0_vppn        ),
-            .s0_va_bit12    (s0_va_bit12    ),
-            .s0_asid        (inst_asid      ),
-            .s0_found       (inst_tlb_found ),
-            .s0_index       (),
-            .s0_ppn         (s0_ppn         ),
-            .s0_ps          (s0_ps          ),
-            .s0_plv         (inst_tlb_plv   ),
-            .s0_mat         (inst_tlb_mat   ),
-            .s0_d           (inst_tlb_d     ),
-            .s0_v           (inst_tlb_v     ),
+             .clk            (clk            ),
+             // search port 0
+             .s0_vppn        (s0_vppn        ),
+             .s0_va_bit12    (s0_va_bit12    ),
+             .s0_asid        (inst_asid      ),
+             .s0_found       (inst_tlb_found ),
+             .s0_index       (),
+             .s0_ppn         (s0_ppn         ),
+             .s0_ps          (s0_ps          ),
+             .s0_plv         (inst_tlb_plv   ),
+             .s0_mat         (inst_tlb_mat   ),
+             .s0_d           (inst_tlb_d     ),
+             .s0_v           (inst_tlb_v     ),
 
-            // search port 1
-            .s1_vppn        (s1_vppn        ),
-            .s1_va_bit12    (s1_va_bit12    ),
-            .s1_asid        (data_asid      ),
-            .s1_found       (data_tlb_found ),
-            .s1_index       (data_tlb_index ),
-            .s1_ppn         (s1_ppn         ),
-            .s1_ps          (s1_ps          ),
-            .s1_plv         (data_tlb_plv   ),
-            .s1_mat         (data_tlb_mat   ),
-            .s1_d           (data_tlb_d     ),
-            .s1_v           (data_tlb_v     ),
+             // search port 1
+             .s1_vppn        (s1_vppn        ),
+             .s1_va_bit12    (s1_va_bit12    ),
+             .s1_asid        (data_asid      ),
+             .s1_found       (data_tlb_found ),
+             .s1_index       (data_tlb_index ),
+             .s1_ppn         (s1_ppn         ),
+             .s1_ps          (s1_ps          ),
+             .s1_plv         (data_tlb_plv   ),
+             .s1_mat         (data_tlb_mat   ),
+             .s1_d           (data_tlb_d     ),
+             .s1_v           (data_tlb_v     ),
 
-            //invalid port
-            .invtlb_valid    (invtlb_valid   ),
-            .invtlb_op       (invtlb_op      ),
-            .invtlb_asid     (invtlb_asid    ),
-            .invtlb_vpn      (invtlb_vpn     ),
+             //invalid port
+             .invtlb_valid    (invtlb_valid   ),
+             .invtlb_op       (invtlb_op      ),
+             .invtlb_asid     (invtlb_asid    ),
+             .invtlb_vpn      (invtlb_vpn     ),
 
-            // write port
-            .we             (we             ),
-            .w_index        (w_index        ),
-            .w_vppn         (w_vppn         ),
-            .w_asid         (data_asid      ),
-            .w_g            (w_g            ),
-            .w_ps           (w_ps           ),
-            .w_e            (w_e            ),
-            .w_v0           (w_v0           ),
-            .w_d0           (w_d0           ),
-            .w_plv0         (w_plv0         ),
-            .w_mat0         (w_mat0         ),
-            .w_ppn0         (w_ppn0         ),
-            .w_v1           (w_v1           ),
-            .w_d1           (w_d1           ),
-            .w_plv1         (w_plv1         ),
-            .w_mat1         (w_mat1         ),
-            .w_ppn1         (w_ppn1         ),
+             // write port
+             .we             (we             ),
+             .w_index        (w_index        ),
+             .w_vppn         (w_vppn         ),
+             .w_asid         (data_asid      ),
+             .w_g            (w_g            ),
+             .w_ps           (w_ps           ),
+             .w_e            (w_e            ),
+             .w_v0           (w_v0           ),
+             .w_d0           (w_d0           ),
+             .w_plv0         (w_plv0         ),
+             .w_mat0         (w_mat0         ),
+             .w_ppn0         (w_ppn0         ),
+             .w_v1           (w_v1           ),
+             .w_d1           (w_d1           ),
+             .w_plv1         (w_plv1         ),
+             .w_mat1         (w_mat1         ),
+             .w_ppn1         (w_ppn1         ),
 
-            //read port
-            .r_index        (r_index        ),
-            .r_vppn         (r_vppn         ),
-            .r_asid         (r_asid         ),
-            .r_g            (r_g            ),
-            .r_ps           (r_ps           ),
-            .r_e            (r_e            ),
-            .r_v0           (r_v0           ),
-            .r_d0           (r_d0           ),
-            .r_mat0         (r_mat0         ),
-            .r_plv0         (r_plv0         ),
-            .r_ppn0         (r_ppn0         ),
-            .r_v1           (r_v1           ),
-            .r_d1           (r_d1           ),
-            .r_mat1         (r_mat1         ),
-            .r_plv1         (r_plv1         ),
-            .r_ppn1         (r_ppn1         )
+             //read port
+             .r_index        (r_index        ),
+             .r_vppn         (r_vppn         ),
+             .r_asid         (r_asid         ),
+             .r_g            (r_g            ),
+             .r_ps           (r_ps           ),
+             .r_e            (r_e            ),
+             .r_v0           (r_v0           ),
+             .r_d0           (r_d0           ),
+             .r_mat0         (r_mat0         ),
+             .r_plv0         (r_plv0         ),
+             .r_ppn0         (r_ppn0         ),
+             .r_v1           (r_v1           ),
+             .r_d1           (r_d1           ),
+             .r_mat1         (r_mat1         ),
+             .r_plv1         (r_plv1         ),
+             .r_ppn1         (r_ppn1         )
 
-        );
+         );
 
     assign inst_pg_mode = !inst_da && inst_pg; // 映射地址翻译模式
     assign inst_da_mode = inst_da && !inst_pg; // 直接地址翻译模式
