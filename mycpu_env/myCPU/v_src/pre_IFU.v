@@ -9,7 +9,12 @@ module pre_IFU (
         input wire [31:0] csr_eentry,
         // 握手信号
         input wire waite_ready_i,
-        output wire state_valid
+        output wire state_valid,
+
+        // refetch
+        input wire [31:0] refetch_pc_i,
+        input wire refetch_sign_i,
+        input wire wbu_refetch_flush
     );
 
     reg  [31:0] pc;
@@ -32,9 +37,11 @@ module pre_IFU (
 
     assign inst_flush_pc = {32{ertn_flush}} & csr_era;
     assign seq_pc       = pc + 32'h4;
-    assign nextpc       = excp_flush ? csr_eentry:
+    assign nextpc       =
+           excp_flush ? csr_eentry:
            ertn_flush ? inst_flush_pc:
            br_taken ? br_target :
+           refetch_sign_i ? refetch_pc_i :
            seq_pc;
 
     reg [1:0] pfs_state;
@@ -43,12 +50,12 @@ module pre_IFU (
             pfs_state <= 2'd0;
             pc <= 32'h1bfffffc;
         end
-        else if(pfs_state == 2'd0 || flush_sign) begin
-            if(caculate_done && !flush_sign) begin
+        else if(pfs_state == 2'd0 || flush_sign || wbu_refetch_flush) begin
+            if(caculate_done && !(flush_sign | wbu_refetch_flush)) begin
                 pfs_state <= 2'd1;
                 pc <= nextpc;
             end
-            else if (flush_sign)begin
+            else if (flush_sign || wbu_refetch_flush)begin
                 pfs_state <= 2'd1;
                 pc <= nextpc;
             end

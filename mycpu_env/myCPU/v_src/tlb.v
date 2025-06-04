@@ -73,21 +73,21 @@ module tlb
          output                      r_v1
      );
 
-    reg [18:0] tlb_vppn     [TLBNUM-1:0];
-    reg        tlb_e        [TLBNUM-1:0];
-    reg [ 9:0] tlb_asid     [TLBNUM-1:0];
-    reg        tlb_g        [TLBNUM-1:0];
-    reg [ 5:0] tlb_ps       [TLBNUM-1:0];
-    reg [19:0] tlb_ppn0     [TLBNUM-1:0];
-    reg [ 1:0] tlb_plv0     [TLBNUM-1:0];
-    reg [ 1:0] tlb_mat0     [TLBNUM-1:0];
-    reg        tlb_d0       [TLBNUM-1:0];
-    reg        tlb_v0       [TLBNUM-1:0];
-    reg [19:0] tlb_ppn1     [TLBNUM-1:0];
-    reg [ 1:0] tlb_plv1     [TLBNUM-1:0];
-    reg [ 1:0] tlb_mat1     [TLBNUM-1:0];
-    reg        tlb_d1       [TLBNUM-1:0];
-    reg        tlb_v1       [TLBNUM-1:0];
+    reg [18:0] tlb_vppn     [TLBNUM-1:0]/* verilator public */;
+    reg        tlb_e        [TLBNUM-1:0]/* verilator public */;
+    reg [ 9:0] tlb_asid     [TLBNUM-1:0]/* verilator public */;
+    reg        tlb_g        [TLBNUM-1:0]/* verilator public */;
+    reg [ 5:0] tlb_ps       [TLBNUM-1:0]/* verilator public */;
+    reg [19:0] tlb_ppn0     [TLBNUM-1:0]/* verilator public */;
+    reg [ 1:0] tlb_plv0     [TLBNUM-1:0]/* verilator public */;
+    reg [ 1:0] tlb_mat0     [TLBNUM-1:0]/* verilator public */;
+    reg        tlb_d0       [TLBNUM-1:0]/* verilator public */;
+    reg        tlb_v0       [TLBNUM-1:0]/* verilator public */;
+    reg [19:0] tlb_ppn1     [TLBNUM-1:0]/* verilator public */;
+    reg [ 1:0] tlb_plv1     [TLBNUM-1:0]/* verilator public */;
+    reg [ 1:0] tlb_mat1     [TLBNUM-1:0]/* verilator public */;
+    reg        tlb_d1       [TLBNUM-1:0]/* verilator public */;
+    reg        tlb_v1       [TLBNUM-1:0]/* verilator public */;
 
 
     wire [TLBNUM-1:0] match0;

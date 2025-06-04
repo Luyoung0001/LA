@@ -56,7 +56,17 @@ module IDU (
         output wire [4:0] invtlb_op,
         output wire [9:0] invtlb_asid,
         output wire [18:0] invtlb_vpn,
-        output wire is_csr_wr
+        output wire is_csr_wr,
+
+        // from WBU
+        input wire wbu_refetch_sign_i,
+        input wire refetch_excp_i,
+        output wire refetch_excp_o,
+
+        output [31:0] pc_pro_o, // PC 应该走专线
+
+
+        input wbu_refetch_flush
     );
 
     wire excp_flush;
@@ -322,13 +332,17 @@ module IDU (
 
     assign caculate_done = caculate_done_1 && caculate_done_2;
 
+    reg refetch_excp_i_r;
+
     always @(posedge clk ) begin
-        if (rst || flush_sign) begin
+        if (rst || flush_sign || wbu_refetch_flush) begin
             idu_state <= 2'd0;
-            pc_reg <= 32'd0;
+            // pc_reg <= 32'd0; // PC 不应该被抹掉
             inst_sram_rdata_reg <= 32'd0;
             fs_excp_num_r <= 16'd0;
             fs_excp_r <= 1'b0;
+
+            refetch_excp_i_r <= 1'b0;
         end
         // idle
         else if (idu_state == 2'd0 && up_valid) begin
@@ -339,6 +353,7 @@ module IDU (
             fs_excp_num_r <= fs_excp_num;
             fs_excp_r <= fs_excp;
             idu_state <= 2'd1;
+            refetch_excp_i_r <= wbu_refetch_sign_i | refetch_excp_i; // 记录是否需要重取
         end
         // waite_valid
         else if (idu_state == 2'd1 && caculate_done) begin
@@ -726,7 +741,7 @@ module IDU (
                        || inst_bltu && rj_ltu_rd
                        || inst_bge  && rj_gt_rd
                        || inst_bgeu && rj_gtu_rd
-                      )  && !wire_fs_excp;
+                      )  && !wire_fs_excp && !refetch_excp_i_r;
     //   )  && !wire_fs_excp ;
     assign br_target = (inst_beq || inst_bne || inst_bl || inst_b || inst_blt || inst_bltu || inst_bge || inst_bgeu) ? (idu_pc + br_offs) :
            /*inst_jirl*/  (rj_value + jirl_offs);
@@ -833,4 +848,9 @@ module IDU (
            inst_csrxchg |
            inst_tlbrd|
            inst_tlbsrch;
+
+    assign refetch_excp_o = refetch_excp_i_r;
+
+    assign pc_pro_o = idu_pc;
+
 endmodule

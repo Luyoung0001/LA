@@ -55,7 +55,8 @@ module mycpu_top
          output wire [ 4:0] debug_wb_rf_wnum,
          output wire [31:0] debug_wb_rf_wdata,
          output wire [31:0] debug_wb_inst,
-         output  debug_wb_is_csr_wr_o,
+         output wire debug_wb_is_csr_wr_o,
+         output wire debug_has_refetch_excp_o,
 
          output [31:0] csr_crmd_diff,
          output [31:0] csr_prmd_diff,
@@ -201,7 +202,10 @@ module mycpu_top
     wire [31:0] ifu_inst_dmw1;
     wire        ifu_inst_da;
     wire        ifu_inst_pg;
+
     wire [31:0] ifu_rdata_o;
+
+    wire ifu_refetch_excp_o;
 
 
 
@@ -231,6 +235,12 @@ module mycpu_top
     wire [4:0] idu_invtlb_op;
     wire [9:0] idu_invtlb_asid;
     wire [18:0] idu_invtlb_vpn;
+
+
+    wire idu_refetch_excp_o;
+    wire [31:0] idu_pc_pro_o;
+
+
 
     // exu
     wire exu_es_excp_out;
@@ -271,6 +281,9 @@ module mycpu_top
     wire [9:0]  exu_invtlb_asid_o;
     wire [18:0] exu_invtlb_vpn_o;
 
+    wire exu_refetch_excp_o;
+    wire [31:0] exu_pc_pro_o;
+
     wire exu_is_csr_wr_o;
 
     // mem
@@ -296,6 +309,9 @@ module mycpu_top
     wire [9:0] mem_invtlb_asid_o;
     wire [18:0] mem_invtlb_vpn_o;
     wire mem_is_csr_wr_o;
+
+    wire mem_refetch_excp_o;
+    wire [31:0] mem_pc_pro_o;
 
     // wbu
     wire        wbu_rf_we;
@@ -334,6 +350,7 @@ module mycpu_top
     wire [31:0] wbu_tlbwr_fill_tlbelo1_o;
     wire [31:0] wbu_tlbwr_fill_tlbidx_o;
     wire [5:0] wbu_tlbwr_fill_ecode_o;
+    wire [9:0] wbu_tlbwr_fill_w_asid_o;
 
     wire       wbu_tlbfill_en_o;
     wire [$clog2(TLBNUM)-1:0] wbu_rand_index_o;
@@ -342,6 +359,12 @@ module mycpu_top
     wire [9:0]  wbu_invtlb_asid_o;
     wire [18:0] wbu_invtlb_vpn_o;
     wire        wbu_invtlb_en_o;
+
+    wire wbu_is_refetch_sign;
+    wire [31:0] wbu_refetch_pc;
+    wire  wbu_refetch_sign;
+
+    wire wbu_wbu_refetch_flush;
 
     //  regfile
     wire [31:0] rf_rdata1;
@@ -446,7 +469,10 @@ module mycpu_top
                 .csr_era    (csr_era_out),
                 .csr_eentry (csr_eentry_out),
                 .waite_ready_i(ifu_waite_ready_o),
-                .state_valid(preifu_state_valid)
+                .state_valid(preifu_state_valid),
+                .refetch_pc_i(wbu_refetch_pc),
+                .refetch_sign_i(wbu_refetch_sign),
+                .wbu_refetch_flush(wbu_wbu_refetch_flush)
             );
 
 
@@ -509,7 +535,10 @@ module mycpu_top
             .addr_ok(inst_sram_addr_ok),
             .data_ok(inst_sram_data_ok),
             .rdata(inst_sram_rdata),
-            .rdata_o(ifu_rdata_o)
+            .rdata_o(ifu_rdata_o),
+            .wbu_refetch_sign_i(wbu_is_refetch_sign),
+            .refetch_excp_o(ifu_refetch_excp_o),
+            .wbu_refetch_flush(wbu_wbu_refetch_flush)
         );
 
     // regfile
@@ -584,8 +613,14 @@ module mycpu_top
             .invtlb_op(idu_invtlb_op),
             .invtlb_asid(idu_invtlb_asid),
             .invtlb_vpn(idu_invtlb_vpn),
+            .is_csr_wr(idu_is_csr_wr),
 
-            .is_csr_wr(idu_is_csr_wr)
+            .wbu_refetch_sign_i(wbu_is_refetch_sign),
+            .refetch_excp_i(ifu_refetch_excp_o),
+            .refetch_excp_o(idu_refetch_excp_o),
+            .pc_pro_o(idu_pc_pro_o),
+
+            .wbu_refetch_flush(wbu_wbu_refetch_flush)
         );
 
 
@@ -685,9 +720,16 @@ module mycpu_top
              .invtlb_op_o(exu_invtlb_op_o),
              .invtlb_asid_o(exu_invtlb_asid_o),
              .invtlb_vpn_o(exu_invtlb_vpn_o),
-
              .is_csr_wr_i(idu_is_csr_wr),
-             .is_csr_wr_o(exu_is_csr_wr_o)
+             .is_csr_wr_o(exu_is_csr_wr_o),
+
+             .wbu_refetch_sign_i(wbu_is_refetch_sign),
+             .refetch_excp_i(idu_refetch_excp_o),
+             .refetch_excp_o(exu_refetch_excp_o),
+             .pc_pro_i(idu_pc_pro_o),
+             .pc_pro_o(exu_pc_pro_o),
+
+             .wbu_refetch_flush(wbu_wbu_refetch_flush)
          );
 
     // mem
@@ -741,7 +783,15 @@ module mycpu_top
              .invtlb_vpn_o(mem_invtlb_vpn_o),
 
              .is_csr_wr_i(exu_is_csr_wr_o),
-             .is_csr_wr_o(mem_is_csr_wr_o)
+             .is_csr_wr_o(mem_is_csr_wr_o),
+
+             .wbu_refetch_sign_i(wbu_is_refetch_sign),
+             .refetch_excp_i(exu_refetch_excp_o),
+             .refetch_excp_o(mem_refetch_excp_o),
+             .pc_pro_i(exu_pc_pro_o),
+             .pc_pro_o(mem_pc_pro_o),
+
+             .wbu_refetch_flush(wbu_wbu_refetch_flush)
          );
 
     // wbu
@@ -778,6 +828,7 @@ module mycpu_top
              .csr_tlbelo0(csr_tlbelo0_out),
              .csr_tlbelo1(csr_tlbelo1_out),
              .csr_rand_index(csr_rand_index),
+             .csr_asid(csr_asid_out),
              // tlbsrch
              .tlbsrch_en(wbu_tlbsrch_en),
              .tlbsrch_index(mem_tlbsrch_index_o),
@@ -804,6 +855,7 @@ module mycpu_top
              .tlbwr_fill_tlbelo1_o(wbu_tlbwr_fill_tlbelo1_o),
              .tlbwr_fill_tlbidx_o(wbu_tlbwr_fill_tlbidx_o),
              .tlbwr_fill_ecode_o(wbu_tlbwr_fill_ecode_o),
+             .tlbwr_fill_w_asid_o(wbu_tlbwr_fill_w_asid_o),
 
              // tlbfill
              .tlbfill_en_o(wbu_tlbfill_en_o),
@@ -817,10 +869,21 @@ module mycpu_top
              .invtlb_asid_o(wbu_invtlb_asid_o),
              .invtlb_vpn_o(wbu_invtlb_vpn_o),
              .invtlb_en_o(wbu_invtlb_en_o),
-             .inst_data_o(wbu_inst_data_o),
 
+             // debug
+             .inst_data_o(wbu_inst_data_o),
              .is_csr_wr_i(mem_is_csr_wr_o),
-             .is_csr_wr_o(debug_wb_is_csr_wr_o)
+             .is_csr_wr_o(debug_wb_is_csr_wr_o),
+             .has_refetch_excp_o(debug_has_refetch_excp_o),
+             // refetch_sign
+             .is_refetch_sign(wbu_is_refetch_sign),
+             .refetch_excp_i(mem_refetch_excp_o),
+             // 发射新的PC
+             .refetch_pc(wbu_refetch_pc),
+             .refetch_sign(wbu_refetch_sign),
+             // 专线
+             .pc_pro_i(mem_pc_pro_o),
+             .refetch_flush(wbu_wbu_refetch_flush)
 
          );
 
@@ -950,6 +1013,7 @@ module mycpu_top
                    // to tlb
                    .tlbfill_en(wbu_tlbfill_en_o),
                    .tlbwr_en(wbu_tlbwr_en_o),
+                   .w_asid(wbu_tlbwr_fill_w_asid_o),
                    .rand_index(wbu_rand_index_o),
                    .tlbehi_in(wbu_tlbwr_fill_tlbehi_o),
                    .tlbelo0_in(wbu_tlbwr_fill_tlbelo0_o),

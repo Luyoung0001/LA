@@ -195,7 +195,7 @@ int difftest() {
     // 这里其实增加了一种情况，那就是原生的 difftest 中只记录了对 GPR 的修改信息
     // 事实上，完善的 difftest 应该记录对 CSR 的修改信息
     // 因此，当某条指令的 trace_info.we == 0 且 trace_info.is_csr_wr == 1 的时候，正好补充了这点
-    if (trace_info.is_csr_wr && trace_info.we == 0) {
+    if (trace_info.is_csr_wr && trace_info.we == 0 || trace_info.is_csr_wr && trace_info.wnum == 0) {
         gen_golden_trace_file1();
     } else if (trace_info.we != 0 && trace_info.wnum != 0) {
         // 这种情况意味着 trace_info.we != 0

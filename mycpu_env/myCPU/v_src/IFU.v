@@ -61,7 +61,13 @@ module IFU (
         input addr_ok, // 新增
         input data_ok,
         input [31:0] rdata,
-        output [31:0] rdata_o // 发送到下游的指令
+        output [31:0] rdata_o, // 发送到下游的指令
+
+        // from WBU
+        input wire wbu_refetch_sign_i,
+        output wire refetch_excp_o,
+
+        input wire wbu_refetch_flush
     );
 
     // IFU 阶段有效信号
@@ -107,16 +113,21 @@ module IFU (
     // 1:   process
     // 2:   waite_ready
 
+
     reg [1:0] ifu_state;
+    reg refetch_excp_i_r;
+
     always @(posedge clk) begin
-        if(rst || flush_sign) begin
+        if(rst || flush_sign || wbu_refetch_flush) begin
             ifu_state <= 2'b0;
+            refetch_excp_i_r <= 1'b0;
         end
         // 空闲且上游数据有效则 取出上游数据
         else if(ifu_state == 2'b0 && up_valid) begin
             // 取出数据
             pc <= pc_i;
             ifu_state <= 2'b1;
+            refetch_excp_i_r <= wbu_refetch_sign_i; // 记录是否需要重取
         end
         // 处理
         else if(ifu_state == 2'b1) begin
@@ -132,7 +143,7 @@ module IFU (
             end
         end
     end
-    assign req = flush_sign ? 1'b0: ifu_state == 2'b1 && waite_ready_i && !addr_ok;
+    assign req = flush_sign | wbu_refetch_flush ? 1'b0: ifu_state == 2'b1 && waite_ready_i && !addr_ok;
     assign pc_o =  pc;
     assign rdata_o = rdata;
     assign waite_ready_o = ifu_state == 2'b0 ? 1'b1:1'b0;
@@ -152,5 +163,7 @@ module IFU (
     assign inst_asid = csr_asid;
 
     assign addr = {inst_tag, inst_index, inst_offset}; // 物理地址
+
+    assign refetch_excp_o = refetch_excp_i_r;
 
 endmodule

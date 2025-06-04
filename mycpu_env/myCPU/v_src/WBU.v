@@ -37,6 +37,7 @@ module WBU
         input wire [31:0] csr_tlbelo0,
         input wire [31:0] csr_tlbelo1,
         input wire [3:0]  csr_rand_index,
+        input wire [9:0]  csr_asid,
         // tlbsrch
         output  wire        tlbsrch_en,
         input wire[3:0]     tlbsrch_index,
@@ -51,6 +52,7 @@ module WBU
         input wire [31:0]     from_trans_tlbelo1_in,
         input wire [31:0]     from_trans_tlbidx_in,
         input wire [9:0]      from_trans_asid_in,
+
         output wire         csr_tlbrd_en_o, // 发射到 csr
         output  wire [31:0] csr_tlbehi_o,
         output  wire [31:0] csr_tlbelo0_o,
@@ -59,6 +61,7 @@ module WBU
         output  wire [9:0]  csr_asid_o,
         // tlbwr
         output tlbwr_en_o,
+        output wire [9:0]  tlbwr_fill_w_asid_o,
         output wire [31:0] tlbwr_fill_tlbehi_o,
         output wire [31:0] tlbwr_fill_tlbelo0_o,
         output wire [31:0] tlbwr_fill_tlbelo1_o,
@@ -79,10 +82,25 @@ module WBU
 
         // debug
         output wire [31:0] inst_data_o,
-
         input  is_csr_wr_i,
-        output is_csr_wr_o
+        output is_csr_wr_o,
+        output has_refetch_excp_o,
+
+        // refetch_sign
+        output wire is_refetch_sign,
+        input wire refetch_excp_i,
+
+        // 发射新的PC
+        output wire [31:0] refetch_pc,
+        output wire refetch_sign,
+
+        input [31:0] pc_pro_i,
+
+        output wire  refetch_flush
     );
+
+
+    // for debug
     reg is_csr_wr_i_r;
 
     wire excp_flush;
@@ -186,11 +204,15 @@ module WBU
     reg [9:0] invtlb_asid_i_r;
     reg [18:0] invtlb_vpn_i_r;
 
+    reg refetch_excp_i_r;
+
+    reg [31:0] pc_pro_i_r;
+
     always @(posedge clk) begin
         last_pc <= pc;
         last_waddr <= rf_waddr;
         last_wdata <= rf_wdata;
-        if (rst || flush_sign) begin
+        if (rst || flush_sign || refetch_flush ) begin
             bus_mem_to_wbu_data_r <= 150'd0;
             inst_data_i_r <= 32'd0;
             wbu_state <= 2'd0;
@@ -204,6 +226,8 @@ module WBU
             invtlb_vpn_i_r <= 19'd0;
 
             is_csr_wr_i_r <= 1'b0;
+
+            refetch_excp_i_r <= 1'b0;
         end
         else if (wbu_state == 2'd0 && up_valid) begin
             bus_mem_to_wbu_data_r <= bus_mem_to_wbu_data;
@@ -220,7 +244,12 @@ module WBU
             invtlb_asid_i_r <= invtlb_asid_i;
             invtlb_vpn_i_r <= invtlb_vpn_i;
 
+            // debug
             is_csr_wr_i_r <= is_csr_wr_i;
+
+            refetch_excp_i_r <= refetch_excp_i;
+
+            pc_pro_i_r <= pc_pro_i;
         end
         else if(wbu_state == 2'd1) begin
             wbu_state <= 2'd0;
@@ -233,41 +262,42 @@ module WBU
     assign wbu_over = wbu_state == 2'd0;
 
     // 输出到 regfile
-    assign rf_we    = wire_gr_we & ws_valid & !ws_excp && !is_same;
+    assign rf_we    = wire_gr_we & ws_valid & !ws_excp && !is_same && !refetch_excp_i_r;
     assign rf_waddr = wire_dest;
     assign rf_wdata = wire_final_result;
     assign pc       = wire_pc;
 
     // 输出到 csr
-    assign csr_we = wire_csr_we & ws_valid & !ws_excp;
+    assign csr_we = wire_csr_we & ws_valid & !ws_excp && !refetch_excp_i_r;
     assign csr_addr = wire_csr_idx;
     assign csr_wdata = wire_csr_wdata;
 
     // tlb
     // tlbsrch
-    assign tlbsrch_en = wire_inst_tlbsrch & ws_valid & !ws_excp;
+    assign tlbsrch_en = wire_inst_tlbsrch & ws_valid & !ws_excp && !refetch_excp_i_r;
     assign tlbsrch_found_o = tlbsrch_found_r;
     assign tlbsrch_index_o = tlbsrch_index_r;
     // tlbrd
     assign to_trans_tlbidx_o = csr_tlbidx;
-    assign csr_tlbrd_en_o = wire_inst_tlbrd & ws_valid & !ws_excp;
+    assign csr_tlbrd_en_o = wire_inst_tlbrd & ws_valid & !ws_excp && !refetch_excp_i_r;
     assign csr_tlbehi_o = from_trans_tlbehi_in;
     assign csr_tlbelo0_o = from_trans_tlbelo0_in;
     assign csr_tlbelo1_o = from_trans_tlbelo1_in;
     assign csr_tlbidx_o = from_trans_tlbidx_in;
     assign csr_asid_o = from_trans_asid_in;
     // tlbwr tlbfill
-    assign tlbwr_en_o = wire_inst_tlbwr & ws_valid & !ws_excp;
+    assign tlbwr_en_o = wire_inst_tlbwr & ws_valid & !ws_excp && !refetch_excp_i_r;
     assign tlbwr_fill_tlbehi_o = csr_tlbehi;
     assign tlbwr_fill_tlbelo0_o = csr_tlbelo0;
     assign tlbwr_fill_tlbelo1_o = csr_tlbelo1;
     assign tlbwr_fill_tlbidx_o = csr_tlbidx;
     assign tlbwr_fill_ecode_o = csr_ecode;
+    assign tlbwr_fill_w_asid_o = csr_asid;
 
-    assign tlbfill_en_o = wire_inst_tlbfill & ws_valid & !ws_excp;
+    assign tlbfill_en_o = wire_inst_tlbfill & ws_valid & !ws_excp && !refetch_excp_i_r;
     assign rand_index_o = csr_rand_index;
     // invtlb
-    assign invtlb_en_o = wire_inst_invtlb & ws_valid & !ws_excp;
+    assign invtlb_en_o = wire_inst_invtlb & ws_valid & !ws_excp && !refetch_excp_i_r;
     assign invtlb_op_o = invtlb_op_i_r;
     assign invtlb_asid_o = invtlb_asid_i_r;
     assign invtlb_vpn_o = invtlb_vpn_i_r;
@@ -334,4 +364,21 @@ module WBU
 
     assign is_csr_wr_o = is_csr_wr_i_r;
 
+    // 这里发出 refetch_sign 信号，这里的保持时间要注意，保持整个周期，以便于上游模块设置"异常"
+    // 接收到这个信号的上游所有模块的所有指令都会被打上一个重取标记
+    // 这个标记带给各个模块的效果和异常一样，都会取消各自的执行效果
+    // 当带有重取标记的指令到达 WBU 的时候，直接清空流水线
+    // 此时，pre_IFU 会拿到这个指令的 PC 信号，重新取址
+    assign is_refetch_sign = (wire_inst_invtlb ||
+                              wire_inst_tlbrd ||
+                              wire_inst_tlbwr ||
+                              wire_inst_tlbfill || wire_csr_we) && !refetch_excp_i_r;
+
+    assign refetch_pc = pc_pro_i_r;
+    assign refetch_sign = refetch_excp_i_r;
+
+    assign has_refetch_excp_o = refetch_excp_i_r;
+
+    // 一个周期即可
+    assign refetch_flush = refetch_excp_i_r && !ws_excp && !ertn_flush;
 endmodule

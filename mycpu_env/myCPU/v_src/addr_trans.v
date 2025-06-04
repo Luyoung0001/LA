@@ -50,6 +50,7 @@ module addr_trans
          // tlbwr tlbfill
          input                  tlbfill_en           ,
          input                  tlbwr_en             ,
+         input [9:0]            w_asid               ,
          input  [ $clog2(TLBNUM)-1:0]          rand_index           , // tlbfill
          input  [31:0]          tlbehi_in            ,
          input  [31:0]          tlbelo0_in           ,
@@ -196,7 +197,7 @@ module addr_trans
              .we             (we             ),
              .w_index        (w_index        ),
              .w_vppn         (w_vppn         ),
-             .w_asid         (data_asid      ),
+             .w_asid         (w_asid         ),
              .w_g            (w_g            ),
              .w_ps           (w_ps           ),
              .w_e            (w_e            ),

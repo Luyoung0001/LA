@@ -102,7 +102,17 @@ module EXU
 
 
          input wire is_csr_wr_i,
-         output wire is_csr_wr_o
+         output wire is_csr_wr_o,
+
+         // from WBU
+         input wire wbu_refetch_sign_i,
+         input wire refetch_excp_i,
+         output wire refetch_excp_o,
+
+         input [31:0] pc_pro_i,
+         output [31:0] pc_pro_o,
+
+         input wbu_refetch_flush
      );
     reg is_csr_wr_i_r;
     wire excp_flush;
@@ -415,7 +425,7 @@ module EXU
            st_w ? 2'b10 : 2'b00;
     assign wr = (st_b || st_h || st_w) ;
 
-    assign wstrb = (mem_excp | es_excp | flush_sign | mem_in_is_ertn) ? 4'b0000 : // 异常
+    assign wstrb = (mem_excp | es_excp | flush_sign | wbu_refetch_flush | mem_in_is_ertn) ? 4'b0000 : // 异常
            st_b  ? st_b_we :
            st_h  ? st_h_we :
            st_w  ? st_w_we:
@@ -435,8 +445,12 @@ module EXU
     reg [4:0] invtlb_op_i_r;
     reg [9:0] invtlb_asid_i_r;
     reg [18:0] invtlb_vpn_i_r;
+
+    reg [31:0] pc_pro_i_r;
+
+    reg refetch_excp_i_r;
     always @(posedge clk) begin
-        if (rst || flush_sign) begin
+        if (rst || flush_sign || wbu_refetch_flush) begin
             exu_state <= 2'd0;
             ds_to_es_bus_data_r <= 259'd0;
             inst_data_i_r <= 32'd0;
@@ -451,6 +465,8 @@ module EXU
             invtlb_vpn_i_r <= 19'd0;
 
             is_csr_wr_i_r <= 1'b0;
+
+            refetch_excp_i_r <= 1'b0;
         end
         else if (exu_state == 2'd0 && up_valid) begin
             ds_to_es_bus_data_r <= bus_ds_to_es_data;
@@ -468,18 +484,22 @@ module EXU
 
             is_csr_wr_i_r <= is_csr_wr_i;
 
+            refetch_excp_i_r <= wbu_refetch_sign_i | refetch_excp_i;
+
+            pc_pro_i_r <= pc_pro_i;
+
         end
         // 这里要处理，进入处理阶段
         else if(exu_state == 2'd1) begin
             // 处理流程
             // 访存
-            if(access_memo && !(mem_excp | es_excp | flush_sign | mem_in_is_ertn)) begin
+            if(access_memo && !(mem_excp | es_excp | flush_sign | wbu_refetch_flush | mem_in_is_ertn)) begin
                 if(waite_ready_i && addr_ok) begin
                     // req <= 1'b1;
                     exu_state <= 2'd2; // 等待
                 end
             end
-            else if(es_excp | mem_excp | flush_sign | mem_in_is_ertn) begin
+            else if(es_excp | mem_excp | flush_sign | wbu_refetch_flush | mem_in_is_ertn) begin
                 exu_state <= 2'd0;
             end
             else if(wire_complete & div) begin
@@ -501,9 +521,13 @@ module EXU
             end
         end
     end
-    assign rdata_o = flush_sign ? 32'd0 : rdata;
-    assign req = (mem_excp | es_excp | flush_sign | mem_in_is_ertn) ? 1'b0 : exu_state == 2'd1 && access_memo && waite_ready_i && !addr_ok;
-    assign state_valid =  access_memo && !(mem_excp | es_excp | flush_sign | mem_in_is_ertn) ? exu_state == 2'd2 && data_ok : exu_state == 2'd0;
+    assign rdata_o = flush_sign | wbu_refetch_flush ? 32'd0 : rdata;
+    assign req = (mem_excp | es_excp | flush_sign | wbu_refetch_flush | mem_in_is_ertn ) ? 1'b0 : exu_state == 2'd1 && access_memo && waite_ready_i && !addr_ok;
+
+    assign state_valid = (exu_state == 2'd1 &&  (wire_complete & div) ) ? 1'b1 : // 计算除法
+           exu_state == 2'd2 && data_ok ? 1'b1 :  // 访存
+           exu_state == 2'd1 && (!div) && (!access_memo) || (es_excp | mem_excp | flush_sign | wbu_refetch_flush | mem_in_is_ertn);
+
     assign waite_ready_o = exu_state == 2'b0 ? 1'b1 : 1'b0;
 
     assign exu_over = exu_state == 2'b0;
@@ -539,5 +563,9 @@ module EXU
     assign inst_data_o = inst_data_i_r;
 
     assign is_csr_wr_o = is_csr_wr_i_r;
+
+    assign refetch_excp_o = refetch_excp_i_r;
+
+    assign pc_pro_o = pc_pro_i_r;
 
 endmodule

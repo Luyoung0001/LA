@@ -53,12 +53,22 @@ module MEM
          output wire [9:0]      invtlb_asid_o,
          output wire [18:0]     invtlb_vpn_o,
 
+         // debug
          input wire is_csr_wr_i,
-         output wire is_csr_wr_o
+         output wire is_csr_wr_o,
+
+         // refetch sign
+         input wire wbu_refetch_sign_i,
+         input wire refetch_excp_i,
+         output wire refetch_excp_o,
+
+         input [31:0] pc_pro_i,
+         output [31:0] pc_pro_o,
+
+         input wbu_refetch_flush
 
      );
     reg is_csr_wr_i_r;
-
 
     wire excp_flush;
     wire ertn_flush;
@@ -148,7 +158,7 @@ module MEM
             wire_error_va
         } = bus_exu_to_mem_data_r;
 
-    assign bus_mem_to_wbu_data = flush_sign ? 150'd0 : {
+    assign bus_mem_to_wbu_data = flush_sign || wbu_refetch_flush ? 150'd0 : {
                gr_we,
                dest,
                final_result,
@@ -244,8 +254,12 @@ module MEM
     reg [9:0] invtlb_asid_i_r;
     reg [18:0] invtlb_vpn_i_r;
 
+
+    reg refetch_excp_i_r;
+    reg [31:0] pc_pro_i_r;
+
     always @(posedge clk) begin
-        if (rst || flush_sign) begin
+        if (rst || flush_sign || wbu_refetch_flush) begin
             mem_state <= 2'd0;
             reg_rdata <= 32'd0;
             bus_exu_to_mem_data_r <= 151'd0;
@@ -265,6 +279,8 @@ module MEM
             invtlb_vpn_i_r <= 19'd0;
 
             is_csr_wr_i_r <= 1'b0;
+
+            refetch_excp_i_r <= 1'b0;
 
         end
         else if (mem_state == 2'd0 && up_valid) begin
@@ -287,6 +303,10 @@ module MEM
             invtlb_vpn_i_r <= invtlb_vpn_i;
 
             is_csr_wr_i_r <= is_csr_wr_i;
+
+            refetch_excp_i_r <= wbu_refetch_sign_i | refetch_excp_i;
+
+            pc_pro_i_r <= pc_pro_i;
         end
 
         else if(mem_state == 2'd1) begin
@@ -315,5 +335,8 @@ module MEM
 
     assign is_csr_wr_o = is_csr_wr_i_r;
 
+    assign refetch_excp_o = refetch_excp_i_r;
+
+    assign pc_pro_o = pc_pro_i_r;
 
 endmodule

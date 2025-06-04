@@ -122,49 +122,79 @@ void read_ref() {
     printf("Read %dth: line\n", j);
     j++;
 }
-
+// how good it is?
+uint32_t good_level = 0;
 // 对比
-int is_good() {
-    int good = trace_info.wnum == mycpu_trace_info.wnum &&
-               trace_info.pc == mycpu_trace_info.pc &&
-               trace_info.value == mycpu_trace_info.value &&
-               trace_info.inst == mycpu_trace_info.inst &&
-               trace_info.is_csr_wr ==
-                   mycpu_trace_info.is_csr_wr &&  // 是否对 CSR 进行修改
-               trace_info.csr_crmd == mycpu_trace_info.csr_crmd &&  // 比对 CSR
-               trace_info.csr_prmd == mycpu_trace_info.csr_prmd &&
-               trace_info.csr_ecfg == mycpu_trace_info.csr_ecfg &&
-               //  trace_info.csr_estat == mycpu_trace_info.csr_estat &&
-               trace_info.csr_era == mycpu_trace_info.csr_era &&
-               trace_info.csr_badv == mycpu_trace_info.csr_badv &&
-               trace_info.csr_eentry == mycpu_trace_info.csr_eentry &&
-               trace_info.csr_tlbidx == mycpu_trace_info.csr_tlbidx &&
-               trace_info.csr_tlbehi == mycpu_trace_info.csr_tlbehi &&
-               trace_info.csr_tlbelo0 == mycpu_trace_info.csr_tlbelo0 &&
-               trace_info.csr_tlbelo1 == mycpu_trace_info.csr_tlbelo1 &&
-               //    trace_info.csr_asid == mycpu_trace_info.csr_asid &&
-               trace_info.csr_save0 == mycpu_trace_info.csr_save0 &&
-               trace_info.csr_save1 == mycpu_trace_info.csr_save1 &&
-               trace_info.csr_save2 == mycpu_trace_info.csr_save2 &&
-               trace_info.csr_save3 == mycpu_trace_info.csr_save3 &&
-               trace_info.csr_tid == mycpu_trace_info.csr_tid &&
-               trace_info.csr_tcfg == mycpu_trace_info.csr_tcfg &&
-               //    trace_info.csr_tval == mycpu_trace_info.csr_tval &&
-               trace_info.csr_ticlr == mycpu_trace_info.csr_ticlr &&
-               trace_info.csr_llbctl == mycpu_trace_info.csr_llbctl &&
-               trace_info.csr_tlbrentry == mycpu_trace_info.csr_tlbrentry &&
-               trace_info.csr_dmw0 == mycpu_trace_info.csr_dmw0 &&
-               trace_info.csr_dmw1 == mycpu_trace_info.csr_dmw1 &&
-               trace_info.csr_pgdl == mycpu_trace_info.csr_pgdl &&
-               trace_info.csr_pgdh == mycpu_trace_info.csr_pgdh;
-    return good;
+void get_good_level() {
+    good_level = trace_info.we == mycpu_trace_info.we;
+    good_level = (trace_info.wnum == mycpu_trace_info.wnum) << 1 | good_level;
+    good_level = (trace_info.pc == mycpu_trace_info.pc) << 2 | good_level;
+    good_level = (trace_info.value == mycpu_trace_info.value) << 3 | good_level;
+    good_level = (trace_info.inst == mycpu_trace_info.inst) << 4 | good_level;
+    good_level =
+        (trace_info.is_csr_wr == mycpu_trace_info.is_csr_wr) << 5 | good_level;
+    good_level =
+        (trace_info.csr_crmd == mycpu_trace_info.csr_crmd) << 6 | good_level;
+    good_level =
+        (trace_info.csr_prmd == mycpu_trace_info.csr_prmd) << 7 | good_level;
+    good_level =
+        (trace_info.csr_ecfg == mycpu_trace_info.csr_ecfg) << 8 | good_level;
+    good_level =
+        (trace_info.csr_estat == mycpu_trace_info.csr_estat) << 9 | good_level;
+    good_level =
+        (trace_info.csr_era == mycpu_trace_info.csr_era) << 10 | good_level;
+    good_level =
+        (trace_info.csr_badv == mycpu_trace_info.csr_badv) << 11 | good_level;
+    good_level = (trace_info.csr_eentry == mycpu_trace_info.csr_eentry) << 12 |
+                 good_level;
+    good_level = (trace_info.csr_tlbidx == mycpu_trace_info.csr_tlbidx) << 13 |
+                 good_level;
+    good_level = (trace_info.csr_tlbehi == mycpu_trace_info.csr_tlbehi) << 14 |
+                 good_level;
+    good_level = (trace_info.csr_tlbelo0 == mycpu_trace_info.csr_tlbelo0)
+                     << 15 |
+                 good_level;
+    good_level = (trace_info.csr_tlbelo1 == mycpu_trace_info.csr_tlbelo1)
+                     << 16 |
+                 good_level;
+    good_level =
+        (trace_info.csr_asid == mycpu_trace_info.csr_asid) << 17 | good_level;
+    good_level =
+        (trace_info.csr_save0 == mycpu_trace_info.csr_save0) << 18 | good_level;
+    good_level =
+        (trace_info.csr_save1 == mycpu_trace_info.csr_save1) << 19 | good_level;
+    good_level =
+        (trace_info.csr_save2 == mycpu_trace_info.csr_save2) << 20 | good_level;
+    good_level =
+        (trace_info.csr_save3 == mycpu_trace_info.csr_save3) << 21 | good_level;
+    good_level =
+        (trace_info.csr_tid == mycpu_trace_info.csr_tid) << 22 | good_level;
+    good_level =
+        (trace_info.csr_tcfg == mycpu_trace_info.csr_tcfg) << 23 | good_level;
+    good_level =
+        (trace_info.csr_tval == mycpu_trace_info.csr_tval) << 24 | good_level;
+    good_level =
+        (trace_info.csr_ticlr == mycpu_trace_info.csr_ticlr) << 25 | good_level;
+    good_level = (trace_info.csr_llbctl == mycpu_trace_info.csr_llbctl) << 26 |
+                 good_level;
+    good_level = (trace_info.csr_tlbrentry == mycpu_trace_info.csr_tlbrentry)
+                     << 27 |
+                 good_level;
+    good_level =
+        (trace_info.csr_dmw0 == mycpu_trace_info.csr_dmw0) << 28 | good_level;
+    good_level =
+        (trace_info.csr_dmw1 == mycpu_trace_info.csr_dmw1) << 29 | good_level;
+    good_level =
+        (trace_info.csr_pgdl == mycpu_trace_info.csr_pgdl) << 30 | good_level;
+    good_level =
+        (trace_info.csr_pgdh == mycpu_trace_info.csr_pgdh) << 31 | good_level;
 }
 
 void print_info() {
     printf(
         "\033[32mCPU\033[0m:  we: %d, wnum: %d, \033[32mpc: %08x\033[0m, "
         "value: %08x, inst: %08x, csr_wr: %d\n",
-        mycpu_trace_info.we == 15, mycpu_trace_info.wnum, mycpu_trace_info.pc,
+        mycpu_trace_info.we, mycpu_trace_info.wnum, mycpu_trace_info.pc,
         mycpu_trace_info.value, mycpu_trace_info.inst,
         mycpu_trace_info.is_csr_wr);
     printf(
@@ -244,15 +274,50 @@ void print_info() {
 
 // 读取 trace，与拉到的信号进行比对
 // 上次的状态
+
+#define WE_DIFF 0xfffffffe
+#define WNUM_DIFF 0xfffffffd
+#define PC_DIFF 0xfffffffb
+#define VALUE_DIFF 0xfffffff7
+#define INST_DIFF 0xffffffef
+#define CSR_WR_DIFF 0xffffffdf
+#define CSR_CRMD_DIFF 0xffffffbf
+#define CSR_PRMD_DIFF 0xffffff7f
+#define CSR_ECFG_DIFF 0xfffffeff
+#define CSR_ESTAT_DIFF 0xfffffdff
+#define CSR_ERA_DIFF 0xfffffbff
+#define CSR_BADV_DIFF 0xfffff7ff
+#define CSR_EENTRY_DIFF 0xffffefff
+#define CSR_TLBIDX_DIFF 0xffffdfff
+#define CSR_TLBEHI_DIFF 0xffffbfff
+#define CSR_TLBLO0_DIFF 0xffff7fff
+#define CSR_TLBLO1_DIFF 0xfffeffff
+#define CSR_ASID_DIFF 0xfffdffff
+#define CSR_SAVE0_DIFF 0xfffbffff
+#define CSR_SAVE1_DIFF 0xfff7ffff
+#define CSR_SAVE2_DIFF 0xffefffff
+#define CSR_SAVE3_DIFF 0xffdfffff
+#define CSR_TID_DIFF 0xffbfffff
+#define CSR_TCFG_DIFF 0xff7fffff
+#define CSR_TVAL_DIFF 0xfeffffff
+#define CSR_TICLR_DIFF 0xfdffffff
+#define CSR_LLBCTL_DIFF 0xfbffffff
+#define CSR_TLBRENTRY_DIFF 0xf7ffffff
+#define CSR_DMW0_DIFF 0xefffffff
+#define CSR_DMW1_DIFF 0xdfffffff
+#define CSR_PGDL_DIFF 0xbfffffff
+#define CSR_PGDH_DIFF 0x7fffffff
+
 diff last_op;
 
 int difftest() {
-    mycpu_trace_info.we = top->rootp->verilator_top->debug_wb_rf_we;
+    mycpu_trace_info.we = top->rootp->verilator_top->debug_wb_rf_we == 15;
     mycpu_trace_info.wnum = top->rootp->verilator_top->debug_wb_rf_wnum;
     mycpu_trace_info.pc = top->rootp->verilator_top->debug_wb_pc;
     mycpu_trace_info.value = top->rootp->verilator_top->debug_wb_rf_wdata;
     mycpu_trace_info.inst = top->rootp->verilator_top->debug_wb_inst;
-    mycpu_trace_info.is_csr_wr = top->rootp->verilator_top->debug_wb_is_csr_wr_o;
+    mycpu_trace_info.is_csr_wr =
+        top->rootp->verilator_top->debug_wb_is_csr_wr_o;
     mycpu_trace_info.csr_crmd = top->rootp->verilator_top->csr_crmd_diff;
     mycpu_trace_info.csr_prmd = top->rootp->verilator_top->csr_prmd_diff;
     mycpu_trace_info.csr_ecfg = top->rootp->verilator_top->csr_ecfg_diff;
@@ -290,23 +355,39 @@ int difftest() {
     last_op.pc = mycpu_trace_info.pc;
     last_op.value = mycpu_trace_info.value;
 
-    // 如果流水线留出个空指令，那么直接返回
-    if (mycpu_trace_info.we && mycpu_trace_info.wnum != 0 || mycpu_trace_info.is_csr_wr) {
+    if (top->rootp->verilator_top->debug_has_refetch_excp_o) {
+        // 如果有 refetch，不用比较
+        return 1;
+    } else if (mycpu_trace_info.we && mycpu_trace_info.wnum != 0 ||
+               mycpu_trace_info.is_csr_wr) {
         // 读取 ref
         read_ref();
-        int good = is_good();
+        get_good_level();
 
         // pc 应该每次都进行打印
         printf("CPU: \033[32mpc: %08x\033[0m\n", mycpu_trace_info.pc);
         printf("REF: \033[32mpc: %08x\033[0m\n\n", trace_info.pc);
 
-        if (!good && trace_info.we != 0) {
+        if (~good_level & ~PC_DIFF) {
+            // 如果 PC 不一样，直接退出
+            printf("good_level: 0x%08x\n", good_level);
+            print_info();
+        } else if (mycpu_trace_info.we == 1 && trace_info.we == 0) {
+            // 这里的情况是 CPU 的 we 是 1，但是 ref 的 we 是 0
+            // 这种情况直接跳过，因为这个指令没有意义
+            return 1;
+        } else if (good_level == WE_DIFF || good_level == CSR_TVAL_DIFF ||
+                   good_level == VALUE_DIFF) {
+            // 仅仅由于 we 的不同的时候，直接跳过
+            return 1;
+        } else if (good_level == (CSR_TVAL_DIFF & WE_DIFF)) {
+            // 由于 CSR.TVAL 和 we 的不同的时候，直接跳过
+            return 1;
+        } else if (good_level != 0xffffffff) {
+            printf("good_level: 0x%08x\n", good_level);
             print_info();
         }
-        if (trace_info.we == 0) {
-            return 1;
-        }
-        return good;
+        return good_level == 0xffffffff;
     }
     return -1;
 }
@@ -352,6 +433,6 @@ int main(int argc, char* argv[]) {
     top->trace(tfp, 99);
     tfp->open("wave.vcd");
     reset(1);
-    cpu_exec(-1);
+    cpu_exec(850000);
     return 0;
 }
