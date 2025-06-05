@@ -12,8 +12,8 @@ generate for (i=0; i<4; i=i+1) begin : gen_for_dec_2_4
 endmodule
 
 module encoder_4_2(
-    input  [3:0] in,
-    output [1:0] out
+    input wire [3:0] in,
+    output wire [1:0] out
 );
 
 assign out = {2{in[0]}} & 2'd0 |
@@ -38,8 +38,8 @@ generate for (i=0; i<16; i=i+1) begin : gen_for_dec_4_16
 endmodule
 
 module encoder_16_4(
-    input  [15:0] in,
-    output [ 3:0] out
+    input  wire[15:0] in,
+    output wire[ 3:0] out
 );
 
 wire [1:0] out_0, out_1, out_2, out_3;
@@ -71,8 +71,8 @@ generate for (i=0; i<32; i=i+1) begin : gen_for_dec_5_32
 endmodule
 
 module encoder_32_5(
-    input  [31:0] in,
-    output [ 4:0] out
+    input wire [31:0] in,
+    output wire[ 4:0] out
 );
 
 wire [3:0] out_0, out_1;

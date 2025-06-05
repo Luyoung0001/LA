@@ -51,7 +51,7 @@ module csr
          output [ 1:0]      datf_out,
          output [ 1:0]      datm_out,
          output [ 5:0]      ecode_out,
-         output wire [$clog2(TLBNUM)-1:0]  rand_index,
+         output wire [$clog2(TLBNUM):0]  rand_index,
 
          // csr regs for diff
          output [31:0]                   csr_crmd_diff,
@@ -265,7 +265,7 @@ module csr
     assign tlbelo0_out  = csr_tlbelo0;
     assign tlbelo1_out  = csr_tlbelo1;
     assign tlbidx_out   = csr_tlbidx;
-    assign rand_index   = timer_64[$clog2(TLBNUM)-1:0];
+    assign rand_index   = timer_64[$clog2(TLBNUM):0];
 
     assign plv_out      = {2{excp_flush}} & 2'b0            |
            {2{ertn_flush}} & csr_prmd[`PPLV] |
@@ -544,7 +544,8 @@ module csr
     //tlbelo0
     always @(posedge clk) begin
         if (rst) begin
-            csr_tlbelo0[7] <= 1'b0;
+            // csr_tlbelo0[7] <= 1'b0;
+            csr_tlbelo0[31:0] <= 32'b0;
         end
         else if (tlbelo0_wen) begin
             csr_tlbelo0[`TLB_V]   <= csr_wdata[`TLB_V];
@@ -575,7 +576,8 @@ module csr
     //tlbelo1
     always @(posedge clk) begin
         if (rst) begin
-            csr_tlbelo1[7] <= 1'b0;
+            // csr_tlbelo1[7] <= 1'b0;
+            csr_tlbelo1[31:0] <= 32'b0;
         end
         else if (tlbelo1_wen) begin
             csr_tlbelo1[`TLB_V]   <= csr_wdata[`TLB_V];

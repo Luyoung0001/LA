@@ -395,7 +395,7 @@ module mycpu_top
     wire [1:0]  csr_datf_out;
     wire [1:0]  csr_datm_out;
     wire [5:0]  csr_ecode_out;
-    wire [$clog2(TLBNUM)-1:0]  csr_rand_index;
+    wire [$clog2(TLBNUM):0]  csr_rand_index;
 
     // tlb
     wire tlb_s0_found;
@@ -829,6 +829,7 @@ module mycpu_top
              .csr_tlbelo1(csr_tlbelo1_out),
              .csr_rand_index(csr_rand_index),
              .csr_asid(csr_asid_out),
+             .csr_ecode_i(csr_ecode_out),
              // tlbsrch
              .tlbsrch_en(wbu_tlbsrch_en),
              .tlbsrch_index(mem_tlbsrch_index_o),

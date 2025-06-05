@@ -82,8 +82,10 @@ module EXU
          input wire  [ 7:0]    data_index,
          input wire  [19:0]    data_tag,
          input wire  [ 3:0]    data_offset,
+
          input wire            data_tlb_found,
          input wire  [$clog2(TLBNUM)-1:0]     data_tlb_index,
+
          input wire            data_tlb_v,
          input wire            data_tlb_d,
          input wire  [1:0]     data_tlb_mat,
@@ -540,6 +542,7 @@ module EXU
     // 假设是 pg 映射模式，那么地址就得从 addr_trans 返回
     // 这里将会考虑数据前递技术解决数据相关
     assign data_vaddr = wire_inst_tlbsrch ? {csr_vppn,13'd0} : alu_result;
+    assign data_asid = csr_asid;
     assign data_dmw0 = csr_dmw0;
     assign data_dmw1 = csr_dmw1;
     assign data_da = csr_da;
@@ -553,6 +556,7 @@ module EXU
     // for tlbsrch
     assign tlbsrch_index = data_tlb_index;
     assign tlbsrch_found = data_tlb_found;
+
     // for invtlb
     assign invtlb_op_o = invtlb_op_i_r;
     assign invtlb_asid_o = invtlb_asid_i_r;

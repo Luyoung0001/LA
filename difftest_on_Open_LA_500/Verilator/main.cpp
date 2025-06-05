@@ -185,7 +185,6 @@ int difftest() {
         last_op.value == trace_info.value) {
         return 1;
     }
-
     // 保存最新的状态
     last_op.wnum = trace_info.wnum;
     last_op.pc = trace_info.pc;

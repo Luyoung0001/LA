@@ -36,8 +36,9 @@ module WBU
         input wire [31:0] csr_tlbehi,
         input wire [31:0] csr_tlbelo0,
         input wire [31:0] csr_tlbelo1,
-        input wire [3:0]  csr_rand_index,
+        input wire [4:0]  csr_rand_index,
         input wire [9:0]  csr_asid,
+        input   wire [5:0] csr_ecode_i,
         // tlbsrch
         output  wire        tlbsrch_en,
         input wire[3:0]     tlbsrch_index,
@@ -291,11 +292,11 @@ module WBU
     assign tlbwr_fill_tlbelo0_o = csr_tlbelo0;
     assign tlbwr_fill_tlbelo1_o = csr_tlbelo1;
     assign tlbwr_fill_tlbidx_o = csr_tlbidx;
-    assign tlbwr_fill_ecode_o = csr_ecode;
+    assign tlbwr_fill_ecode_o = csr_ecode_i;
     assign tlbwr_fill_w_asid_o = csr_asid;
 
     assign tlbfill_en_o = wire_inst_tlbfill & ws_valid & !ws_excp && !refetch_excp_i_r;
-    assign rand_index_o = csr_rand_index;
+    assign rand_index_o = csr_rand_index[4:1];
     // invtlb
     assign invtlb_en_o = wire_inst_invtlb & ws_valid & !ws_excp && !refetch_excp_i_r;
     assign invtlb_op_o = invtlb_op_i_r;
