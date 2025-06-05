@@ -180,7 +180,6 @@ module IDU (
     wire [31:0] csr_wdata;  // 给 csr 中写的数据
     wire is_inst_ertn;
     wire csr_we;
-    // wire kernel_inst;    // 特权指令
 
     wire rdcnt_en;
     wire [31:0] rdcnt_result;
@@ -842,14 +841,11 @@ module IDU (
 
     //debug
     assign idu_inst_o = inst_sram_rdata_reg;
-
     assign is_csr_wr = inst_csrwr |
            inst_csrxchg |
            inst_tlbrd|
            inst_tlbsrch;
-
     assign refetch_excp_o = refetch_excp_i_r;
-
     assign pc_pro_o = idu_pc;
 
 endmodule

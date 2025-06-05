@@ -159,7 +159,7 @@ module addr_trans
     assign tlbidx_out   = {!r_e, 1'b0, r_ps, 24'b0}; //note do not write index
     assign asid_out     = r_asid;
 
-    tlb  blt_o(
+    tlb #(TLBNUM) blt_o(
              .clk            (clk            ),
              // search port 0
              .s0_vppn        (s0_vppn        ),

@@ -309,10 +309,10 @@ module csr
             csr_crmd[  `IE] <= csr_prmd[`PIE ]; // 恢复中断
         end
         else if (crmd_wen) begin
-            csr_crmd[ `PLV] <= csr_wdata[ `PLV];
-            csr_crmd[  `IE] <= csr_wdata[	 `IE];
-            csr_crmd[  `DA] <= csr_wdata[	 `DA];
-            csr_crmd[  `PG] <= csr_wdata[  `PG];
+            csr_crmd[ `PLV] <= csr_wdata[`PLV];
+            csr_crmd[  `IE] <= csr_wdata[`IE];
+            csr_crmd[  `DA] <= csr_wdata[`DA];
+            csr_crmd[  `PG] <= csr_wdata[`PG];
             csr_crmd[`DATF] <= csr_wdata[`DATF];
             csr_crmd[`DATM] <= csr_wdata[`DATM];
         end

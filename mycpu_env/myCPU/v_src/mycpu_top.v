@@ -576,7 +576,7 @@ module mycpu_top
             .wbu_refetch_flush     (wbu_wbu_refetch_flush)
         );
 
-    EXU exu(
+    EXU #(TLBNUM) exu(
             // 时钟和复位
             .clk(aclk),
             .rst(reset),
@@ -688,7 +688,7 @@ module mycpu_top
             .pc_pro_o(exu_pc_pro_o),
             .wbu_refetch_flush(wbu_wbu_refetch_flush)
         );
-    MEM mem(
+    MEM #(TLBNUM) mem(
             // 时钟和复位
             .clk(aclk),
             .rst(reset),
@@ -754,7 +754,7 @@ module mycpu_top
             .wbu_refetch_flush(wbu_wbu_refetch_flush)
         );
 
-    WBU wbu(
+    WBU #(TLBNUM) wbu(
             // 时钟和复位
             .clk(aclk),
             .rst(reset),
@@ -855,7 +855,7 @@ module mycpu_top
             .refetch_flush(wbu_wbu_refetch_flush)
         );
 
-    csr csr_o(
+    csr #(TLBNUM)csr_o(
             // 时钟和复位
             .clk(aclk),
             .rst(reset),
@@ -936,7 +936,7 @@ module mycpu_top
             .csr_pgdl_diff(csr_pgdl_diff),
             .csr_pgdh_diff(csr_pgdh_diff)
         );
-    addr_trans addr_trans_o(
+    addr_trans #(TLBNUM) addr_trans_o(
                    .clk(aclk),
 
                    // 指令地址转换

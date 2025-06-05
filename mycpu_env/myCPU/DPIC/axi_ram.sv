@@ -11,13 +11,13 @@ module axi_ram (
         input      [ 3:0] arcache,
         input      [ 2:0] arprot,
         input   reg       arvalid,
-        output  reg       arready,  // 修复：添加 reg
+        output  reg       arready,
 
         output  reg  [ 3:0] rid,
-        output  reg  [31:0] rdata,  // 修复：添加 reg
-        output  reg  [ 1:0] rresp,  // 修复：添加 reg
-        output  reg         rlast,  // 修复：添加 reg
-        output  reg         rvalid, // 修复：添加 reg
+        output  reg  [31:0] rdata,
+        output  reg  [ 1:0] rresp,
+        output  reg         rlast,
+        output  reg         rvalid,
         input   reg         rready,
 
         input      [ 3:0] awid,
@@ -29,18 +29,18 @@ module axi_ram (
         input      [ 3:0] awcache,
         input      [ 2:0] awprot,
         input   reg       awvalid,
-        output  reg       awready,  // 修复：添加 reg
+        output  reg       awready,
 
         input      [ 3:0] wid,
         input   reg[31:0] wdata,
         input   reg[ 3:0] wstrb,
         input   reg       wlast,
         input   reg       wvalid,
-        output  reg       wready,   // 修复：添加 reg
+        output  reg       wready,
 
-        output  reg [ 3:0] bid,     // 修复：添加 reg
-        output  reg [ 1:0] bresp,   // 修复：添加 reg
-        output  reg        bvalid,  // 修复：添加 reg
+        output  reg [ 3:0] bid,
+        output  reg [ 1:0] bresp,
+        output  reg        bvalid,
         input   reg        bready
     );
 
@@ -59,8 +59,8 @@ module axi_ram (
             rvalid  <= 1'b0;
             rdata   <= 32'b0;
             rresp   <= 2'b00;
-            rlast   <= 1'b1;    // 修复：初始化 rlast
-            rid     <= 4'b0;    // 修复：初始化 rid
+            rlast   <= 1'b1;
+            rid     <= 4'b0;
             state   <= 4'd0;
         end
         else begin
@@ -75,15 +75,15 @@ module axi_ram (
                     end
                 end
 
-                4'd1: begin // 访问内存并发射信号并保持，直到等到 rready
-                    arready <= 1'b0;      // 修复：地址接受完成后清除 arready
-                    rdata   <= data_ram_read(araddr);  // 读取数据
-                    rvalid  <= 1'b1;      // 数据有效
-                    rresp   <= 2'b00;     // 修复：正常响应应该是 2'b00 (OKAY)
-                    rlast   <= 1'b1;      // 修复：设置 rlast
+                4'd1: begin
+                    arready <= 1'b0;
+                    rdata   <= data_ram_read(araddr);
+                    rvalid  <= 1'b1;
+                    rresp   <= 2'b00;
+                    rlast   <= 1'b1;
 
                     if (rready) begin
-                        state <= 4'd0;    // 结束当前事务，准备下一个事务
+                        state <= 4'd0;
                     end
                 end
                 default:begin end
@@ -114,33 +114,34 @@ module axi_ram (
                     bvalid  <= 1'b0;
 
                     if (awvalid) begin
-                        awready <= 1'b1;  // 地址已接受
-                        bid     <= awid;   // 修复：设置正确的 bid
-                        state1  <= 4'd1;  // 转换到等待写数据状态
+                        awready <= 1'b1;
+                        bid     <= awid;
+                        state1  <= 4'd1;
                     end
                 end
 
                 4'd1: begin // 等待 wvalid
-                    awready <= 1'b0;      // 修复：地址接受完成后清除 awready
+                    awready <= 1'b0;
 
                     if (wvalid) begin
                         data_ram_write(awaddr, wdata, wstrb_1);
-                        wready <= 1'b1;   // 写数据有效
-                        state1 <= 4'd2;   // 转换到写响应状态
+                        wready <= 1'b1;
+                        state1 <= 4'd2;
                     end
                 end
 
                 4'd2: begin // 写响应，发射信号并保持直到 bready
-                    wready <= 1'b0;       // 修复：写数据接受完成后清除 wready
+                    wready <= 1'b0;
                     bresp  <= 2'b00;      // 响应状态（OKAY）
                     bvalid <= 1'b1;       // 准备写响应
 
                     if (bready) begin
-                        bvalid <= 1'b0;   // 写响应完成
-                        state1 <= 4'd0;   // 回到等待写地址状态
+                        bvalid <= 1'b0;
+                        state1 <= 4'd0;
                     end
                 end
-                                default:begin end
+                default: begin
+                end
             endcase
         end
     end

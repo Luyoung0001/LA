@@ -3,13 +3,13 @@ module WBU
     #(
          parameter TLBNUM = 16
      )
-
      (
          // from mem
          input wire clk,
          input wire rst,
 
          input wire [149:0] bus_mem_to_wbu_data,
+         input wire [31:0] pc_pro_i,
          input wire [31:0] inst_data_i,
 
          input wire ms_excp,
@@ -30,8 +30,8 @@ module WBU
          output wire is_ertn,
 
          // 握手信号
-         input up_valid,
-         output waite_ready_o,
+         input  wire up_valid,
+         output wire waite_ready_o,
 
          // tlb
          input wire [4:0] tlb_inst_bus,
@@ -42,30 +42,30 @@ module WBU
          input wire [31:0] csr_tlbelo1,
          input wire [$clog2(TLBNUM)-1:0]  csr_rand_index,
          input wire [9:0]  csr_asid,
-         input   wire [5:0] csr_ecode_i,
+         input wire [5:0] csr_ecode_i,
          // tlbsrch
-         output  wire        tlbsrch_en,
-         input wire[$clog2(TLBNUM)-1:0]     tlbsrch_index,
-         input wire         tlbsrch_found,
-         output  wire        tlbsrch_found_o,
-         output  wire [$clog2(TLBNUM)-1:0]  tlbsrch_index_o,
+         output  wire                          tlbsrch_en,
+         input   wire [$clog2(TLBNUM)-1:0]     tlbsrch_index,
+         input   wire                          tlbsrch_found,
+         output  wire                          tlbsrch_found_o,
+         output  wire [$clog2(TLBNUM)-1:0]     tlbsrch_index_o,
 
          // tlbrd
-         output wire [31:0]    to_trans_tlbidx_o, // 发射给 trans 模块
-         input wire [31:0]     from_trans_tlbehi_in, // 来自 tlb
-         input wire [31:0]     from_trans_tlbelo0_in,
-         input wire [31:0]     from_trans_tlbelo1_in,
-         input wire [31:0]     from_trans_tlbidx_in,
-         input wire [9:0]      from_trans_asid_in,
+         output wire [31:0]     to_trans_tlbidx_o, // 发射给 trans 模块
+         input wire  [31:0]     from_trans_tlbehi_in, // 来自 tlb
+         input wire  [31:0]     from_trans_tlbelo0_in,
+         input wire  [31:0]     from_trans_tlbelo1_in,
+         input wire  [31:0]     from_trans_tlbidx_in,
+         input wire  [9:0]      from_trans_asid_in,
 
-         output wire         csr_tlbrd_en_o, // 发射到 csr
-         output  wire [31:0] csr_tlbehi_o,
-         output  wire [31:0] csr_tlbelo0_o,
-         output  wire [31:0] csr_tlbelo1_o,
-         output  wire [31:0] csr_tlbidx_o,
-         output  wire [9:0]  csr_asid_o,
+         output  wire         csr_tlbrd_en_o, // 发射到 csr
+         output  wire [31:0]  csr_tlbehi_o,
+         output  wire [31:0]  csr_tlbelo0_o,
+         output  wire [31:0]  csr_tlbelo1_o,
+         output  wire [31:0]  csr_tlbidx_o,
+         output  wire [9:0]   csr_asid_o,
          // tlbwr
-         output tlbwr_en_o,
+         output wire        tlbwr_en_o,
          output wire [9:0]  tlbwr_fill_w_asid_o,
          output wire [31:0] tlbwr_fill_tlbehi_o,
          output wire [31:0] tlbwr_fill_tlbelo0_o,
@@ -74,34 +74,28 @@ module WBU
          output wire [5:0]  tlbwr_fill_ecode_o, // tlbwr tlbfill
 
          // tlbfill
-         output wire tlbfill_en_o,
-         output wire [$clog2(TLBNUM):1] rand_index_o,
+         output wire  tlbfill_en_o,
+         output wire  [$clog2(TLBNUM)-1:0] rand_index_o,
          // invtlb
-         input wire [4:0]       invtlb_op_i,
-         input wire [9:0]       invtlb_asid_i,
-         input wire [18:0]      invtlb_vpn_i,
-         output wire [4:0]      invtlb_op_o,
-         output wire [9:0]      invtlb_asid_o,
-         output wire [18:0]     invtlb_vpn_o,
-         output wire            invtlb_en_o,
-
+         input wire   [4:0]       invtlb_op_i,
+         input wire   [9:0]       invtlb_asid_i,
+         input wire   [18:0]      invtlb_vpn_i,
+         output wire  [4:0]       invtlb_op_o,
+         output wire  [9:0]       invtlb_asid_o,
+         output wire  [18:0]      invtlb_vpn_o,
+         output wire              invtlb_en_o,
          // debug
          output wire [31:0] inst_data_o,
-         input  is_csr_wr_i,
-         output is_csr_wr_o,
-         output has_refetch_excp_o,
-
+         input  wire        is_csr_wr_i,
+         output wire        is_csr_wr_o,
+         output wire        has_refetch_excp_o,
          // refetch_sign
-         output wire is_refetch_sign,
-         input wire refetch_excp_i,
-
+         output wire        is_refetch_sign,
+         input  wire         refetch_excp_i,
          // 发射新的PC
          output wire [31:0] refetch_pc,
-         output wire refetch_sign,
-
-         input [31:0] pc_pro_i,
-
-         output wire  refetch_flush
+         output wire        refetch_sign,
+         output wire        refetch_flush
      );
 
 
@@ -192,15 +186,6 @@ module WBU
             wire_inst_invtlb
         } = tlb_inst_bus_r;
 
-    // 这里为了不重复发射寄存器写信号，采用如下的策略
-    // 每次对 4?(2其实就行了，difftest 过了后可以将 difftest 的信号全部去掉) 元组进行获取，如果检测到和上次发生变化，则将标记置 1
-    reg [31:0] last_pc;
-    reg [4:0] last_waddr;
-    reg [31:0] last_wdata;
-    wire is_same;
-    // assign is_same = last_pc == pc && last_wdata == rf_wdata && last_waddr == rf_waddr; // 条件太过严格？
-    assign is_same = last_pc == pc && last_waddr == rf_waddr; // 只要 pc、rf_waddr 一致，就不再重复写
-
     reg [1:0] wbu_state;
     reg [3:0] tlbsrch_index_r;
     reg tlbsrch_found_r;
@@ -214,9 +199,6 @@ module WBU
     reg [31:0] pc_pro_i_r;
 
     always @(posedge clk) begin
-        last_pc <= pc;
-        last_waddr <= rf_waddr;
-        last_wdata <= rf_wdata;
         if (rst || flush_sign) begin
             bus_mem_to_wbu_data_r <= 150'd0;
             inst_data_i_r <= 32'd0;
@@ -267,7 +249,7 @@ module WBU
     assign wbu_over = wbu_state == 2'd0;
 
     // 输出到 regfile
-    assign rf_we    = wire_gr_we & ws_valid & !ws_excp && !is_same && !refetch_excp_i_r;
+    assign rf_we    = wire_gr_we & ws_valid & !ws_excp && !refetch_excp_i_r;
     assign rf_waddr = wire_dest;
     assign rf_wdata = wire_final_result;
     assign pc       = wire_pc;
@@ -374,6 +356,7 @@ module WBU
     // 这个标记带给各个模块的效果和异常一样，都会取消各自的执行效果
     // 当带有重取标记的指令到达 WBU 的时候，直接清空流水线
     // 此时，pre_IFU 会拿到这个指令的 PC 信号，重新取址
+
     assign is_refetch_sign = (wire_inst_invtlb ||
                               wire_inst_tlbrd ||
                               wire_inst_tlbwr ||
@@ -384,6 +367,6 @@ module WBU
 
     assign has_refetch_excp_o = refetch_excp_i_r;
 
-    // 一个周期即可
+    // 一个周期?
     assign refetch_flush = refetch_excp_i_r && !ws_excp && !ertn_flush;
 endmodule

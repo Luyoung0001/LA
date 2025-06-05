@@ -326,8 +326,7 @@ module EXU
            (ld_h |ld_hu) && (alu_result[1:0] == 2'b10) ? 4'b1100 :
            ld_w && (alu_result[1:0] == 2'b00) ? 4'b1111 :
            4'b0000;
-
-
+           
     assign st_b_we = alu_result[1:0] == 2'b00 ? 4'b0001 :
            alu_result[1:0] == 2'b01 ? 4'b0010 :
            alu_result[1:0] == 2'b10 ? 4'b0100 :
