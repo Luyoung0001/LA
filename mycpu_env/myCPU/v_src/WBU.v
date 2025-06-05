@@ -1,104 +1,108 @@
 `include "csr.h"
 module WBU
-    (
-        // from mem
-        input wire clk,
-        input wire rst,
+    #(
+         parameter TLBNUM = 16
+     )
 
-        input wire [149:0] bus_mem_to_wbu_data,
-        input wire [31:0] inst_data_i,
+     (
+         // from mem
+         input wire clk,
+         input wire rst,
 
-        input wire ms_excp,
-        input wire [15:0] ms_excp_num,
+         input wire [149:0] bus_mem_to_wbu_data,
+         input wire [31:0] inst_data_i,
 
-        // to rf
-        output wire rf_we,
-        output wire [4:0] rf_waddr,
-        output wire [31:0] rf_wdata,
-        output wire [31:0] pc,
-        // bus
-        output wire [85:0] bus_wbu_bypass_data,
-        // csr
-        output wire [147:0] bus_wub_to_csr_data,
-        // exception
-        output wire [1:0] flush,
-        // ertn
-        output wire is_ertn,
+         input wire ms_excp,
+         input wire [15:0] ms_excp_num,
 
-        // 握手信号
-        input up_valid,
-        output waite_ready_o,
+         // to rf
+         output wire rf_we,
+         output wire [4:0] rf_waddr,
+         output wire [31:0] rf_wdata,
+         output wire [31:0] pc,
+         // bus
+         output wire [85:0] bus_wbu_bypass_data,
+         // csr
+         output wire [147:0] bus_wub_to_csr_data,
+         // exception
+         output wire [1:0] flush,
+         // ertn
+         output wire is_ertn,
 
-        // tlb
-        input wire [4:0] tlb_inst_bus,
-        // from csr
-        input wire [31:0] csr_tlbidx,
-        input wire [31:0] csr_tlbehi,
-        input wire [31:0] csr_tlbelo0,
-        input wire [31:0] csr_tlbelo1,
-        input wire [4:0]  csr_rand_index,
-        input wire [9:0]  csr_asid,
-        input   wire [5:0] csr_ecode_i,
-        // tlbsrch
-        output  wire        tlbsrch_en,
-        input wire[3:0]     tlbsrch_index,
-        input wire         tlbsrch_found,
-        output  wire        tlbsrch_found_o,
-        output  wire [3:0]  tlbsrch_index_o,
+         // 握手信号
+         input up_valid,
+         output waite_ready_o,
 
-        // tlbrd
-        output wire [31:0]    to_trans_tlbidx_o, // 发射给 trans 模块
-        input wire [31:0]     from_trans_tlbehi_in, // 来自 tlb
-        input wire [31:0]     from_trans_tlbelo0_in,
-        input wire [31:0]     from_trans_tlbelo1_in,
-        input wire [31:0]     from_trans_tlbidx_in,
-        input wire [9:0]      from_trans_asid_in,
+         // tlb
+         input wire [4:0] tlb_inst_bus,
+         // from csr
+         input wire [31:0] csr_tlbidx,
+         input wire [31:0] csr_tlbehi,
+         input wire [31:0] csr_tlbelo0,
+         input wire [31:0] csr_tlbelo1,
+         input wire [$clog2(TLBNUM)-1:0]  csr_rand_index,
+         input wire [9:0]  csr_asid,
+         input   wire [5:0] csr_ecode_i,
+         // tlbsrch
+         output  wire        tlbsrch_en,
+         input wire[$clog2(TLBNUM)-1:0]     tlbsrch_index,
+         input wire         tlbsrch_found,
+         output  wire        tlbsrch_found_o,
+         output  wire [$clog2(TLBNUM)-1:0]  tlbsrch_index_o,
 
-        output wire         csr_tlbrd_en_o, // 发射到 csr
-        output  wire [31:0] csr_tlbehi_o,
-        output  wire [31:0] csr_tlbelo0_o,
-        output  wire [31:0] csr_tlbelo1_o,
-        output  wire [31:0] csr_tlbidx_o,
-        output  wire [9:0]  csr_asid_o,
-        // tlbwr
-        output tlbwr_en_o,
-        output wire [9:0]  tlbwr_fill_w_asid_o,
-        output wire [31:0] tlbwr_fill_tlbehi_o,
-        output wire [31:0] tlbwr_fill_tlbelo0_o,
-        output wire [31:0] tlbwr_fill_tlbelo1_o,
-        output wire [31:0] tlbwr_fill_tlbidx_o,
-        output wire [5:0]  tlbwr_fill_ecode_o, // tlbwr tlbfill
+         // tlbrd
+         output wire [31:0]    to_trans_tlbidx_o, // 发射给 trans 模块
+         input wire [31:0]     from_trans_tlbehi_in, // 来自 tlb
+         input wire [31:0]     from_trans_tlbelo0_in,
+         input wire [31:0]     from_trans_tlbelo1_in,
+         input wire [31:0]     from_trans_tlbidx_in,
+         input wire [9:0]      from_trans_asid_in,
 
-        // tlbfill
-        output wire tlbfill_en_o,
-        output wire [3:0] rand_index_o,
-        // invtlb
-        input wire [4:0]       invtlb_op_i,
-        input wire [9:0]       invtlb_asid_i,
-        input wire [18:0]      invtlb_vpn_i,
-        output wire [4:0]      invtlb_op_o,
-        output wire [9:0]      invtlb_asid_o,
-        output wire [18:0]     invtlb_vpn_o,
-        output wire            invtlb_en_o,
+         output wire         csr_tlbrd_en_o, // 发射到 csr
+         output  wire [31:0] csr_tlbehi_o,
+         output  wire [31:0] csr_tlbelo0_o,
+         output  wire [31:0] csr_tlbelo1_o,
+         output  wire [31:0] csr_tlbidx_o,
+         output  wire [9:0]  csr_asid_o,
+         // tlbwr
+         output tlbwr_en_o,
+         output wire [9:0]  tlbwr_fill_w_asid_o,
+         output wire [31:0] tlbwr_fill_tlbehi_o,
+         output wire [31:0] tlbwr_fill_tlbelo0_o,
+         output wire [31:0] tlbwr_fill_tlbelo1_o,
+         output wire [31:0] tlbwr_fill_tlbidx_o,
+         output wire [5:0]  tlbwr_fill_ecode_o, // tlbwr tlbfill
 
-        // debug
-        output wire [31:0] inst_data_o,
-        input  is_csr_wr_i,
-        output is_csr_wr_o,
-        output has_refetch_excp_o,
+         // tlbfill
+         output wire tlbfill_en_o,
+         output wire [$clog2(TLBNUM):1] rand_index_o,
+         // invtlb
+         input wire [4:0]       invtlb_op_i,
+         input wire [9:0]       invtlb_asid_i,
+         input wire [18:0]      invtlb_vpn_i,
+         output wire [4:0]      invtlb_op_o,
+         output wire [9:0]      invtlb_asid_o,
+         output wire [18:0]     invtlb_vpn_o,
+         output wire            invtlb_en_o,
 
-        // refetch_sign
-        output wire is_refetch_sign,
-        input wire refetch_excp_i,
+         // debug
+         output wire [31:0] inst_data_o,
+         input  is_csr_wr_i,
+         output is_csr_wr_o,
+         output has_refetch_excp_o,
 
-        // 发射新的PC
-        output wire [31:0] refetch_pc,
-        output wire refetch_sign,
+         // refetch_sign
+         output wire is_refetch_sign,
+         input wire refetch_excp_i,
 
-        input [31:0] pc_pro_i,
+         // 发射新的PC
+         output wire [31:0] refetch_pc,
+         output wire refetch_sign,
 
-        output wire  refetch_flush
-    );
+         input [31:0] pc_pro_i,
+
+         output wire  refetch_flush
+     );
 
 
     // for debug
@@ -213,7 +217,7 @@ module WBU
         last_pc <= pc;
         last_waddr <= rf_waddr;
         last_wdata <= rf_wdata;
-        if (rst || flush_sign || refetch_flush ) begin
+        if (rst || flush_sign) begin
             bus_mem_to_wbu_data_r <= 150'd0;
             inst_data_i_r <= 32'd0;
             wbu_state <= 2'd0;
@@ -296,7 +300,7 @@ module WBU
     assign tlbwr_fill_w_asid_o = csr_asid;
 
     assign tlbfill_en_o = wire_inst_tlbfill & ws_valid & !ws_excp && !refetch_excp_i_r;
-    assign rand_index_o = csr_rand_index[4:1];
+    assign rand_index_o = csr_rand_index;
     // invtlb
     assign invtlb_en_o = wire_inst_invtlb & ws_valid & !ws_excp && !refetch_excp_i_r;
     assign invtlb_op_o = invtlb_op_i_r;
@@ -326,7 +330,7 @@ module WBU
            };
 
     assign excp_flush = ws_excp & ws_valid;
-    assign flush_sign = excp_flush || ertn_flush;
+    assign flush_sign = excp_flush || ertn_flush || refetch_flush;
 
     assign is_ertn = wire_is_inst_ertn;
     assign csr_era = wire_pc;

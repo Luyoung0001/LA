@@ -209,7 +209,7 @@ module EXU
     assign exu_is_ertn = wire_is_inst_ertn | mem_in_is_ertn;
 
     wire flush_sign;
-    assign flush_sign = ertn_flush | excp_flush;
+    assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
 
 
 
@@ -427,7 +427,7 @@ module EXU
            st_w ? 2'b10 : 2'b00;
     assign wr = (st_b || st_h || st_w) ;
 
-    assign wstrb = (mem_excp | es_excp | flush_sign | wbu_refetch_flush | mem_in_is_ertn) ? 4'b0000 : // 异常
+    assign wstrb = (mem_excp | es_excp | flush_sign | mem_in_is_ertn) ? 4'b0000 : // 异常
            st_b  ? st_b_we :
            st_h  ? st_h_we :
            st_w  ? st_w_we:
@@ -452,7 +452,7 @@ module EXU
 
     reg refetch_excp_i_r;
     always @(posedge clk) begin
-        if (rst || flush_sign || wbu_refetch_flush) begin
+        if (rst || flush_sign) begin
             exu_state <= 2'd0;
             ds_to_es_bus_data_r <= 259'd0;
             inst_data_i_r <= 32'd0;
@@ -495,13 +495,13 @@ module EXU
         else if(exu_state == 2'd1) begin
             // 处理流程
             // 访存
-            if(access_memo && !(mem_excp | es_excp | flush_sign | wbu_refetch_flush | mem_in_is_ertn)) begin
+            if(access_memo && !(mem_excp | es_excp | flush_sign | mem_in_is_ertn)) begin
                 if(waite_ready_i && addr_ok) begin
                     // req <= 1'b1;
                     exu_state <= 2'd2; // 等待
                 end
             end
-            else if(es_excp | mem_excp | flush_sign | wbu_refetch_flush | mem_in_is_ertn) begin
+            else if(es_excp | mem_excp | flush_sign | mem_in_is_ertn) begin
                 exu_state <= 2'd0;
             end
             else if(wire_complete & div) begin
@@ -523,12 +523,12 @@ module EXU
             end
         end
     end
-    assign rdata_o = flush_sign | wbu_refetch_flush ? 32'd0 : rdata;
-    assign req = (mem_excp | es_excp | flush_sign | wbu_refetch_flush | mem_in_is_ertn ) ? 1'b0 : exu_state == 2'd1 && access_memo && waite_ready_i && !addr_ok;
+    assign rdata_o = flush_sign ? 32'd0 : rdata;
+    assign req = (mem_excp | es_excp | flush_sign | mem_in_is_ertn ) ? 1'b0 : exu_state == 2'd1 && access_memo && waite_ready_i && !addr_ok;
 
     assign state_valid = (exu_state == 2'd1 &&  (wire_complete & div) ) ? 1'b1 : // 计算除法
            exu_state == 2'd2 && data_ok ? 1'b1 :  // 访存
-           exu_state == 2'd1 && (!div) && (!access_memo) || (es_excp | mem_excp | flush_sign | wbu_refetch_flush | mem_in_is_ertn);
+           exu_state == 2'd1 && (!div) && (!access_memo) || (es_excp | mem_excp | flush_sign | mem_in_is_ertn);
 
     assign waite_ready_o = exu_state == 2'b0 ? 1'b1 : 1'b0;
 

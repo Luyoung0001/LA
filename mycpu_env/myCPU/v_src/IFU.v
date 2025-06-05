@@ -80,7 +80,7 @@ module IFU (
     wire flush_sign;
 
     assign {excp_flush, ertn_flush} = flush;
-    assign flush_sign = ertn_flush || excp_flush;
+    assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
 
     // 异常
     wire pfs_excp_adef;
@@ -118,7 +118,7 @@ module IFU (
     reg refetch_excp_i_r;
 
     always @(posedge clk) begin
-        if(rst || flush_sign || wbu_refetch_flush) begin
+        if(rst || flush_sign ) begin
             ifu_state <= 2'b0;
             refetch_excp_i_r <= 1'b0;
         end
@@ -143,7 +143,7 @@ module IFU (
             end
         end
     end
-    assign req = flush_sign | wbu_refetch_flush ? 1'b0: ifu_state == 2'b1 && waite_ready_i && !addr_ok;
+    assign req = flush_sign ? 1'b0: ifu_state == 2'b1 && waite_ready_i && !addr_ok;
     assign pc_o =  pc;
     assign rdata_o = rdata;
     assign waite_ready_o = ifu_state == 2'b0 ? 1'b1:1'b0;

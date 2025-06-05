@@ -65,7 +65,6 @@ module IDU (
 
         output [31:0] pc_pro_o, // PC 应该走专线
 
-
         input wbu_refetch_flush
     );
 
@@ -105,7 +104,7 @@ module IDU (
     assign ds_excp_num_out = exu_is_ertn_i ? 16'd0: ds_excp_num;
 
     wire flush_sign;
-    assign flush_sign = ertn_flush | excp_flush;
+    assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
 
     // 数据相关
 
@@ -335,7 +334,7 @@ module IDU (
     reg refetch_excp_i_r;
 
     always @(posedge clk ) begin
-        if (rst || flush_sign || wbu_refetch_flush) begin
+        if (rst || flush_sign) begin
             idu_state <= 2'd0;
             // pc_reg <= 32'd0; // PC 不应该被抹掉
             inst_sram_rdata_reg <= 32'd0;

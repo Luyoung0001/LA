@@ -350,15 +350,24 @@ int difftest() {
         // 直接跳过
         return 1;
     } else {
+        // 此时，mycpu 会对 GPR 进行修改
+        // 此时读取 ref，如果 ref 的 we 是 0，直接跳过。
+        // 但是情况可能很复杂
+        // 我们假定：mycpu 一定执行了比 ref 更少的指令
+        // 如果 ref 的 we 是 0，跳过一次够吗？
+        // 如果不够，应该继续读取，一直读取到哪里？
+
+        // 第一个问题：
+        // 按照假定 1，一定要跳过多个
+        // 第二个问题：
+        // 一直跳到 ref_struct.pc == mycpu_trace_info.pc
+
         // 读取 ref
         read_ref();
-
-        // while (!(ref_struct.pc == mycpu_trace_info.pc &&
-        //        ref_struct.wnum == mycpu_trace_info.wnum &&
-        //        ref_struct.value == mycpu_trace_info.value)) {
-        //     read_ref();
-        // }
-
+        while (ref_struct.pc != mycpu_trace_info.pc) {
+            read_ref();
+        }
+        
         if (ref_struct.we == 0) {
             return 1;
         }

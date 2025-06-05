@@ -92,7 +92,7 @@ module MEM
 
     // 清空信号
     wire flush_sign;
-    assign flush_sign = ertn_flush | excp_flush;
+    assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
 
     // 数据相关
     wire mem_regWr;
@@ -158,7 +158,7 @@ module MEM
             wire_error_va
         } = bus_exu_to_mem_data_r;
 
-    assign bus_mem_to_wbu_data = flush_sign || wbu_refetch_flush ? 150'd0 : {
+    assign bus_mem_to_wbu_data = flush_sign ? 150'd0 : {
                gr_we,
                dest,
                final_result,
@@ -259,7 +259,7 @@ module MEM
     reg [31:0] pc_pro_i_r;
 
     always @(posedge clk) begin
-        if (rst || flush_sign || wbu_refetch_flush) begin
+        if (rst || flush_sign) begin
             mem_state <= 2'd0;
             reg_rdata <= 32'd0;
             bus_exu_to_mem_data_r <= 151'd0;

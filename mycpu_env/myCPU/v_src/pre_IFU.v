@@ -22,7 +22,7 @@ module pre_IFU (
     wire ertn_flush;
     wire flush_sign;
     assign {excp_flush, ertn_flush} = flush;
-    assign flush_sign = ertn_flush || excp_flush;
+    assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
 
     wire [31:0] seq_pc;
     wire [31:0] nextpc;
@@ -37,6 +37,8 @@ module pre_IFU (
 
     assign inst_flush_pc = {32{ertn_flush}} & csr_era;
     assign seq_pc       = pc + 32'h4;
+
+    // 这里要注意优先级
     assign nextpc       =
            excp_flush ? csr_eentry:
            ertn_flush ? inst_flush_pc:
@@ -50,12 +52,12 @@ module pre_IFU (
             pfs_state <= 2'd0;
             pc <= 32'h1bfffffc;
         end
-        else if(pfs_state == 2'd0 || flush_sign || wbu_refetch_flush) begin
-            if(caculate_done && !(flush_sign | wbu_refetch_flush)) begin
+        else if(pfs_state == 2'd0 || flush_sign) begin
+            if(caculate_done && !flush_sign) begin
                 pfs_state <= 2'd1;
                 pc <= nextpc;
             end
-            else if (flush_sign || wbu_refetch_flush)begin
+            else if (flush_sign)begin
                 pfs_state <= 2'd1;
                 pc <= nextpc;
             end
