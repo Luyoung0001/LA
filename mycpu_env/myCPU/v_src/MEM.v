@@ -102,11 +102,11 @@ module MEM
     reg [31:0] inst_data_i_r;
     reg [31:0] reg_rdata;
 
-    wire    [31:0] wire_exu_result;
-    wire    wire_res_from_mem;
-    wire    [4:0] wire_dest;
-    wire    wire_gr_we;
-    wire   [31:0] wire_pc;
+    wire [31:0] wire_exu_result;
+    wire wire_res_from_mem;
+    wire [4:0] wire_dest;
+    wire wire_gr_we;
+    wire [31:0] wire_pc;
     wire wire_csr_we;
     wire [13:0] wire_csr_idx;
     wire [31:0] wire_csr_wdata;

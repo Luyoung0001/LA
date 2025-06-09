@@ -437,9 +437,9 @@ module EXU
     assign wdata = st_b ? {4{wire_in_rkd_value[7:0]}} :
            st_h ? {2{wire_in_rkd_value[15:0]}} :
            st_w ? wire_in_rkd_value : 32'b0;
-           
+
     wire access_memo = ld_b || ld_bu || ld_h || ld_hu || ld_w ||
-           st_b||st_h || st_w;
+           st_b || st_h || st_w;
 
     reg [4:0] invtlb_op_i_r;
     reg [9:0] invtlb_asid_i_r;
@@ -528,9 +528,7 @@ module EXU
            exu_state == 2'd1 && (!div) && (!access_memo) || stop_signal;
 
     assign waite_ready_o = exu_state == 2'b0 ? 1'b1 : 1'b0;
-
     assign exu_over = exu_state == 2'b0;
-
 
     // 异常===========================================================================
 
