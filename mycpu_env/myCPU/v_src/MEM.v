@@ -28,7 +28,7 @@ module MEM
          // exception
          input wire [1:0] flush,
 
-         input wire wbu_in_is_ertn,
+         input wire wbu_in_is_ertn, // from wbu
          output wire mem_excp, // 发射到 exu 以实现精确异常
          output wire is_ertn, // 这个信号的作用和异常一致，但是它归根结底不属于异常
 
@@ -78,21 +78,14 @@ module MEM
     reg [15:0] es_excp_num_r; // 从上一级接收
     reg es_excp_r;
 
-    wire [15:0] wire_es_excp_num;
-    wire wire_es_excp;
+    wire [15:0] wire_es_excp_num = es_excp_num_r;
+    wire wire_es_excp = es_excp_r;
 
-    assign wire_es_excp_num = es_excp_num_r;
-    assign wire_es_excp = es_excp_r;
-
-    wire [15:0] ms_excp_num; // 当前阶段的异常 += 上一阶段
-    wire ms_excp;            // 当前阶段的异常 += 上一阶段
-
-    assign ms_excp_num = wire_es_excp_num;
-    assign ms_excp = wire_es_excp;
+    wire [15:0] ms_excp_num = wire_es_excp_num; // 当前阶段的异常 += 上一阶段
+    wire ms_excp = wire_es_excp; // 当前阶段的异常 += 上一阶段
 
     // 清空信号
-    wire flush_sign;
-    assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
+    wire flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
 
     // 数据相关
     wire mem_regWr;
@@ -173,56 +166,43 @@ module MEM
     // 输出
     assign ms_excp_out = ms_excp;
     assign ms_excp_num_out = ms_excp_num;
+
     assign mem_excp = ms_excp;   // 发送给上一级，目的是为了取消上一级的一些执行效果，比如内存写、除法计算等等
-    assign is_ertn = wire_is_inst_ertn | wbu_in_is_ertn; // 同样也是为了取消上一级的执行效果
+    assign is_ertn = wire_is_inst_ertn; // 同样也是为了取消上一级的执行效果
 
     assign gr_we          = wire_gr_we;
     assign dest           = wire_dest;
     assign pc             = wire_pc;
 
 
-    wire [31:0] mem_result;
+    wire [7:0] mem_op = mem_op_reg;
+    wire [3:0] mem_mask = mem_mask_reg;
 
-    wire [7:0] mem_op;
-    wire [3:0] mem_mask;
-    assign mem_op = mem_op_reg;
-    assign mem_mask = mem_mask_reg;
-
-    wire st_b;
-    wire st_h;
-    wire st_w;
-    wire ld_b;
-    wire ld_bu;
-    wire ld_h;
-    wire ld_hu;
-    wire ld_w;
-
-    assign st_b = mem_op[0];
-    assign st_h = mem_op[1];
-    assign st_w = mem_op[2];
-
-    assign ld_b = mem_op[3];
-    assign ld_bu = mem_op[4];
-    assign ld_h = mem_op[5];
-    assign ld_hu = mem_op[6];
-    assign ld_w = mem_op[7];
+    wire st_b = mem_op[0];
+    wire st_h = mem_op[1];
+    wire st_w = mem_op[2];
+    wire ld_b = mem_op[3];
+    wire ld_bu = mem_op[4];
+    wire ld_h = mem_op[5];
+    wire ld_hu = mem_op[6];
+    wire ld_w = mem_op[7];
 
     // 这里读出来的数据也很讲究
-    assign mem_result = ld_b && mem_mask[0] ? {{24{reg_rdata[7]}}, reg_rdata[7:0]}:
-           ld_b && mem_mask[1] ? {{24{reg_rdata[15]}}, reg_rdata[15:8]}:
-           ld_b && mem_mask[2] ? {{24{reg_rdata[23]}}, reg_rdata[23:16]}:
-           ld_b && mem_mask[3] ? {{24{reg_rdata[31]}}, reg_rdata[31:24]}:
-           ld_bu && mem_mask[0] ? {24'b0, reg_rdata[7:0]}:
-           ld_bu && mem_mask[1] ? {24'b0, reg_rdata[15:8]}:
-           ld_bu && mem_mask[2] ? {24'b0, reg_rdata[23:16]}:
-           ld_bu && mem_mask[3] ? {24'b0, reg_rdata[31:24]}:
-           ld_h && mem_mask == 4'b0011 ? {{16{reg_rdata[15]}}, reg_rdata[15:0]}:
-           ld_h && mem_mask == 4'b0110 ? {{16{reg_rdata[23]}}, reg_rdata[23:8]}:
-           ld_h && mem_mask == 4'b1100 ? {{16{reg_rdata[31]}}, reg_rdata[31:16]}:
-           ld_hu && mem_mask == 4'b0011 ? {16'b0, reg_rdata[15:0]}:
-           ld_hu && mem_mask == 4'b0110 ? {16'b0, reg_rdata[23:8]}:
-           ld_hu && mem_mask == 4'b1100 ? {16'b0, reg_rdata[31:16]}:
-           reg_rdata;
+    wire [31:0] mem_result = ld_b && mem_mask[0] ? {{24{reg_rdata[7]}}, reg_rdata[7:0]}:
+         ld_b && mem_mask[1] ? {{24{reg_rdata[15]}}, reg_rdata[15:8]}:
+         ld_b && mem_mask[2] ? {{24{reg_rdata[23]}}, reg_rdata[23:16]}:
+         ld_b && mem_mask[3] ? {{24{reg_rdata[31]}}, reg_rdata[31:24]}:
+         ld_bu && mem_mask[0] ? {24'b0, reg_rdata[7:0]}:
+         ld_bu && mem_mask[1] ? {24'b0, reg_rdata[15:8]}:
+         ld_bu && mem_mask[2] ? {24'b0, reg_rdata[23:16]}:
+         ld_bu && mem_mask[3] ? {24'b0, reg_rdata[31:24]}:
+         ld_h && mem_mask == 4'b0011 ? {{16{reg_rdata[15]}}, reg_rdata[15:0]}:
+         ld_h && mem_mask == 4'b0110 ? {{16{reg_rdata[23]}}, reg_rdata[23:8]}:
+         ld_h && mem_mask == 4'b1100 ? {{16{reg_rdata[31]}}, reg_rdata[31:16]}:
+         ld_hu && mem_mask == 4'b0011 ? {16'b0, reg_rdata[15:0]}:
+         ld_hu && mem_mask == 4'b0110 ? {16'b0, reg_rdata[23:8]}:
+         ld_hu && mem_mask == 4'b1100 ? {16'b0, reg_rdata[31:16]}:
+         reg_rdata;
 
     assign final_result = wire_res_from_mem ? mem_result : wire_exu_result;
 

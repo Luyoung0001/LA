@@ -21,7 +21,7 @@ module IDU (
         input wire [31:0] rf_rdata1,
         input wire [31:0] rf_rdata2,
         // bus
-        output wire [258:0] bus_ds_to_es_data,
+        output wire [226:0] bus_ds_to_es_data,
         output wire [31:0] idu_inst_o,
         output wire [7:0] out_mem_op,
 
@@ -103,8 +103,7 @@ module IDU (
     assign ds_excp_out = exu_is_ertn_i ? 1'b0: ds_excp;
     assign ds_excp_num_out = exu_is_ertn_i ? 16'd0: ds_excp_num;
 
-    wire flush_sign;
-    assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
+    wire flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
 
     // 数据相关
 
@@ -172,7 +171,7 @@ module IDU (
     wire        res_from_csr;
     wire        gr_we;
     wire [4:0]  dest;
-    wire [31:0] pc;
+    // wire [31:0] pc;
     // csr
     wire [13:0] csr_idx;    // csr 索引
     wire [31:0] csr_data;
@@ -310,7 +309,7 @@ module IDU (
                res_from_mem,
                gr_we,
                dest,
-               idu_pc,
+            //    idu_pc,
                res_from_csr,
                csr_data,
                csr_we,
@@ -324,8 +323,7 @@ module IDU (
 
     reg [31:0] inst_sram_rdata_reg;
     reg [31:0] pc_reg;
-    wire [31:0] inst_nop_data;
-    assign inst_nop_data = 32'b0000_0011_0100_0000_0000_0000_0000_0000; // nop : andi r0, r0,0
+    wire [31:0] inst_nop_data = 32'b0000_0011_0100_0000_0000_0000_0000_0000; // nop : andi r0, r0,0
     reg [1:0] idu_state;
 
     assign caculate_done = caculate_done_1 && caculate_done_2;
@@ -335,7 +333,6 @@ module IDU (
     always @(posedge clk ) begin
         if (rst || flush_sign) begin
             idu_state <= 2'd0;
-            // pc_reg <= 32'd0; // PC 不应该被抹掉
             inst_sram_rdata_reg <= 32'd0;
             fs_excp_num_r <= 16'd0;
             fs_excp_r <= 1'b0;
@@ -423,7 +420,7 @@ module IDU (
     assign idu_inst = inst_sram_rdata_reg;
     assign is_nop = (idu_inst == inst_nop_data) ? 1'b1 : 1'b0; // 当前指令是空指令信号，不要挂中断信号
     assign idu_pc = pc_reg;
-    assign pc = idu_pc;
+    // assign pc = idu_pc;
 
     assign op_31_26  = idu_inst[31:26];
     assign op_25_22  = idu_inst[25:22];

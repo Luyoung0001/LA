@@ -91,7 +91,7 @@ module WBU
          output wire        has_refetch_excp_o,
          // refetch_sign
          output wire        is_refetch_sign,
-         input  wire         refetch_excp_i,
+         input  wire        refetch_excp_i,
          // 发射新的PC
          output wire [31:0] refetch_pc,
          output wire        refetch_sign,
@@ -290,7 +290,7 @@ module WBU
     assign invtlb_vpn_o = invtlb_vpn_i_r;
 
 
-    assign ertn_flush = wire_is_inst_ertn & ws_valid & !ws_excp;
+    assign ertn_flush = wire_is_inst_ertn & ws_valid & !ws_excp; // 保持一个周期
 
     // 解决数据相关
     assign wbu_regWr = rf_we;
@@ -311,7 +311,7 @@ module WBU
                wbu_over
            };
 
-    assign excp_flush = ws_excp & ws_valid;
+    assign excp_flush = ws_excp & ws_valid; // 保持一个周期
     assign flush_sign = excp_flush || ertn_flush || refetch_flush;
 
     assign is_ertn = wire_is_inst_ertn;
@@ -367,6 +367,5 @@ module WBU
 
     assign has_refetch_excp_o = refetch_excp_i_r;
 
-    // 一个周期?
-    assign refetch_flush = refetch_excp_i_r && !ws_excp && !ertn_flush;
+    assign refetch_flush = refetch_excp_i_r && !ws_excp && !ertn_flush; // 保持一个周期???
 endmodule

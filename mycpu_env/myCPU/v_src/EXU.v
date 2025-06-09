@@ -13,7 +13,7 @@ module EXU
          output wire [15:0] es_excp_num_out,
 
          // bus
-         input wire [258:0] bus_ds_to_es_data,
+         input wire [226:0] bus_ds_to_es_data,
          input wire [31:0] inst_data_i,
          output wire [31:0] inst_data_o,
          output wire [150:0] bus_exu_to_mem_data,
@@ -128,17 +128,11 @@ module EXU
     wire [15:0] excp_ale_num; // 地址非对齐
     wire excp_ale;
 
-    wire [15:0] wire_ds_excp_num;
-    wire wire_ds_excp;
+    wire [15:0] wire_ds_excp_num = ds_excp_num_r;
+    wire wire_ds_excp = ds_excp_r;
 
-    assign wire_ds_excp_num = ds_excp_num_r;
-    assign wire_ds_excp = ds_excp_r;
-
-    wire [15:0] es_excp_num;
-    wire es_excp;
-
-    assign es_excp_num = wire_ds_excp_num | excp_ale_num;
-    assign es_excp = wire_ds_excp | excp_ale;
+    wire [15:0] es_excp_num = wire_ds_excp_num | excp_ale_num;
+    wire es_excp = wire_ds_excp | excp_ale;
 
     wire [31:0] pv_addr ;
     wire [31:0] error_va ;
@@ -153,7 +147,7 @@ module EXU
     wire [13:0] exu_csr_idx;
     wire [31:0] exu_csr_wdata;
 
-    reg [258:0] ds_to_es_bus_data_r;
+    reg [226:0] ds_to_es_bus_data_r;
     reg [31:0] inst_data_i_r;
 
     reg [7:0] mem_op_reg;
@@ -208,10 +202,10 @@ module EXU
     assign exu_excp = es_excp | mem_excp; // 收集下游的信号，向上传递
     assign exu_is_ertn = wire_is_inst_ertn | mem_in_is_ertn;
 
-    wire flush_sign;
-    assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
+    wire flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
 
-
+    // 遇见这些信号不能产生任何执行效果
+    wire stop_signal = es_excp || mem_excp || flush_sign || mem_in_is_ertn;
 
     assign {
             mul_div_op,
@@ -225,7 +219,7 @@ module EXU
 
             wire_in_gr_we,
             wire_in_dest,
-            wire_in_pc,
+            // wire_in_pc,
             res_from_csr,
             wire_csr_data,
             wire_csr_we,
@@ -233,6 +227,9 @@ module EXU
             wire_csr_wdata,
             wire_is_inst_ertn
         } = ds_to_es_bus_data_r;
+
+
+        assign wire_in_pc = pc_pro_i_r;
 
     assign bus_exu_to_mem_data = {
                res_from_mem,
@@ -326,7 +323,7 @@ module EXU
            (ld_h |ld_hu) && (alu_result[1:0] == 2'b10) ? 4'b1100 :
            ld_w && (alu_result[1:0] == 2'b00) ? 4'b1111 :
            4'b0000;
-           
+
     assign st_b_we = alu_result[1:0] == 2'b00 ? 4'b0001 :
            alu_result[1:0] == 2'b01 ? 4'b0010 :
            alu_result[1:0] == 2'b10 ? 4'b0100 :
@@ -426,7 +423,7 @@ module EXU
            st_w ? 2'b10 : 2'b00;
     assign wr = (st_b || st_h || st_w) ;
 
-    assign wstrb = (mem_excp | es_excp | flush_sign | mem_in_is_ertn) ? 4'b0000 : // 异常
+    assign wstrb = stop_signal ? 4'b0000 : // 异常
            st_b  ? st_b_we :
            st_h  ? st_h_we :
            st_w  ? st_w_we:
@@ -453,7 +450,7 @@ module EXU
     always @(posedge clk) begin
         if (rst || flush_sign) begin
             exu_state <= 2'd0;
-            ds_to_es_bus_data_r <= 259'd0;
+            ds_to_es_bus_data_r <= 227'd0;
             inst_data_i_r <= 32'd0;
             mem_op_reg <= 8'd0;
             ds_excp_num_r <= 16'd0;
@@ -494,13 +491,13 @@ module EXU
         else if(exu_state == 2'd1) begin
             // 处理流程
             // 访存
-            if(access_memo && !(mem_excp | es_excp | flush_sign | mem_in_is_ertn)) begin
+            if(access_memo && !stop_signal) begin
                 if(waite_ready_i && addr_ok) begin
                     // req <= 1'b1;
                     exu_state <= 2'd2; // 等待
                 end
             end
-            else if(es_excp | mem_excp | flush_sign | mem_in_is_ertn) begin
+            else if(stop_signal) begin
                 exu_state <= 2'd0;
             end
             else if(wire_complete & div) begin
@@ -523,11 +520,11 @@ module EXU
         end
     end
     assign rdata_o = flush_sign ? 32'd0 : rdata;
-    assign req = (mem_excp | es_excp | flush_sign | mem_in_is_ertn ) ? 1'b0 : exu_state == 2'd1 && access_memo && waite_ready_i && !addr_ok;
+    assign req = stop_signal ? 1'b0 : exu_state == 2'd1 && access_memo && waite_ready_i && !addr_ok;
 
     assign state_valid = (exu_state == 2'd1 &&  (wire_complete & div) ) ? 1'b1 : // 计算除法
            exu_state == 2'd2 && data_ok ? 1'b1 :  // 访存
-           exu_state == 2'd1 && (!div) && (!access_memo) || (es_excp | mem_excp | flush_sign | mem_in_is_ertn);
+           exu_state == 2'd1 && (!div) && (!access_memo) || stop_signal;
 
     assign waite_ready_o = exu_state == 2'b0 ? 1'b1 : 1'b0;
 

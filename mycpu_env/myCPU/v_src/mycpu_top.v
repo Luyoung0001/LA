@@ -220,7 +220,7 @@ module mycpu_top
     wire [15:0]  idu_ds_excp_num_out;
     wire [ 4:0]  idu_rf_raddr1;
     wire [ 4:0]  idu_rf_raddr2;
-    wire [258:0] idu_bus_ds_to_es_data;
+    wire [226:0] idu_bus_ds_to_es_data;
     wire [31:0]  idu_idu_inst_o;
     wire [ 7:0]  idu_out_mem_op;
     wire [13:0]  idu_rd_csr_addr;
