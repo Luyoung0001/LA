@@ -95,7 +95,9 @@ module WBU
          // 发射新的PC
          output wire [31:0] refetch_pc,
          output wire        refetch_sign,
-         output wire        refetch_flush
+         output wire        refetch_flush,
+
+         output wire        excp_tlbrefill_o
      );
 
 
@@ -316,6 +318,25 @@ module WBU
 
     assign is_ertn = wire_is_inst_ertn;
     assign csr_era = wire_pc;
+
+    // 约定
+    // adef:0
+    // fs_tlbr:1
+    // fs_pif:2
+    // fs_ppi:3
+    // syscall:4
+    // ine:5
+    // brk:6
+    // ie:7
+    // ipe:8
+    // ale:9
+    // exu_tlbr:10
+    // exu_pil:11
+    // exu_pis:12
+    // exu_ppi:13
+    // exu_pme:14
+
+
     // 检测异常
     assign {csr_ecode,
             va_error,
@@ -324,12 +345,21 @@ module WBU
             excp_tlbrefill,
             excp_tlb,
             excp_tlb_vppn} =
-           ws_excp_num[0] ? {`ECODE_INT , 1'b0, 32'b0, 9'b0, 1'b0, 1'b0, 19'b0}:
-           ws_excp_num[8] ? {`ECODE_ADEF, ws_valid, wire_pc, `ESUBCODE_ADEF, 1'b0, 1'b0, 19'b0} :
+           ws_excp_num[7] ? {`ECODE_INT , 1'b0, 32'b0, 9'b0, 1'b0, 1'b0, 19'b0}:
+           ws_excp_num[0] ? {`ECODE_ADEF, ws_valid, wire_pc, `ESUBCODE_ADEF, 1'b0, 1'b0, 19'b0} :
+           ws_excp_num[1] ? {`ECODE_TLBR, ws_valid, wire_pc, 9'b0, ws_valid, ws_valid, wire_pc[31:13]} :
+           ws_excp_num[2] ? {`ECODE_PIF , ws_valid, wire_pc, 9'b0, 1'b0, ws_valid, wire_pc[31:13]} :
+           ws_excp_num[3] ? {`ECODE_PPI , ws_valid, wire_pc, 9'b0, 1'b0, ws_valid, wire_pc[31:13]} :
+           ws_excp_num[4] ? {`ECODE_SYS, 1'b0, 32'b0, 9'b0, 1'b0, 1'b0, 19'b0}:
+           ws_excp_num[6] ? {`ECODE_BRK , 1'b0, 32'b0, 9'b0, 1'b0, 1'b0, 19'b0} :
+           ws_excp_num[5] ? {`ECODE_INE , 1'b0, 32'b0, 9'b0, 1'b0, 1'b0, 19'b0} :
+           ws_excp_num[8] ? {`ECODE_IPE , 1'b0, 32'b0, 9'b0, 1'b0, 1'b0, 19'b0} :
            ws_excp_num[9] ? {`ECODE_ALE , ws_valid, wire_error_va, 9'b0, 1'b0, 1'b0, 19'b0} :
-           ws_excp_num[11] ? {`ECODE_SYS, 1'b0, 32'b0, 9'b0, 1'b0, 1'b0, 19'b0}:
-           ws_excp_num[12] ? {`ECODE_BRK , 1'b0, 32'b0, 9'b0, 1'b0, 1'b0, 19'b0} :
-           ws_excp_num[13] ? {`ECODE_INE , 1'b0, 32'b0, 9'b0, 1'b0, 1'b0, 19'b0} :
+           ws_excp_num[10] ? {`ECODE_TLBR, ws_valid, wire_error_va, 9'b0, ws_valid, ws_valid, wire_error_va[31:13]} :
+           ws_excp_num[14] ? {`ECODE_PME , ws_valid, wire_error_va, 9'b0, 1'b0, ws_valid, wire_error_va[31:13]} :
+           ws_excp_num[13] ? {`ECODE_PPI , ws_valid, wire_error_va, 9'b0, 1'b0, ws_valid, wire_error_va[31:13]} :
+           ws_excp_num[12] ? {`ECODE_PIS , ws_valid, wire_error_va, 9'b0, 1'b0, ws_valid, wire_error_va[31:13]} :
+           ws_excp_num[11] ? {`ECODE_PIL , ws_valid, wire_error_va, 9'b0, 1'b0, ws_valid, wire_error_va[31:13]} :
            69'b0;
 
     // 信号发射到下游
@@ -368,4 +398,6 @@ module WBU
     assign has_refetch_excp_o = refetch_excp_i_r;
 
     assign refetch_flush = refetch_excp_i_r && !ws_excp && !ertn_flush; // 保持一个周期???
+
+    assign excp_tlbrefill_o = excp_tlbrefill;
 endmodule

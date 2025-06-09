@@ -28,6 +28,7 @@ module IDU (
         // csr
         output wire [13:0] rd_csr_addr,
         input  wire [31:0] rd_csr_data,
+        input  wire [1:0]  csr_plv,
         //timer 64
         input [63:0] timer_64,
         input [31:0] csr_tid,
@@ -71,11 +72,22 @@ module IDU (
     wire excp_flush;
     wire ertn_flush;
     assign {excp_flush, ertn_flush} = flush;
+
     // 异常类型
     wire [15:0] syscall_num;    // 系统调用异常
+    wire idu_excp_syacall;
+
     wire [15:0] excp_ine_num;   // 指令无效异常
+    wire idu_excp_ine;
+
     wire [15:0] excp_brk_num;   // 断点异常
+    wire idu_excp_brk;
+
     wire [15:0] excp_ie_num;    // 中断异常
+    wire idu_excp_ie;
+
+    wire [15:0] excp_ipe_num;   // 指令等级错例外
+    wire idu_excp_ipe;
 
     wire excp_brk;
     wire inst_valid;
@@ -99,9 +111,7 @@ module IDU (
 
     wire caculate_done;
 
-    // 输出
-    assign ds_excp_out = exu_is_ertn_i ? 1'b0: ds_excp;
-    assign ds_excp_num_out = exu_is_ertn_i ? 16'd0: ds_excp_num;
+
 
     wire flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
 
@@ -309,7 +319,7 @@ module IDU (
                res_from_mem,
                gr_we,
                dest,
-            //    idu_pc,
+               //    idu_pc,
                res_from_csr,
                csr_data,
                csr_we,
@@ -809,15 +819,47 @@ module IDU (
                             rd == 5'd5 ||
                             rd == 5'd6 ));
 
-    assign ds_excp = (inst_syscall | wire_fs_excp | ~inst_valid | inst_break | has_int) & ~is_nop;
-    assign syscall_num = inst_syscall ? 16'h0800 : 16'b0;
-    assign excp_ine_num = ~inst_valid ? 16'h2000 : 16'b0;
-    assign excp_brk_num = inst_break ? 16'h1000 : 16'b0;
-    assign excp_ie_num = has_int & ~is_nop ? 16'h0001 : 16'b0;
 
-    // 异常号根据异常是否发生，置位
-    assign ds_excp_num = ~is_nop ? (syscall_num | wire_fs_excp_num | excp_ine_num | excp_brk_num | excp_ie_num) :
-           (syscall_num | wire_fs_excp_num | excp_ine_num | excp_brk_num);
+    wire kernel_inst = inst_csrrd      |
+         inst_csrwr      |
+         inst_csrxchg    |
+         inst_tlbsrch    |
+         inst_tlbrd      |
+         inst_tlbwr      |
+         inst_tlbfill    |
+         inst_invtlb     |
+         inst_ertn ;
+
+
+    // 异常=================================================
+    // 0x4
+    assign idu_excp_syacall = inst_syscall;
+    assign syscall_num = idu_excp_syacall ? 16'h0010 : 16'b0;
+    // 0x5
+    assign idu_excp_ine = ~inst_valid;
+    assign excp_ine_num = idu_excp_ine ? 16'h0020 : 16'b0;
+    // 0x6
+    assign idu_excp_brk = inst_break;
+    assign excp_brk_num = idu_excp_brk ? 16'h0040 : 16'b0;
+    // 0x7
+    assign idu_excp_ie = has_int & ~is_nop;
+    assign excp_ie_num = idu_excp_ie ? 16'h0080 : 16'b0;
+    // 0x8
+    assign idu_excp_ipe = kernel_inst && (csr_plv == 2'b11);
+    assign excp_ipe_num = idu_excp_ipe ? 16'h0100 : 16'b0;
+
+    assign ds_excp = ( wire_fs_excp | idu_excp_syacall |
+                       idu_excp_ine | idu_excp_brk | idu_excp_ie | idu_excp_ipe
+                     ) & ~is_nop;
+
+    assign ds_excp_num = ~is_nop ? (wire_fs_excp_num | syscall_num | excp_ine_num | excp_brk_num | excp_ie_num) :
+           ( wire_fs_excp_num | syscall_num | excp_ine_num | excp_brk_num);
+
+    // 输出
+    assign ds_excp_out =  ds_excp;
+    assign ds_excp_num_out =  ds_excp_num;
+
+    // 异常=================================================
 
     assign alu_src1 = src1_is_pc  ? idu_pc[31:0] : rj_value;
     assign alu_src2 = src2_is_imm ? imm : rkd_value;

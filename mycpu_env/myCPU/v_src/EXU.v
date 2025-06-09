@@ -125,14 +125,27 @@ module EXU
     reg [15:0] ds_excp_num_r; // 从上一级接收
     reg ds_excp_r;
 
-    wire [15:0] excp_ale_num; // 地址非对齐
+    // 地址非对齐
     wire excp_ale;
+    wire [15:0] excp_ale_num;
+    // TLB重填异常
+    wire exu_excp_tlbr;
+    wire [15:0] excp_tlbr_num;
+    // load 操作页无效异常
+    wire exu_excp_pil;
+    wire [15:0] excp_pil_num;
+    // store 操作页无效异常
+    wire exu_excp_pis;
+    wire [15:0] excp_pis_num;
+    // 页特权异常
+    wire exu_excp_ppi;
+    wire [15:0] excp_ppi_num;
+    // 页修改例外
+    wire exu_excp_pme;
+    wire [15:0] excp_pme_num;
 
-    wire [15:0] wire_ds_excp_num = ds_excp_num_r;
-    wire wire_ds_excp = ds_excp_r;
 
-    wire [15:0] es_excp_num = wire_ds_excp_num | excp_ale_num;
-    wire es_excp = wire_ds_excp | excp_ale;
+
 
     wire [31:0] pv_addr ;
     wire [31:0] error_va ;
@@ -195,9 +208,7 @@ module EXU
 
 
 
-    // 输出
-    assign es_excp_out = es_excp;
-    assign es_excp_num_out = es_excp_num;
+
 
     assign exu_excp = es_excp | mem_excp; // 收集下游的信号，向上传递
     assign exu_is_ertn = wire_is_inst_ertn | mem_in_is_ertn;
@@ -229,7 +240,7 @@ module EXU
         } = ds_to_es_bus_data_r;
 
 
-        assign wire_in_pc = pc_pro_i_r;
+    assign wire_in_pc = pc_pro_i_r;
 
     assign bus_exu_to_mem_data = {
                res_from_mem,
@@ -333,13 +344,6 @@ module EXU
            4'b0000;
     assign st_w_we = 4'b1111;
 
-    // 检测地址是否自然对齐
-    // 如果是 ld_h 或者 st_h，对齐到偶数地址
-    // 如果是 ld_w 或者 st_w，对齐到4字节
-    assign excp_ale = (ld_h | ld_hu | st_h) && alu_result[0] ? 1'b1 :
-           (ld_w | st_w) && (alu_result[1:0] != 2'b00) ? 1'b1 : 1'b0;
-    assign excp_ale_num = excp_ale ? 16'h0200 :16'b0;
-
     // 乘除法
     wire op_div;   //signed divide operation low
     wire op_divu;  //unsigned divide operation low
@@ -420,7 +424,7 @@ module EXU
     // 访存信号
     assign size = ld_b || ld_bu || st_b ? 2'b00 :
            ld_h || ld_hu || st_h ? 2'b01 :
-           st_w ? 2'b10 : 2'b00;
+           st_w || ld_w ? 2'b10 : 2'b00;
     assign wr = (st_b || st_h || st_w) ;
 
     assign wstrb = stop_signal ? 4'b0000 : // 异常
@@ -433,11 +437,8 @@ module EXU
     assign wdata = st_b ? {4{wire_in_rkd_value[7:0]}} :
            st_h ? {2{wire_in_rkd_value[15:0]}} :
            st_w ? wire_in_rkd_value : 32'b0;
-
-
-
-    wire access_memo;
-    assign access_memo = ld_b || ld_bu || ld_h || ld_hu || ld_w ||
+           
+    wire access_memo = ld_b || ld_bu || ld_h || ld_hu || ld_w ||
            st_b||st_h || st_w;
 
     reg [4:0] invtlb_op_i_r;
@@ -529,6 +530,49 @@ module EXU
     assign waite_ready_o = exu_state == 2'b0 ? 1'b1 : 1'b0;
 
     assign exu_over = exu_state == 2'b0;
+
+
+    // 异常===========================================================================
+
+    // 检测地址是否自然对齐
+    // 如果是 ld_h 或者 st_h，对齐到偶数地址
+    // 如果是 ld_w 或者 st_w，对齐到4字节
+    // 0x9
+    assign excp_ale = (ld_h | ld_hu | st_h) && alu_result[0] ? 1'b1 :
+           (ld_w | st_w) && (alu_result[1:0] != 2'b00) ? 1'b1 : 1'b0;
+    assign excp_ale_num = excp_ale ? 16'h0200 :16'b0;
+    // 0x10
+    assign exu_excp_tlbr = access_memo && !data_tlb_found && data_addr_trans_en;
+    assign excp_tlbr_num = exu_excp_tlbr ? 16'h0400 : 16'b0;
+    // 0x11
+    assign exu_excp_pil  = (ld_b | ld_bu | ld_h | ld_hu | ld_w) && !data_tlb_v && data_addr_trans_en;
+    assign excp_pil_num = exu_excp_pil ? 16'h0800 : 16'b0;
+    // 0x12
+    assign exu_excp_pis  = (st_b | st_h | st_w) && !data_tlb_v && data_addr_trans_en;
+    assign excp_pis_num = exu_excp_pis ? 16'h1000 : 16'b0;
+    // 0x13
+    assign exu_excp_ppi  = access_memo && data_tlb_v && (csr_plv > data_tlb_plv) && data_addr_trans_en;
+    assign excp_ppi_num = exu_excp_ppi ? 16'h2000 : 16'b0;
+    // 0x14
+    assign exu_excp_pme  = (st_b | st_h | st_w) && data_tlb_v && (csr_plv <= data_tlb_plv) && !data_tlb_d && data_addr_trans_en;
+    assign excp_pme_num = exu_excp_pme ? 16'h4000 : 16'b0;
+
+    wire [15:0] wire_ds_excp_num = ds_excp_num_r;
+    wire wire_ds_excp = ds_excp_r;
+
+    wire [15:0] es_excp_num = wire_ds_excp_num | excp_ale_num |
+         excp_tlbr_num | excp_pil_num | excp_pis_num |
+         excp_ppi_num | excp_pme_num;
+
+    wire es_excp = wire_ds_excp | excp_ale |
+         exu_excp_tlbr | exu_excp_pil | exu_excp_pis |
+         exu_excp_ppi | exu_excp_pme;
+
+    // 输出
+    assign es_excp_out = es_excp;
+    assign es_excp_num_out = es_excp_num;
+
+    // 异常===========================================================================
 
     // tlb
     // 窗口映射使能检查

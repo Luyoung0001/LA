@@ -79,14 +79,14 @@ void step() {
     top->clk = 0;
     top->eval();
 
-    if (i >= 700000) {
+    if (i >= 850000) {
         tfp->dump(main_time);  // 记录波形数据
         main_time++;           // 时间递增
     }
     top->clk = 1;
     top->eval();
 
-    if (i >= 700000) {
+    if (i >= 850000) {
         tfp->dump(main_time);
         main_time++;
     }
@@ -364,10 +364,10 @@ int difftest() {
 
         // 读取 ref
         read_ref();
-        while (ref_struct.pc != mycpu_trace_info.pc) {
+        while (ref_struct.pc != mycpu_trace_info.pc && ref_struct.we == 0) {
             read_ref();
         }
-        
+
         if (ref_struct.we == 0) {
             return 1;
         }

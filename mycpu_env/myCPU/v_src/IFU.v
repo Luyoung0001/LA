@@ -83,18 +83,54 @@ module IFU (
     assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
 
     // 异常
+    // 取址地址错移异常
     wire pfs_excp_adef;
+    wire [15:0] excp_adef_num;
+    // 取址操作页无效异常
+    wire fs_excp_pif;
+    wire [15:0] excp_pif_num;
+    // 页特权异常
+    wire fs_excp_ppi;
+    wire [15:0] excp_ppi_num;
+    // TLB重填异常
+    wire fs_excp_tlbr;
+    wire [15:0] excp_tlbr_num;
+
+
     wire pfs_excp;
     wire [15:0] fs_excp_num;
+
+
+
+    // 异常
+    // 0x0
+    assign pfs_excp_adef = (pc[0] || pc[1]) ;
+    assign excp_adef_num = pfs_excp_adef ? 16'h0001 : 16'h0000;
+    // 0x1
+    assign fs_excp_tlbr = !inst_tlb_found && inst_addr_trans_en;
+    assign excp_tlbr_num = fs_excp_tlbr ? 16'h0002 : 16'h0000;
+    // 0x2
+    assign fs_excp_pif  = !inst_tlb_v && inst_addr_trans_en;
+    assign excp_pif_num = fs_excp_pif ? 16'h0004 : 16'h0000;
+    // 0x3
+    assign fs_excp_ppi  = (csr_plv > inst_tlb_plv) && inst_addr_trans_en;
+    assign excp_ppi_num = fs_excp_ppi ? 16'h0008 : 16'h0000;
+
+    assign pfs_excp = pfs_excp_adef |
+           fs_excp_tlbr |
+           fs_excp_pif  |
+           fs_excp_ppi;
+    assign fs_excp_num = excp_adef_num | excp_pif_num |
+           excp_ppi_num | excp_tlbr_num;
+
+
+    // 输出
     assign fs_excp_out = pfs_excp;
     assign fs_excp_num_out = fs_excp_num;
-    assign pfs_excp_adef = (pc[0] || pc[1]) ;
-    assign pfs_excp = pfs_excp_adef;
-    assign fs_excp_num = pfs_excp_adef ? 16'h0100 : 16'h0000;
 
     // 发送数据请求
     assign wr = 1'b0; // 读
-    assign wstrb = 4'b1111;
+    assign wstrb = 4'b0; // 读不写
     assign wdata = 32'b0;
     assign size = 2'b10;    // 4字节读取
     // assign req = 1'b0;      // 默认

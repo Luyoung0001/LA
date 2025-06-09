@@ -50,9 +50,9 @@ extern "C" void data_ram_write(int addr, int wdata, unsigned char wmask) {
     // 完全透明。
 
     uint32_t pre_target = data_ram_read(addr);
-    // printf("raw_wdata:%08x\n", wdata);
+    printf("raw_wdata:%08x\n", wdata);
 
-    // printf("data_write_addr:%08x--->pre_wdata:%08x\n", addr, pre_target);
+    printf("data_write_addr:%08x--->pre_wdata:%08x\n", addr, pre_target);
 
     // 一字节自然对其
     // 如果 wmask 为 b0001，只需要将 wdata 的最低字节写入

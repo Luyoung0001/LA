@@ -7,6 +7,8 @@ module pre_IFU (
         input wire [1:0] flush,
         input wire [31:0] csr_era,
         input wire [31:0] csr_eentry,
+        input wire [31:0] csr_tlbrentry,
+        input wbu_excp_tlbrefill,
         // 握手信号
         input wire waite_ready_i,
         output wire state_valid,
@@ -40,6 +42,7 @@ module pre_IFU (
 
     // 这里要注意优先级
     assign nextpc       =
+           wbu_excp_tlbrefill ? csr_tlbrentry :
            excp_flush ? csr_eentry:
            ertn_flush ? inst_flush_pc:
            br_taken ? br_target :

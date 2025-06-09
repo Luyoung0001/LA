@@ -22,6 +22,7 @@ module csr
          // to ifu
          output wire [31:0] era_out,
          output wire [31:0] eentry_out,
+         output wire [31:0] tlbrentry_out,
 
          output [ 1:0]      plv_out,
 
@@ -255,6 +256,7 @@ module csr
 
     assign era_out      = csr_era;
     assign eentry_out   = csr_eentry;
+    assign tlbrentry_out = csr_tlbrentry;
     assign tid_out      = csr_tid;
     assign timer_64_out = timer_64;
     assign has_int = ((csr_ecfg[`LIE] & csr_estat[`IS]) != 13'b0) & csr_crmd[`IE];
@@ -303,10 +305,18 @@ module csr
         else if (excp_flush) begin
             csr_crmd[ `PLV] <=  2'b0; // 例外发生时，将权限打到最高，关闭中断
             csr_crmd[  `IE] <=  1'b0;
+            if (excp_tlbrefill) begin
+                csr_crmd [`DA] <= 1'b1;
+                csr_crmd [`PG] <= 1'b0;
+            end
         end
         else if (ertn_flush) begin
             csr_crmd[ `PLV] <= csr_prmd[`PPLV]; // 恢复特权等级
             csr_crmd[  `IE] <= csr_prmd[`PIE ]; // 恢复中断
+            if (eret_tlbrefill_excp) begin
+                csr_crmd[`DA] <= 1'b0;
+                csr_crmd[`PG] <= 1'b1;
+            end
         end
         else if (crmd_wen) begin
             csr_crmd[ `PLV] <= csr_wdata[`PLV];
@@ -628,6 +638,38 @@ module csr
         end
         else if (tlbrentry_wen) begin
             csr_tlbrentry[`TLBRENTRY_PA] <= csr_wdata[`TLBRENTRY_PA];
+        end
+    end
+
+    //dmw0
+    always @(posedge clk) begin
+        if (rst) begin
+            csr_dmw0[ 2:1] <= 2'b0;
+            csr_dmw0[24:6] <= 19'b0;
+            csr_dmw0[28]   <= 1'b0;
+        end
+        else if (DMW0_wen) begin
+            csr_dmw0[`PLV0]    <= csr_wdata[`PLV0];
+            csr_dmw0[`PLV3]    <= csr_wdata[`PLV3];
+            csr_dmw0[`DMW_MAT] <= csr_wdata[`DMW_MAT];
+            csr_dmw0[`PSEG]    <= csr_wdata[`PSEG];
+            csr_dmw0[`VSEG]    <= csr_wdata[`VSEG];
+        end
+    end
+
+    //dmw1
+    always @(posedge clk) begin
+        if (rst) begin
+            csr_dmw1[ 2:1] <= 2'b0;
+            csr_dmw1[24:6] <= 19'b0;
+            csr_dmw1[28]   <= 1'b0;
+        end
+        else if (DMW1_wen) begin
+            csr_dmw1[`PLV0]    <= csr_wdata[`PLV0];
+            csr_dmw1[`PLV3]    <= csr_wdata[`PLV3];
+            csr_dmw1[`DMW_MAT] <= csr_wdata[`DMW_MAT];
+            csr_dmw1[`PSEG]    <= csr_wdata[`PSEG];
+            csr_dmw1[`VSEG]    <= csr_wdata[`VSEG];
         end
     end
 

@@ -331,6 +331,8 @@ module mycpu_top
     wire [18:0]               wbu_invtlb_vpn_o;
     wire                      wbu_invtlb_en_o;
 
+    wire                      wbu_excp_tlbrefill_o;
+
     // Register file signals
     wire [31:0] rf_rdata1;
     wire [31:0] rf_rdata2;
@@ -342,6 +344,7 @@ module mycpu_top
     wire        csr_has_int;
     wire [31:0] csr_era_out;
     wire [31:0] csr_eentry_out;
+    wire [31:0] csr_tlbrentry_out;
     wire [ 1:0] csr_plv_out;
     wire [ 9:0] csr_asid_out;
     wire [18:0] csr_vppn_out;
@@ -430,6 +433,8 @@ module mycpu_top
                 .flush             (wbu_flush),
                 .csr_era           (csr_era_out),
                 .csr_eentry        (csr_eentry_out),
+                .csr_tlbrentry     (csr_tlbrentry_out),
+                .wbu_excp_tlbrefill(wbu_excp_tlbrefill_o),
                 .waite_ready_i     (ifu_waite_ready_o),
                 .state_valid       (preifu_state_valid),
                 .refetch_pc_i      (wbu_refetch_pc),
@@ -541,6 +546,7 @@ module mycpu_top
             // CSR interface
             .rd_csr_addr           (idu_rd_csr_addr),
             .rd_csr_data           (csr_rd_data),
+            .csr_plv               (csr_plv_out),
             .timer_64              (csr_timer_64_out),
             .csr_tid               (csr_tid_out),
 
@@ -852,7 +858,8 @@ module mycpu_top
             .refetch_pc(wbu_refetch_pc),
             .refetch_sign(wbu_refetch_sign),
             .pc_pro_i(mem_pc_pro_o),
-            .refetch_flush(wbu_wbu_refetch_flush)
+            .refetch_flush(wbu_wbu_refetch_flush),
+            .excp_tlbrefill_o(wbu_excp_tlbrefill_o)
         );
 
     csr #(TLBNUM)csr_o(
@@ -877,6 +884,7 @@ module mycpu_top
             // 异常处理输出
             .era_out(csr_era_out),
             .eentry_out(csr_eentry_out),
+            .tlbrentry_out(csr_tlbrentry_out),
             .plv_out(csr_plv_out),
 
             // TLB读取接口
