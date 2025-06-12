@@ -207,9 +207,6 @@ module EXU
         } = tlb_inst_bus_r;
 
 
-
-
-
     assign exu_excp = es_excp | mem_excp; // 收集下游的信号，向上传递
     assign exu_is_ertn = wire_is_inst_ertn | mem_in_is_ertn;
 

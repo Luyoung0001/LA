@@ -40,7 +40,6 @@ module IFU (
         output        inst_da,
         output        inst_pg,
 
-
         input  [7:0]  inst_index,
         input  [19:0] inst_tag,
         input  [3:0]  inst_offset,
@@ -66,7 +65,6 @@ module IFU (
         // from WBU
         input wire wbu_refetch_sign_i,
         output wire refetch_excp_o,
-
         input wire wbu_refetch_flush
     );
 
