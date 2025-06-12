@@ -79,14 +79,32 @@ void step() {
     top->clk = 0;
     top->eval();
 
-    if (i >= 850000) {
-        tfp->dump(main_time);  // 记录波形数据
-        main_time++;           // 时间递增
+    // 读取临时文件 temp_i.txt: int temp_i
+    int temp_i;
+    FILE* temp_fp = fopen("temp_i.txt", "r");
+    if (temp_fp == NULL) {
+        printf("Error opening temp_i.txt\n");
+        return;
+    }
+    fscanf(temp_fp, "%d", &temp_i);
+    fclose(temp_fp);
+
+    // 记录最新的 1000 个周期
+    int start_time = 0;
+    if (temp_i <= 1000) {
+        start_time = 0;
+    } else {
+        start_time = temp_i - 1000;
+    }
+
+    if (i >= start_time) {
+        tfp->dump(main_time);
+        main_time++;
     }
     top->clk = 1;
     top->eval();
 
-    if (i >= 850000) {
+    if (i >= start_time) {
         tfp->dump(main_time);
         main_time++;
     }
@@ -503,6 +521,15 @@ void cpu_exec(uint64_t n) {
         stepi();
         n--;
     }
+    // 将 i 的值写到一个临时文件中 temp_i.txt
+    FILE* temp_fp = fopen("temp_i.txt", "w");
+    if (temp_fp == NULL) {
+        printf("Error opening temp_i.txt\n");
+        return;
+    }
+    fprintf(temp_fp, "%d", i);
+    fclose(temp_fp);
+    printf("i: %d\n", i);
     top->final();
     tfp->close();
 }
