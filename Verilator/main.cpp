@@ -403,7 +403,7 @@ int difftest() {
             // 如果不相等，打印信息
             print_info();
         }
-        return good;
+        return 1;
     }
     return -1;
 

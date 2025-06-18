@@ -120,21 +120,45 @@ module mycpu_top
     wire        data_sram_data_ok;
     wire [31:0] data_sram_rdata;
 
+    wire        icache_rd_rdy;
+    wire        icache_ret_valid;
+    wire        icache_ret_last;
+    wire [31:0] icache_ret_data;
+
+    wire        icache_wr_rdy;
+
+
     // AXI-XBar Bridge
     sram_like_to_axi_bridge o (
                                 .clk            (aclk),
                                 .rst            (reset),
 
                                 // Instruction SRAM interface
-                                .inst_sram_req  (inst_sram_req),
-                                .inst_sram_wr   (inst_sram_wr),
-                                .inst_sram_size (inst_sram_size),
-                                .inst_sram_wstrb(inst_sram_wstrb),
-                                .inst_sram_addr (inst_sram_addr),
-                                .inst_sram_wdata(inst_sram_wdata),
-                                .inst_sram_addr_ok(inst_sram_addr_ok),
-                                .inst_sram_data_ok(inst_sram_data_ok),
-                                .inst_sram_rdata(inst_sram_rdata),
+                                // .inst_sram_req  (inst_sram_req),
+                                // .inst_sram_wr   (inst_sram_wr),
+                                // .inst_sram_size (inst_sram_size),
+                                // .inst_sram_wstrb(inst_sram_wstrb),
+                                // .inst_sram_addr (inst_sram_addr),
+                                // .inst_sram_wdata(inst_sram_wdata),
+                                // .inst_sram_addr_ok(inst_sram_addr_ok),
+                                // .inst_sram_data_ok(inst_sram_data_ok),
+                                // .inst_sram_rdata(inst_sram_rdata),
+
+                                // icache
+                                .icache_rd_req(icache_rd_req),
+                                .icache_rd_type(icache_rd_type),
+                                .icache_rd_addr(icache_rd_addr),
+                                .icache_rd_rdy(icache_rd_rdy),
+                                .icache_ret_valid(icache_ret_valid),
+                                .icache_ret_last(icache_ret_last),
+                                .icache_ret_data(icache_ret_data),
+
+                                .icache_wr_req(icache_wr_req),
+                                .icache_wr_type(icache_wr_type),
+                                .icache_wr_addr(icache_wr_addr),
+                                .icache_wr_wstrb(icache_wr_wstrb),
+                                .icache_wr_data(icache_wr_data),
+                                .icache_wr_rdy(icache_wr_rdy),
 
                                 // Data SRAM interface
                                 .data_sram_req  (data_sram_req),
@@ -213,6 +237,18 @@ module mycpu_top
     wire [31:0] ifu_inst_dmw1;
     wire        ifu_inst_da;
     wire        ifu_inst_pg;
+
+    // icache
+    wire ifu_icache_valid;
+    wire ifu_icache_op;
+    wire [19:0] ifu_icache_tag;
+    wire [7:0] ifu_icache_index;
+    wire [3:0] ifu_icache_offset;
+
+    wire [3:0] ifu_icache_wstrb;
+    wire [31:0] ifu_icache_wdata;
+    wire ifu_flush_sign_cancel;
+
 
     // IDU signals
     wire [33:0]  idu_bus_br_data;
@@ -422,6 +458,21 @@ module mycpu_top
     wire [31:0] trans_tlbidx_out;
     wire [ 9:0] trans_asid_out;
 
+    // icache
+    wire icache_addr_ok;
+    wire icache_data_ok;
+    wire [31:0] icache_rdata;
+
+    wire icache_rd_req;
+    wire [2:0] icache_rd_type;
+    wire [31:0] icache_rd_addr;
+
+    wire        icache_wr_req;
+    wire [2:0]  icache_wr_type;
+    wire [31:0] icache_wr_addr;
+    wire [3:0]  icache_wr_wstrb;
+    wire [127:0] icache_wr_data;
+
     // Module Instantiations
 
     // Pre-IFU
@@ -489,15 +540,29 @@ module mycpu_top
             .inst_tlb_plv      (trans_inst_tlb_plv),
 
             // SRAM-like interface
-            .req               (inst_sram_req),
-            .wr                (inst_sram_wr),
-            .size              (inst_sram_size),
-            .wstrb             (inst_sram_wstrb),
-            .addr              (inst_sram_addr),
-            .wdata             (inst_sram_wdata),
-            .addr_ok           (inst_sram_addr_ok),
-            .data_ok           (inst_sram_data_ok),
-            .rdata             (inst_sram_rdata),
+            // .req               (inst_sram_req),
+            // .wr                (inst_sram_wr),
+            // .size              (inst_sram_size),
+            // .wstrb             (inst_sram_wstrb),
+            // .addr              (inst_sram_addr),
+            // .wdata             (inst_sram_wdata),
+            // .addr_ok           (inst_sram_addr_ok),
+            // .data_ok           (inst_sram_data_ok),
+            // .rdata             (inst_sram_rdata),
+            .icache_valid(ifu_icache_valid),
+            .icache_op(ifu_icache_op),
+            .icache_tag(ifu_icache_tag),
+            .icache_index(ifu_icache_index),
+            .icache_offset(ifu_icache_offset),
+            .flush_sign_cancel(ifu_flush_sign_cancel),
+
+            .icache_wstrb(ifu_icache_wstrb),
+            .icache_wdata(ifu_icache_wdata),
+
+            .icache_addr_ok(icache_addr_ok),
+            .icache_data_ok(icache_data_ok),
+            .icache_rdata(icache_rdata),
+
             .rdata_o           (ifu_rdata_o),
             .wbu_refetch_sign_i(wbu_is_refetch_sign),
             .refetch_excp_o    (ifu_refetch_excp_o),
@@ -1012,6 +1077,40 @@ module mycpu_top
                    .invtlb_asid(wbu_invtlb_asid_o),
                    .invtlb_vpn(wbu_invtlb_vpn_o)
                );
+
+    cache icache(
+              .clk(aclk),
+              .resetn(aresetn),
+              // ifu
+              .flush_sign_cancel(ifu_flush_sign_cancel),
+              .valid(ifu_icache_valid),
+              .op(ifu_icache_op),
+              .tag(ifu_icache_tag),
+              .index(ifu_icache_index),
+              .offset(ifu_icache_offset),
+              .wstrb(ifu_icache_wstrb),
+              .wdata(ifu_icache_wdata),
+
+              .addr_ok(icache_addr_ok),
+              .data_ok(icache_data_ok),
+              .rdata(icache_rdata),
+              // axi
+              .rd_req(icache_rd_req),
+              .rd_type(icache_rd_type),
+              .rd_addr(icache_rd_addr),
+              .rd_rdy(icache_rd_rdy),
+              .ret_valid(icache_ret_valid),
+              .ret_last(icache_ret_last),
+              .ret_data(icache_ret_data),
+
+
+              .wr_req(icache_wr_req),
+              .wr_type(icache_wr_type),
+              .wr_addr(icache_wr_addr),
+              .wr_wstrb(icache_wr_wstrb),
+              .wr_data(icache_wr_data),
+              .wr_rdy(icache_wr_rdy)
+          );
 
     assign debug_wb_pc = wbu_pc;
     assign debug_wb_rf_we = {4{wbu_rf_we}};

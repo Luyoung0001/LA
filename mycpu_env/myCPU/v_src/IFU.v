@@ -51,15 +51,35 @@ module IFU (
 
 
         // like SRAM
-        output wire req, // en
-        output wr,   // |we
-        output [1:0] size, // 新增
-        output [3:0] wstrb, // we
-        output wire [31:0] addr,
-        output [31:0] wdata,
-        input addr_ok, // 新增
-        input data_ok,
-        input [31:0] rdata,
+        // output wire req, // en
+        // output wr,   // |we
+        // output [1:0] size, // 新增
+        // output [3:0] wstrb, // we
+        // output wire [31:0] addr,
+        // output [31:0] wdata,
+        // input addr_ok, // 新增
+        // input data_ok,
+        // input [31:0] rdata,
+        //icache
+
+        output wire icache_valid,
+        output wire icache_op,
+        output wire [19:0] icache_tag,
+        output wire [7:0] icache_index,
+        output wire [3:0] icache_offset,
+        // 如果遇到 flush_flush 信号, 则取消请求
+        // 这是因为 如果 ifu 的 请求发出后，icache 不会理会 flush_flush
+        // icache 持续处理请求，最终会返回 rdata。
+        // 但是这个 data 已经不是当前 pc 所需要的了
+        output wire flush_sign_cancel,
+
+        output wire  [3:0]  icache_wstrb,
+        output wire  [31:0] icache_wdata,
+
+        input wire icache_addr_ok,
+        input wire icache_data_ok,
+        input wire [31:0] icache_rdata,
+
         output [31:0] rdata_o, // 发送到下游的指令
 
         // from WBU
@@ -67,6 +87,30 @@ module IFU (
         output wire refetch_excp_o,
         input wire wbu_refetch_flush
     );
+
+    wire req; // en
+    wire wr;   // |we
+    wire [1:0] size; // 新增
+    wire [3:0] wstrb; // we
+    wire [31:0] addr;
+    wire [31:0] wdata;
+    wire addr_ok;
+    wire data_ok;
+    wire [31:0] rdata;
+
+    assign icache_valid = req;
+    assign icache_op = 1'b0; // read
+    assign icache_tag = addr[31:12];
+    assign icache_index = addr[11:4];
+    assign icache_offset = addr[3:0];
+
+    assign icache_wstrb = wstrb;
+    assign icache_wdata = wdata;
+
+    assign addr_ok = icache_addr_ok;
+    assign data_ok = icache_data_ok;
+    assign rdata   = icache_rdata;
+
 
     // IFU 阶段有效信号
     reg fs_valid;
@@ -93,7 +137,6 @@ module IFU (
     // TLB重填异常
     wire fs_excp_tlbr;
     wire [15:0] excp_tlbr_num;
-
 
     wire pfs_excp;
     wire [15:0] fs_excp_num;
@@ -157,31 +200,40 @@ module IFU (
             refetch_excp_i_r <= 1'b0;
         end
         // 空闲且上游数据有效则 取出上游数据
-        else if(ifu_state == 2'b0 && up_valid) begin
-            // 取出数据
-            pc <= pc_i;
-            ifu_state <= 2'b1;
-            refetch_excp_i_r <= wbu_refetch_sign_i; // 记录是否需要重取
-        end
-        // 处理
-        else if(ifu_state == 2'b1) begin
-            // 如果下游空闲，再发送请求，不然还得保持
-            if(waite_ready_i && addr_ok) begin
-                ifu_state <= 2'd2;
-            end
-        end
-        // 给下游准备数据阶段
-        else if(ifu_state == 2'd2) begin
-            if(data_ok) begin
-                ifu_state <= 2'd0;
-            end
+        else begin
+            case (ifu_state)
+                2'd0: begin
+                    if(up_valid) begin
+                        pc <= pc_i;
+                        ifu_state <= 2'b1;
+                        refetch_excp_i_r <= wbu_refetch_sign_i; // 记录是否需要重取
+                    end
+                end
+                2'd1: begin
+                    if(waite_ready_i && addr_ok && !data_ok) begin
+                        ifu_state <= 2'd2;
+                    end
+                    else if(waite_ready_i && addr_ok && data_ok) begin
+                        ifu_state <= 2'd0;
+                    end
+                end
+                2'd2: begin
+                    if (data_ok) begin
+                        ifu_state <= 2'b0;
+                    end
+                end
+                default: begin
+                    ifu_state <= 2'b0;
+                end
+            endcase
         end
     end
+
     assign req = flush_sign ? 1'b0: ifu_state == 2'b1 && waite_ready_i && !addr_ok;
     assign pc_o =  pc;
     assign rdata_o = rdata;
     assign waite_ready_o = ifu_state == 2'b0;
-    assign state_valid = ifu_state == 2'd2 && data_ok;
+    assign state_valid = data_ok;
 
     // tlb
     wire pg_mode;
@@ -199,5 +251,7 @@ module IFU (
     assign addr = {inst_tag, inst_index, inst_offset}; // 物理地址
 
     assign refetch_excp_o = refetch_excp_i_r;
+    // 取消取指令
+    assign flush_sign_cancel = flush_sign;
 
 endmodule

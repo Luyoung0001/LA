@@ -1,26 +1,43 @@
 module sram_like_to_axi_bridge(
         input wire clk,
         input wire rst,
-        // SRAM like
-        input wire         inst_sram_req,
-        input wire         inst_sram_wr,
-        input wire [1:0]   inst_sram_size,
-        input wire [3:0]   inst_sram_wstrb,
-        input wire [31:0]  inst_sram_addr,
-        input wire [31:0]  inst_sram_wdata,
-        output  wire         inst_sram_addr_ok,
-        output  wire         inst_sram_data_ok,
-        output  wire [31:0]  inst_sram_rdata,
+        // // SRAM like
+        // input wire         inst_sram_req,
+        // input wire         inst_sram_wr,
+        // input wire [1:0]   inst_sram_size,
+        // input wire [3:0]   inst_sram_wstrb,
+        // input wire [31:0]  inst_sram_addr,
+        // input wire [31:0]  inst_sram_wdata,
+        // output  wire         inst_sram_addr_ok,
+        // output  wire         inst_sram_data_ok,
+        // output  wire [31:0]  inst_sram_rdata,
 
-        input wire        data_sram_req,
-        input wire        data_sram_wr,
-        input wire [1:0]  data_sram_size,
-        input wire [3:0]  data_sram_wstrb,
-        input wire [31:0] data_sram_addr,
-        input wire [31:0] data_sram_wdata,
+        input wire          data_sram_req,
+        input wire          data_sram_wr,
+        input wire [1:0]    data_sram_size,
+        input wire [3:0]    data_sram_wstrb,
+        input wire [31:0]   data_sram_addr,
+        input wire [31:0]   data_sram_wdata,
         output  wire        data_sram_addr_ok,
         output  wire        data_sram_data_ok,
         output  wire [31:0] data_sram_rdata,
+
+        // icache
+        input   wire        icache_rd_req,
+        input   wire [2:0]  icache_rd_type,
+        input   wire [31:0] icache_rd_addr,
+        output  wire        icache_rd_rdy,
+        output  wire        icache_ret_valid,
+        output  wire        icache_ret_last,
+        output  wire [31:0] icache_ret_data,
+
+        // icache 用不到
+        input   wire         icache_wr_req,
+        input   wire [2:0]   icache_wr_type,
+        input   wire [31:0]  icache_wr_addr,
+        input   wire [3:0]   icache_wr_wstrb,
+        input   wire [127:0] icache_wr_data,
+        output  wire         icache_wr_rdy,
 
         // AXI
         output   wire  [3:0]  arid,
@@ -108,12 +125,17 @@ module sram_like_to_axi_bridge(
         end
     endfunction
 
+    // 突发长度和次数
+    wire inst_rd_cache_line = icache_rd_type == 3'b100;
+    wire [2:0] inst_real_rd_size  = inst_rd_cache_line ? 3'b10 : icache_rd_type;
+    wire [7:0] inst_real_rd_len   = inst_rd_cache_line ? 8'b11 : 8'b0; // 3 +1次，每次 4 个字节，共 16 个字节
+
     // Read/write arbitration logic
     wire inst_read_request;
     wire data_read_request;
     wire data_write_request;
 
-    assign inst_read_request = inst_sram_req && !inst_sram_wr;
+    assign inst_read_request = icache_rd_req;
     assign data_read_request = data_sram_req && !data_sram_wr && !inst_read_request; // 指令优先
     assign data_write_request = data_sram_req && data_sram_wr;
 
@@ -133,12 +155,19 @@ module sram_like_to_axi_bridge(
     reg handling_data_request;
 
     // SRAM interface status signals
-    assign inst_sram_addr_ok = inst_addr_accepted;
+    // assign inst_sram_addr_ok = inst_addr_accepted;
     assign data_sram_addr_ok = data_addr_accepted;
-    assign inst_sram_data_ok = inst_data_received;
+    // assign inst_sram_data_ok = inst_data_received;
     assign data_sram_data_ok = data_data_received || data_write_done;
-    assign inst_sram_rdata = inst_read_data;
+    // assign inst_sram_rdata = inst_read_data;
     assign data_sram_rdata = data_read_data;
+
+
+    // icache
+    assign icache_rd_rdy = inst_state == IDLE;
+    assign icache_ret_valid = inst_data_received;
+    assign icache_ret_last = rlast;
+    assign icache_ret_data = rdata;
 
     reg inst_arvalid;
     reg [3:0] inst_arid;
@@ -154,7 +183,76 @@ module sram_like_to_axi_bridge(
     reg [7:0] data_arlen;
     reg data_rready;
 
+    // // Main FSM for instruction requests
+    // always @(posedge clk) begin
+    //     if (rst) begin
+    //         inst_state <= IDLE;
+    //         inst_addr_accepted <= 1'b0;
+    //         inst_data_received <= 1'b0;
+    //         inst_read_data <= 32'b0;
+    //         handling_inst_request <= 1'b0;
+
+    //         inst_arvalid <= 1'b0;
+    //         inst_arid <= 4'd0;
+    //         inst_araddr <= 32'd0;
+    //         inst_arsize <= 3'd0;
+    //         inst_arlen <= 8'd0;
+    //         inst_rready <= 1'b0;
+    //     end
+
+    //     else begin
+    //         // Reset per-cycle signals
+    //         inst_addr_accepted <= 1'b0;
+    //         inst_data_received <= 1'b0;
+    //         case (inst_state)
+    //             IDLE: begin
+    //                 if (inst_read_request && !handling_data_request) begin
+    //                     inst_state <= READ_ADDR;
+    //                     handling_inst_request <= 1'b1;
+    //                     inst_arvalid <= 1'b1;
+    //                     inst_arid <= 4'b0000; // ID for instruction reads
+    //                     inst_araddr <= icache_rd_addr;
+    //                     inst_arsize <= inst_real_rd_size;
+    //                     inst_arlen <= inst_real_rd_len;
+    //                 end
+    //             end
+
+    //             READ_ADDR: begin
+    //                 inst_arvalid <= 1'b1;
+    //                 inst_arid <= 4'b0000; // ID for instruction reads
+    //                 inst_araddr <= icache_rd_addr;
+    //                 inst_arsize <= inst_real_rd_size;
+    //                 inst_arlen <= inst_real_rd_len;
+
+    //                 if (arready) begin
+    //                     inst_arvalid <= 1'b0;
+    //                     inst_state <= READ_DATA;
+    //                     inst_addr_accepted <= 1'b1;
+    //                     inst_rready <= 1'b1;
+    //                 end
+    //             end
+
+    //             READ_DATA: begin
+    //                 if (rvalid && rid[0] == 1'b0) begin  // Check if it's instruction data (rid[0] = 0)
+    //                     inst_read_data <= rdata;
+    //                     inst_data_received <= 1'b1;
+    //                     inst_rready <= 1'b0;
+    //                     inst_state <= IDLE;
+    //                     handling_inst_request <= 1'b0;
+    //                 end
+    //             end
+
+    //             default:
+    //                 inst_state <= IDLE;
+    //         endcase
+    //     end
+    // end
+
     // Main FSM for instruction requests
+
+    reg [7:0] inst_beat_count;
+    reg [7:0] inst_total_beats;
+    reg    inst_burst_complete;
     always @(posedge clk) begin
         if (rst) begin
             inst_state <= IDLE;
@@ -169,12 +267,19 @@ module sram_like_to_axi_bridge(
             inst_arsize <= 3'd0;
             inst_arlen <= 8'd0;
             inst_rready <= 1'b0;
+
+            // 添加突发传输支持信号
+            inst_beat_count <= 8'd0;
+            inst_total_beats <= 8'd0;
+            inst_burst_complete <= 1'b0;
         end
 
         else begin
             // Reset per-cycle signals
             inst_addr_accepted <= 1'b0;
             inst_data_received <= 1'b0;
+            inst_burst_complete <= 1'b0;
+
             case (inst_state)
                 IDLE: begin
                     if (inst_read_request && !handling_data_request) begin
@@ -182,43 +287,49 @@ module sram_like_to_axi_bridge(
                         handling_inst_request <= 1'b1;
                         inst_arvalid <= 1'b1;
                         inst_arid <= 4'b0000; // ID for instruction reads
-                        inst_araddr <= inst_sram_addr;
-                        inst_arsize <= convert_size(inst_sram_size);
-                        inst_arlen <= 8'b00000000; // Single transfer
+                        inst_araddr <= icache_rd_addr;
+                        inst_arsize <= inst_real_rd_size;
+                        inst_arlen <= inst_real_rd_len;
+
+                        // 初始化突发传输计数器
+                        inst_total_beats <= inst_real_rd_len + 1; // arlen=0表示1个节拍
+                        inst_beat_count <= 8'd0;
                     end
                 end
 
                 READ_ADDR: begin
-                    // arvalid <= 1'b1;
-                    // arid <= 4'b0000; // ID for instruction reads
-                    // araddr <= inst_sram_addr;
-                    // arsize <= convert_size(inst_sram_size);
-                    // arlen <= 8'b00000000; // Single transfer
-
                     inst_arvalid <= 1'b1;
                     inst_arid <= 4'b0000; // ID for instruction reads
-                    inst_araddr <= inst_sram_addr;
-                    inst_arsize <= convert_size(inst_sram_size);
-                    inst_arlen <= 8'b00000000; // Single transfer
+                    inst_araddr <= icache_rd_addr;
+                    inst_arsize <= inst_real_rd_size;
+                    inst_arlen <= inst_real_rd_len;
 
                     if (arready) begin
-                        // arvalid <= 1'b0;
                         inst_arvalid <= 1'b0;
                         inst_state <= READ_DATA;
                         inst_addr_accepted <= 1'b1;
-                        // rready <= 1'b1;
                         inst_rready <= 1'b1;
                     end
                 end
 
                 READ_DATA: begin
+                    inst_rready <= 1'b1; // 保持ready信号
                     if (rvalid && rid[0] == 1'b0) begin  // Check if it's instruction data (rid[0] = 0)
-                        inst_read_data <= rdata;
+                        // 处理当前节拍的数据
+                        // inst_read_data <= rdata;
                         inst_data_received <= 1'b1;
-                        // rready <= 1'b0;
-                        inst_rready <= 1'b0;
-                        inst_state <= IDLE;
-                        handling_inst_request <= 1'b0;
+                        // 更新节拍计数器
+                        inst_beat_count <= inst_beat_count + 1;
+                        // 检查是否为最后一个节拍
+                        if (rlast || (inst_beat_count == (inst_total_beats - 1))) begin
+                            // 突发传输完成
+                            inst_rready <= 1'b0;
+                            inst_state <= IDLE;
+                            handling_inst_request <= 1'b0;
+                            inst_burst_complete <= 1'b1;
+                            inst_beat_count <= 8'd0;
+                        end
+                        // 如果不是最后一个节拍，继续在READ_DATA状态等待下一个数据
                     end
                 end
 
@@ -227,8 +338,6 @@ module sram_like_to_axi_bridge(
             endcase
         end
     end
-
-
 
     // Main FSM for data requests
     always @(posedge clk) begin

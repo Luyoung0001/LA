@@ -1,7 +1,6 @@
 module verilator_top(
         input  wire        rst,
         input  wire        clk
-
     );
 
     wire cpu_resetn;

@@ -2,16 +2,16 @@ module cache(
         input wire  clk,
         input wire  resetn,
         // to from CPU
+        input wire  flush_sign_cancel,
         input wire  valid,  // 报表明请求有效
         input wire  op,     // 0: read, 1: write
-        input wire  [7:0]  index,
         input wire  [19:0] tag,
+        input wire  [7:0]  index,
         input wire  [3:0]  offset,
         input wire  [3:0]  wstrb,
         input wire  [31:0] wdata,
 
         // 所有的 cacop 暂不考虑
-
         output wire addr_ok,
         output wire data_ok,
         output wire [31:0] rdata,
@@ -21,10 +21,9 @@ module cache(
         output wire [2:0]  rd_type, // 为了支持 uncache 访问
         output wire [31:0] rd_addr,
         input  wire rd_rdy,
-
         input  wire ret_valid,
         input  wire ret_last,
-        input  wire [31:0] ret_data, // axi 返回的数据，这个数据 refill 到 2 路 4 组 表中
+        input  wire [31:0] ret_data, // axi 返回的数据，这个数据 refill 到 4 路表中
 
         output reg          wr_req,
         output wire [2:0]   wr_type,
@@ -154,11 +153,11 @@ module cache(
 
     // cache line 的读
     // 根据 index、offset、tag 就应该能立即读出数据
-    assign addr_ok = main_state_is_idle;
+    assign addr_ok = main_state_is_lookup;
     assign rdata = hit_line_data[request_buffer_offset[3:2]*32+:
                                  32];
 
-    assign data_ok = main_state_is_lookup && ((req_or_inst_valid && cache_hit && !request_buffer_op) || (req_or_inst_valid && cache_hit && request_buffer_op));
+    assign data_ok = (main_state_is_lookup && cache_hit) || (main_state_is_retry && cache_hit);
 
     // 由于 read 占比高，因此优化优化 read
 
@@ -172,7 +171,7 @@ module cache(
     assign wr_data  = replace_data;
 
     // 否则，进入 main_replace
-    assign rd_req = main_state_is_replace;
+    assign rd_req = (main_state_is_replace || main_state_is_refill);
     assign rd_type = 3'b100; // 16B
     assign rd_addr = {request_buffer_tag, request_buffer_index, 4'b0}; // 16B 对齐
 
@@ -279,7 +278,12 @@ module cache(
             request_buffer_wstrb      <=  4'b0;
             request_buffer_wdata      <= 32'b0;
         end
+        else if (flush_sign_cancel) begin
+            // 请求取消
+            main_state <= main_idle;
+        end
         else
+
         case (main_state)
             main_idle: begin
                 if (req_or_inst_valid) begin
@@ -295,14 +299,14 @@ module cache(
                 end
             end
             main_lookup: begin
-                if(req_or_inst_valid && cache_hit && !request_buffer_op) begin
+                if(cache_hit && !request_buffer_op) begin
                     // 如果请求有效 且 命中 且读
                     main_state <= main_idle;
                 end
-                else if(req_or_inst_valid && cache_hit && request_buffer_op) begin
+                else if(cache_hit && request_buffer_op) begin
                     main_state <= main_write;
                 end
-                else if(req_or_inst_valid && !cache_hit) begin
+                else if(!cache_hit) begin
                     // 如果没有命中，应该进行替换，但是替换前要判断 replace_d、replace_v 的状态
                     if (replace_d && replace_v) begin
                         // 如果被替换的 way 脏位有效且有效位有效，就进入 main_write_back 状态
@@ -353,9 +357,14 @@ module cache(
                 end
             end
             main_retry: begin
-                // 等待一周期，等待 cache_hit
+                // 肯定 cache_hit
+                if(!request_buffer_op && cache_hit) begin
+                    main_state <= main_idle;
+                end
+                else if(request_buffer_op && cache_hit) begin
+                    main_state <= main_write;
+                end
                 refill_done <= 1'b0;
-                main_state <= main_lookup;
             end
             main_write: begin
                 main_state <= main_idle;
