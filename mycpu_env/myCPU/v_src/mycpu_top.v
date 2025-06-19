@@ -250,6 +250,7 @@ module mycpu_top
     wire ifu_flush_sign_cancel;
 
 
+
     // IDU signals
     wire [33:0]  idu_bus_br_data;
     wire         idu_ds_excp_out;
@@ -269,6 +270,8 @@ module mycpu_top
     wire [18:0]  idu_invtlb_vpn;
     wire         idu_refetch_excp_o;
     wire [31:0]  idu_pc_pro_o;
+
+    wire [82:0] idu_bus_csr_rd_wr_data;
 
     // EXU signals
     wire         exu_es_excp_out;
@@ -304,6 +307,8 @@ module mycpu_top
     wire [ 9:0]                    exu_invtlb_asid_o;
     wire [18:0]                    exu_invtlb_vpn_o;
 
+    wire [82:0] exu_bus_csr_rd_wr_data_o;
+
     // MEM signals
     wire         mem_ms_excp_out;
     wire [15:0]  mem_ms_excp_num_out;
@@ -325,6 +330,8 @@ module mycpu_top
     wire [ 4:0]               mem_invtlb_op_o;
     wire [ 9:0]               mem_invtlb_asid_o;
     wire [18:0]               mem_invtlb_vpn_o;
+
+
 
     // WBU signals
     wire        wbu_rf_we;
@@ -609,11 +616,11 @@ module mycpu_top
             .out_mem_op            (idu_out_mem_op),
 
             // CSR interface
-            .rd_csr_addr           (idu_rd_csr_addr),
-            .rd_csr_data           (csr_rd_data),
+            // .rd_csr_addr           (idu_rd_csr_addr),
+            // .rd_csr_data           (csr_rd_data),
             .csr_plv               (csr_plv_out),
-            .timer_64              (csr_timer_64_out),
-            .csr_tid               (csr_tid_out),
+            // .timer_64              (csr_timer_64_out),
+            // .csr_tid               (csr_tid_out),
 
             // Control signals
             .flush                 (wbu_flush),
@@ -644,7 +651,8 @@ module mycpu_top
             .refetch_excp_i        (ifu_refetch_excp_o),
             .refetch_excp_o        (idu_refetch_excp_o),
             .pc_pro_o              (idu_pc_pro_o),
-            .wbu_refetch_flush     (wbu_wbu_refetch_flush)
+            .wbu_refetch_flush     (wbu_wbu_refetch_flush),
+            .bus_csr_rd_wr_data    (idu_bus_csr_rd_wr_data)
         );
 
     EXU #(TLBNUM) exu(
@@ -757,7 +765,9 @@ module mycpu_top
             .refetch_excp_o(exu_refetch_excp_o),
             .pc_pro_i(idu_pc_pro_o),
             .pc_pro_o(exu_pc_pro_o),
-            .wbu_refetch_flush(wbu_wbu_refetch_flush)
+            .wbu_refetch_flush(wbu_wbu_refetch_flush),
+            .bus_csr_rd_wr_data_i(idu_bus_csr_rd_wr_data),
+            .bus_csr_rd_wr_data_o(exu_bus_csr_rd_wr_data_o)
         );
     MEM #(TLBNUM) mem(
             // 时钟和复位
@@ -813,6 +823,8 @@ module mycpu_top
             .invtlb_vpn_o(mem_invtlb_vpn_o),
 
             // CSR写控制
+            .timer_64              (csr_timer_64_out),
+            .csr_tid               (csr_tid_out),
             .is_csr_wr_i(exu_is_csr_wr_o),
             .is_csr_wr_o(mem_is_csr_wr_o),
 
@@ -822,7 +834,10 @@ module mycpu_top
             .refetch_excp_o(mem_refetch_excp_o),
             .pc_pro_i(exu_pc_pro_o),
             .pc_pro_o(mem_pc_pro_o),
-            .wbu_refetch_flush(wbu_wbu_refetch_flush)
+            .wbu_refetch_flush(wbu_wbu_refetch_flush),
+            .rd_csr_addr           (idu_rd_csr_addr),
+            .rd_csr_data           (csr_rd_data),
+            .bus_csr_rd_wr_data_i(exu_bus_csr_rd_wr_data_o)
         );
 
     WBU #(TLBNUM) wbu(

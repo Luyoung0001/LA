@@ -283,22 +283,18 @@ module axi_ram (
 
         4'd1: begin  // 处理读传输
           arready <= 1'b0;
-          // 读取当前地址的数据
-          rdata   <= data_ram_read(r_current_addr);
-          rvalid  <= 1'b1;
           rresp   <= 2'b00;  // OKAY响应
-          // // 判断是否为最后一个节拍
-          // rlast <= (r_beat_count == (r_total_beats - 1));
-
           if (rready) begin
             if (r_beat_count == (r_total_beats - 1)) begin
-              // 最后一个节拍，回到空闲状态
-              r_state <= 4'd0;
-              rvalid  <= 1'b0;
+              rdata   <= data_ram_read(r_current_addr);
+              rvalid  <= 1'b1;
               rlast   <= 1'b1;
+              r_state <= 4'd0;
             end else begin
               // 不是最后一个节拍，准备下一个
               r_beat_count <= r_beat_count + 1;
+              rdata <= data_ram_read(r_current_addr);
+              rvalid <= 1'b1;
               r_current_addr <= get_next_addr(r_current_addr, r_size, r_burst_type, r_beat_count);
               rlast <= 1'b0;
             end
@@ -315,7 +311,7 @@ module axi_ram (
   wire [7:0] wstrb_1;  // 目标是扩展为 8 位
   assign wstrb_1 = {4'b0, wstrb};  // 高 4 位填充 0，低 4 位为 wstrb
   logic [3:0] state1;
-  
+
   always_ff @(posedge clock or posedge reset) begin
     if (reset) begin
       // 初始化状态和信号

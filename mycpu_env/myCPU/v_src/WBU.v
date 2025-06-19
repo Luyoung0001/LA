@@ -100,7 +100,6 @@ module WBU
          output wire        excp_tlbrefill_o
      );
 
-
     // for debug
     reg is_csr_wr_i_r;
 
@@ -200,6 +199,9 @@ module WBU
 
     reg [31:0] pc_pro_i_r;
 
+
+
+
     always @(posedge clk) begin
         if (rst || flush_sign) begin
             bus_mem_to_wbu_data_r <= 150'd0;
@@ -217,6 +219,7 @@ module WBU
             is_csr_wr_i_r <= 1'b0;
 
             refetch_excp_i_r <= 1'b0;
+
         end
         else if (wbu_state == 2'd0 && up_valid) begin
             bus_mem_to_wbu_data_r <= bus_mem_to_wbu_data;
@@ -239,6 +242,7 @@ module WBU
             refetch_excp_i_r <= refetch_excp_i;
 
             pc_pro_i_r <= pc_pro_i;
+
         end
         else if(wbu_state == 2'd1) begin
             wbu_state <= 2'd0;

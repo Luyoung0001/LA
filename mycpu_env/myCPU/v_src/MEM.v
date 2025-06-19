@@ -65,9 +65,19 @@ module MEM
          input [31:0] pc_pro_i,
          output [31:0] pc_pro_o,
 
-         input wbu_refetch_flush
+         input wbu_refetch_flush,
+
+         // from csr
+         output wire [13:0] rd_csr_addr,
+         input  wire [31:0] rd_csr_data,
+         // //timer 64
+         input [63:0] timer_64,
+         input [31:0] csr_tid,
+
+         input [82:0] bus_csr_rd_wr_data_i
 
      );
+    reg [82:0] bus_csr_rd_wr_data_i_r;
     reg is_csr_wr_i_r;
 
     wire excp_flush;
@@ -129,6 +139,9 @@ module MEM
     wire wire_inst_tlbfill;
     wire wire_inst_invtlb;
 
+
+
+
     assign {
             wire_inst_tlbsrch,
             wire_inst_tlbrd,
@@ -158,10 +171,57 @@ module MEM
                pc,
                wire_csr_we,
                wire_csr_idx,
-               wire_csr_wdata,
+               csr_wdata,
                wire_is_inst_ertn,
                wire_error_va
            };
+
+    //    res_from_csr,
+    //    rd_csr_addr,
+    //    csr_we,
+    //    csr_mask,
+    //    csr_rkd_value
+
+    wire wire_res_from_csr;
+    wire [13:0] wire_rd_csr_addr;
+    wire wire_csr_we;
+    wire [31:0] wire_csr_mask;
+    wire [31:0] wire_csr_rkd_value;
+    wire wire_inst_rdcntvl_w;
+    wire wire_inst_rdcntvh_w;
+    wire wire_inst_rdcntid_w;
+
+
+
+    assign {
+            wire_res_from_csr,
+            wire_rd_csr_addr,
+            wire_csr_we,
+            wire_csr_mask,
+            wire_csr_rkd_value,
+            wire_inst_rdcntvl_w,
+            wire_inst_rdcntvh_w,
+            wire_inst_rdcntid_w
+        } = bus_csr_rd_wr_data_i_r;
+
+    wire rdcnt_en;
+    wire [31:0] rdcnt_result;
+    assign {rdcnt_en, rdcnt_result} = ({33{wire_inst_rdcntvl_w}} & {1'b1, timer_64[31: 0]}) |
+           ({33{wire_inst_rdcntvh_w}} & {1'b1, timer_64[63:32]}) |
+           ({33{wire_inst_rdcntid_w}} & {1'b1, csr_tid});
+
+    // 从 csr 独读出的值有两种情况
+    wire [31:0] csr_data = rdcnt_en ? rdcnt_result :
+         wire_res_from_csr ? rd_csr_data : 32'd0;
+
+    // 从 csr 中读取数据
+    // 其中，如果是读计数器寄存器，则直接返回计数器的值
+    assign rd_csr_addr = wire_rd_csr_addr;
+    wire [31:0] csr_wdata = wire_csr_rkd_value & wire_csr_mask | (csr_data & ~wire_csr_mask);
+
+    assign final_result = wire_res_from_mem ? mem_result :
+           wire_res_from_csr ? csr_data :
+           wire_exu_result;
 
     // 输出
     assign ms_excp_out = ms_excp;
@@ -204,9 +264,6 @@ module MEM
          ld_hu && mem_mask == 4'b1100 ? {16'b0, reg_rdata[31:16]}:
          reg_rdata;
 
-    assign final_result = wire_res_from_mem ? mem_result : wire_exu_result;
-
-
     // 解决数据相关
     assign mem_regWr = gr_we;
     assign mem_data = final_result;
@@ -214,7 +271,7 @@ module MEM
 
     assign mem_csr_we = wire_csr_we;
     assign mem_csr_idx = wire_csr_idx;
-    assign mem_csr_wdata = wire_csr_wdata;
+    assign mem_csr_wdata = csr_wdata;
 
     assign bus_mem_bypass_data = {
                mem_regWr,
@@ -262,6 +319,8 @@ module MEM
 
             refetch_excp_i_r <= 1'b0;
 
+            bus_csr_rd_wr_data_i_r <= 83'd0;
+
         end
         else if (mem_state == 2'd0 && up_valid) begin
             reg_rdata <= data_sram_rdata;
@@ -287,6 +346,8 @@ module MEM
             refetch_excp_i_r <= wbu_refetch_sign_i | refetch_excp_i;
 
             pc_pro_i_r <= pc_pro_i;
+
+            bus_csr_rd_wr_data_i_r <= bus_csr_rd_wr_data_i;
         end
 
         else if(mem_state == 2'd1) begin
@@ -318,5 +379,6 @@ module MEM
     assign refetch_excp_o = refetch_excp_i_r;
 
     assign pc_pro_o = pc_pro_i_r;
+
 
 endmodule

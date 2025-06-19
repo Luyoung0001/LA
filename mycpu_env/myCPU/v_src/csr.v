@@ -10,6 +10,7 @@ module csr
          input wire [13:0] rd_addr,
          output wire [31:0] rd_data,
 
+
          //interrupt
          input wire [7:0] interuption,
          //timer 64
@@ -293,7 +294,6 @@ module csr
     //crmd
     always @(posedge clk) begin
         if (rst) begin
-            // 《龙芯架构 32 位精简版参考手册》page 55
             csr_crmd[ `PLV] <=  2'b0;
             csr_crmd[  `IE] <=  1'b0; // 复位后需要屏蔽中断
             csr_crmd[  `DA] <=  1'b1; // 复位后开启地址直接翻译

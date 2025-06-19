@@ -369,30 +369,19 @@ int difftest() {
         return 1;
     } else {
         // 此时，mycpu 会对 GPR 进行修改
-        // 此时读取 ref，如果 ref 的 we 是 0，直接跳过。
-        // 但是情况可能很复杂
-        // 我们假定：mycpu 一定执行了比 ref 更少的指令
-        // 如果 ref 的 we 是 0，跳过一次够吗？
-        // 如果不够，应该继续读取，一直读取到哪里？
-
-        // 第一个问题：
-        // 按照假定 1，一定要跳过多个
-        // 第二个问题：
-        // 一直跳到 ref_struct.pc == mycpu_trace_info.pc
 
         // 读取 ref
+        // 一直读到 ref 的 we 为 1
         read_ref();
-        while (ref_struct.pc != mycpu_trace_info.pc && ref_struct.we == 0) {
+        while (ref_struct.we == 0) {
             read_ref();
         }
-
-        if (ref_struct.we == 0) {
+        // 如果 PC 不一样，说明 mycpu 此时的指令没有比较的意义
+        if (mycpu_trace_info.pc != ref_struct.pc) {
             return 1;
         }
         // pc 应该每次都进行打印
-        printf("CPU: \033[32mpc: %08x\033[0m\n", mycpu_trace_info.pc);
-        printf("REF: \033[32mpc: %08x\033[0m\n\n", ref_struct.pc);
-
+        print_info();
         // 比较
         int good = (ref_struct.we == mycpu_trace_info.we &&
                     ref_struct.wnum == mycpu_trace_info.wnum &&
@@ -403,7 +392,7 @@ int difftest() {
             // 如果不相等，打印信息
             print_info();
         }
-        return 1;
+        return good;
     }
     return -1;
 

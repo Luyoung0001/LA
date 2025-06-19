@@ -31,7 +31,7 @@ module sram_like_to_axi_bridge(
         output  wire        icache_ret_last,
         output  wire [31:0] icache_ret_data,
 
-        // icache 用不到
+        // icache 鐢ㄤ笉鍒?
         input   wire         icache_wr_req,
         input   wire [2:0]   icache_wr_type,
         input   wire [31:0]  icache_wr_addr,
@@ -125,10 +125,10 @@ module sram_like_to_axi_bridge(
         end
     endfunction
 
-    // 突发长度和次数
+    // 绐佸彂闀垮害鍜屾鏁?
     wire inst_rd_cache_line = icache_rd_type == 3'b100;
     wire [2:0] inst_real_rd_size  = inst_rd_cache_line ? 3'b10 : icache_rd_type;
-    wire [7:0] inst_real_rd_len   = inst_rd_cache_line ? 8'b11 : 8'b0; // 3 +1次，每次 4 个字节，共 16 个字节
+    wire [7:0] inst_real_rd_len   = inst_rd_cache_line ? 8'b11 : 8'b0; // 3 +1娆★紝姣忔 4 涓瓧鑺傦紝鍏? 16 涓瓧鑺?
 
     // Read/write arbitration logic
     wire inst_read_request;
@@ -136,7 +136,7 @@ module sram_like_to_axi_bridge(
     wire data_write_request;
 
     assign inst_read_request = icache_rd_req;
-    assign data_read_request = data_sram_req && !data_sram_wr && !inst_read_request; // 指令优先
+    assign data_read_request = data_sram_req && !data_sram_wr && !inst_read_request; // 鎸囦护浼樺厛
     assign data_write_request = data_sram_req && data_sram_wr;
 
     // Handshake signals
@@ -165,7 +165,7 @@ module sram_like_to_axi_bridge(
 
     // icache
     assign icache_rd_rdy = inst_state == IDLE;
-    assign icache_ret_valid = inst_data_received;
+    assign icache_ret_valid = rvalid && rid[0] == 1'b0;
     assign icache_ret_last = rlast;
     assign icache_ret_data = rdata;
 
@@ -268,7 +268,7 @@ module sram_like_to_axi_bridge(
             inst_arlen <= 8'd0;
             inst_rready <= 1'b0;
 
-            // 添加突发传输支持信号
+            // 娣诲姞绐佸彂浼犺緭鏀寔淇″彿
             inst_beat_count <= 8'd0;
             inst_total_beats <= 8'd0;
             inst_burst_complete <= 1'b0;
@@ -291,8 +291,8 @@ module sram_like_to_axi_bridge(
                         inst_arsize <= inst_real_rd_size;
                         inst_arlen <= inst_real_rd_len;
 
-                        // 初始化突发传输计数器
-                        inst_total_beats <= inst_real_rd_len + 1; // arlen=0表示1个节拍
+                        // 鍒濆鍖栫獊鍙戜紶杈撹鏁板櫒
+                        inst_total_beats <= inst_real_rd_len + 1; // arlen=0琛ㄧず1涓妭鎷?
                         inst_beat_count <= 8'd0;
                     end
                 end
@@ -313,23 +313,23 @@ module sram_like_to_axi_bridge(
                 end
 
                 READ_DATA: begin
-                    inst_rready <= 1'b1; // 保持ready信号
+                    inst_rready <= 1'b1; // 淇濇寔ready淇″彿
                     if (rvalid && rid[0] == 1'b0) begin  // Check if it's instruction data (rid[0] = 0)
-                        // 处理当前节拍的数据
+                        // 澶勭悊褰撳墠鑺傛媿鐨勬暟鎹?
                         // inst_read_data <= rdata;
                         inst_data_received <= 1'b1;
-                        // 更新节拍计数器
+                        // 鏇存柊鑺傛媿璁℃暟鍣?
                         inst_beat_count <= inst_beat_count + 1;
-                        // 检查是否为最后一个节拍
+                        // 妫?鏌ユ槸鍚︿负鏈?鍚庝竴涓妭鎷?
                         if (rlast || (inst_beat_count == (inst_total_beats - 1))) begin
-                            // 突发传输完成
+                            // 绐佸彂浼犺緭瀹屾垚
                             inst_rready <= 1'b0;
                             inst_state <= IDLE;
                             handling_inst_request <= 1'b0;
                             inst_burst_complete <= 1'b1;
                             inst_beat_count <= 8'd0;
                         end
-                        // 如果不是最后一个节拍，继续在READ_DATA状态等待下一个数据
+                        // 濡傛灉涓嶆槸鏈?鍚庝竴涓妭鎷嶏紝缁х画鍦≧EAD_DATA鐘舵?佺瓑寰呬笅涓?涓暟鎹?
                     end
                 end
 

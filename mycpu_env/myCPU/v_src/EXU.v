@@ -114,8 +114,11 @@ module EXU
          input [31:0] pc_pro_i,
          output [31:0] pc_pro_o,
 
-         input wbu_refetch_flush
+         input wbu_refetch_flush,
+         input [82:0] bus_csr_rd_wr_data_i,
+         output [82:0] bus_csr_rd_wr_data_o
      );
+    reg [82:0] bus_csr_rd_wr_data_i_r;
     reg is_csr_wr_i_r;
     wire excp_flush;
     wire ertn_flush;
@@ -206,7 +209,6 @@ module EXU
             wire_inst_invtlb
         } = tlb_inst_bus_r;
 
-
     assign exu_excp = es_excp | mem_excp; // 收集下游的信号，向上传递
     assign exu_is_ertn = wire_is_inst_ertn | mem_in_is_ertn;
 
@@ -267,7 +269,9 @@ module EXU
     assign error_va = pv_addr;
 
     // 解决数据相关
-    assign exu_regWr = gr_we;
+    // 如果这是读取 csr 的指令，此时要写入 csr 的数据并没有被读出来
+    // 因此这里遇到寄存器读的指令，exu_regWr 无效
+    assign exu_regWr = gr_we && !res_from_csr;
     assign exu_data = exu_result;
     assign exu_regAddr = wire_in_dest;
 
@@ -394,7 +398,7 @@ module EXU
     // 对结果进行汇总
     assign exu_result =
            res_from_mem ? rdata :
-           res_from_csr ? wire_csr_data :
+           // res_from_csr ? wire_csr_data :
            op_div || op_divu ? div_result :
            op_mod || op_modu ? mod_result :
            mul_div_op[0] || mul_div_op[1] || mul_div_op[2] ? mul_result :
@@ -436,7 +440,7 @@ module EXU
            st_w ? wire_in_rkd_value : 32'b0;
 
     wire access_memo = ld_b || ld_bu || ld_h || ld_hu || ld_w ||
-           st_b || st_h || st_w;
+         st_b || st_h || st_w;
 
     reg [4:0] invtlb_op_i_r;
     reg [9:0] invtlb_asid_i_r;
@@ -463,6 +467,8 @@ module EXU
             is_csr_wr_i_r <= 1'b0;
 
             refetch_excp_i_r <= 1'b0;
+
+            bus_csr_rd_wr_data_i_r <= 83'd0;
         end
         else if (exu_state == 2'd0 && up_valid) begin
             ds_to_es_bus_data_r <= bus_ds_to_es_data;
@@ -483,6 +489,8 @@ module EXU
             refetch_excp_i_r <= wbu_refetch_sign_i | refetch_excp_i;
 
             pc_pro_i_r <= pc_pro_i;
+
+            bus_csr_rd_wr_data_i_r <= bus_csr_rd_wr_data_i;
 
         end
         // 这里要处理，进入处理阶段
@@ -606,5 +614,7 @@ module EXU
     assign refetch_excp_o = refetch_excp_i_r;
 
     assign pc_pro_o = pc_pro_i_r;
+
+    assign bus_csr_rd_wr_data_o = bus_csr_rd_wr_data_i_r;
 
 endmodule

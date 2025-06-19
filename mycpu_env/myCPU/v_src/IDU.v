@@ -26,12 +26,11 @@ module IDU (
         output wire [7:0] out_mem_op,
 
         // csr
-        output wire [13:0] rd_csr_addr,
-        input  wire [31:0] rd_csr_data,
+        // output wire [13:0] rd_csr_addr,
+        // input  wire [31:0] rd_csr_data,
+
         input  wire [1:0]  csr_plv,
-        //timer 64
-        input [63:0] timer_64,
-        input [31:0] csr_tid,
+
         // exception
 
         input wire [1:0] flush,
@@ -66,8 +65,13 @@ module IDU (
 
         output [31:0] pc_pro_o, // PC 应该走专线
 
-        input wbu_refetch_flush
+        input wbu_refetch_flush,
+
+        // 对于 csr 读的操作转移到 MEM
+        output wire [82:0] bus_csr_rd_wr_data
     );
+    wire [13:0] rd_csr_addr;
+    wire [31:0] csr_rkd_value;
 
     wire excp_flush;
     wire ertn_flush;
@@ -370,7 +374,7 @@ module IDU (
     end
 
     assign state_valid = idu_state == 2'd1 && caculate_done;
-    assign waite_ready_o = idu_state == 2'd0 ? 1'b1 : 1'b0;
+    assign waite_ready_o = idu_state == 2'd0 ? 1'b1 : 1'b0; // 阻塞
 
 
     reg [31:0] conflict_regaData;
@@ -411,7 +415,7 @@ module IDU (
     end
 
     always @(*) begin
-        if (exu_regWr && (rf_raddr2 == exu_regAddr)&& rf_raddr2 != 5'd0) begin
+        if (exu_regWr && (rf_raddr2 == exu_regAddr) && rf_raddr2 != 5'd0) begin
             conflict_regbData = exu_data;
         end
         else if (mem_regWr && (rf_raddr2 == mem_regAddr)&& rf_raddr2 != 5'd0) begin
@@ -635,31 +639,34 @@ module IDU (
            inst_rdcntvl_w |
            inst_rdcntvh_w;
 
-    assign rd_csr_addr = csr_idx;
+
 
     // 解决 tid 数据相关
     // 1c076234:	0401002d 	csrwr	$r13,0x40
     // 1c076238:	0000600f 	rdtimel.w	$r15,$r0
     // 1c07623c:	00006180 	rdtimel.w	$r0,$r12
 
-    assign {rdcnt_en, rdcnt_result} = ({33{inst_rdcntvl_w}} & {1'b1, timer_64[31: 0]}) |
-           ({33{inst_rdcntvh_w}} & {1'b1, timer_64[63:32]}) |
-           ({33{inst_rdcntid_w}} & {1'b1, csr_tid});
+    // assign {rdcnt_en, rdcnt_result} = ({33{inst_rdcntvl_w}} & {1'b1, timer_64[31: 0]}) |
+    //        ({33{inst_rdcntvh_w}} & {1'b1, timer_64[63:32]}) |
+    //        ({33{inst_rdcntid_w}} & {1'b1, csr_tid});
 
     // 解决 csr 数据相关
 
-    wire [31:0] conflict_csr_data;
-    assign conflict_csr_data = exu_csr_we && (exu_csr_idx == csr_idx) ? exu_csr_wdata :
-           mem_csr_we && (mem_csr_idx == csr_idx) ? mem_csr_wdata :
-           wbu_csr_we && (wbu_csr_idx == csr_idx) ? wbu_csr_wdata :
-           rdcnt_en ? rdcnt_result : rd_csr_data;
+    assign rd_csr_addr = csr_idx;
+    // wire [31:0] conflict_csr_data;
+    // assign conflict_csr_data = exu_csr_we && (exu_csr_idx == csr_idx) ? exu_csr_wdata :
+    //        mem_csr_we && (mem_csr_idx == csr_idx) ? mem_csr_wdata :
+    //        wbu_csr_we && (wbu_csr_idx == csr_idx) ? wbu_csr_wdata :
+    //        rdcnt_en ? rdcnt_result : rd_csr_data;
 
-    assign csr_data = conflict_csr_data;
+    // assign csr_data = conflict_csr_data;
     assign csr_we = inst_csrwr | inst_csrxchg; // 修改 csr
 
-    // 根据掩码 rj，将 old_rd 写入到 rj[x]=1 对应的 csr 位中
+    // // 根据掩码 rj，将 old_rd 写入到 rj[x]=1 对应的 csr 位中
     assign csr_mask = inst_csrwr ? 32'hffffffff : rj_value;
-    assign csr_wdata = rkd_value & csr_mask | (csr_data & ~csr_mask);
+    // assign csr_wdata = rkd_value & csr_mask | (csr_data & ~csr_mask);
+    assign csr_rkd_value = rkd_value;
+
 
     assign is_inst_ertn = inst_ertn; // 是 ertn 指令
 
@@ -861,7 +868,7 @@ module IDU (
 
     // 异常=================================================
 
-    assign alu_src1 = src1_is_pc  ? idu_pc[31:0] : rj_value;
+    assign alu_src1 = src1_is_pc ? idu_pc[31:0] : rj_value;
     assign alu_src2 = src2_is_imm ? imm : rkd_value;
 
     // tlb
@@ -886,5 +893,16 @@ module IDU (
            inst_tlbsrch;
     assign refetch_excp_o = refetch_excp_i_r;
     assign pc_pro_o = idu_pc;
+
+    assign bus_csr_rd_wr_data = {
+               res_from_csr,
+               rd_csr_addr,
+               csr_we,
+               csr_mask,
+               csr_rkd_value,
+               inst_rdcntvl_w,
+                inst_rdcntvh_w,
+                inst_rdcntid_w
+           };
 
 endmodule
