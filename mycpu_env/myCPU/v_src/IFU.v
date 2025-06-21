@@ -177,7 +177,6 @@ module IFU (
     // assign req = 1'b0;      // 默认
     // assign addr = pc;
 
-
     // 这里应该设置一个握手机制：参考的是 ysyx 中的 B1 总线，也是我之前实现过的一个模块
     // 具体的，分为两个状态：idle <---> waite_ready
     // 1、一开始处于空闲状态 idle，===> valid = 0；

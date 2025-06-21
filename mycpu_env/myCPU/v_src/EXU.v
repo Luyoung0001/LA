@@ -92,7 +92,7 @@ module EXU
          input wire  [1:0]     data_tlb_plv,
 
          // for tlbsrch
-         output wire[$clog2(TLBNUM)-1:0]      tlbsrch_index,
+         output wire[$clog2(TLBNUM)-1:0]  tlbsrch_index,
          output wire           tlbsrch_found,
          // for invtlb
          input wire [4:0]       invtlb_op_i,
@@ -275,8 +275,6 @@ module EXU
     assign exu_data = exu_result;
     assign exu_regAddr = wire_in_dest;
 
-
-
     assign exu_csr_we = wire_csr_we;
     assign exu_csr_idx = wire_csr_idx;
     assign exu_csr_wdata = wire_csr_wdata;
@@ -396,9 +394,10 @@ module EXU
             );
 
     // 对结果进行汇总
+
+    wire [31:0] real_data;
     assign exu_result =
-           res_from_mem ? rdata :
-           // res_from_csr ? wire_csr_data :
+           res_from_mem ? real_data :
            op_div || op_divu ? div_result :
            op_mod || op_modu ? mod_result :
            mul_div_op[0] || mul_div_op[1] || mul_div_op[2] ? mul_result :
@@ -525,7 +524,45 @@ module EXU
             end
         end
     end
-    assign rdata_o = flush_sign ? 32'd0 : rdata;
+
+    // real data
+    // axi 返回的永远是 4 字节，因此这里会根据 size 以及地址生成最终的数据
+    // offset[1:0] == 00 的时候：
+    // size:0--->0001
+    // size:1--->0011
+    // size:2--->1111
+    // offset[1:0] == 01 的时候：
+    // size:0--->0010
+    // offset[1:0] == 10 的时候：
+    // size:0--->0100
+    // size:1--->1100
+    // offset[1:0] == 11 的时候：
+    // size:0--->1000
+    // 另外，这里还得考虑一下符号扩展
+    assign real_data =
+           (data_offset[1:0] == 2'b00) ? (
+               (size == 2'b00) ? (
+                   ld_b ? {{24{rdata[7]}},rdata[7:0]}: {24'b0, rdata[7:0]}):
+               (size == 2'b01) ? (
+                   ld_h ? {{16{rdata[15]}},rdata[15:0]} : {16'b0, rdata[15:0]}):
+               rdata
+           ) :
+           (data_offset[1:0] == 2'b01) ? (
+               ld_b ? {{24{rdata[15]}},rdata[15:8]}: {24'b0, rdata[15:8]}
+           ) :
+           (data_offset[1:0] == 2'b10) ? (
+               (size == 2'b00) ? (
+                   ld_b ? {{24{rdata[23]}},rdata[23:16]}: {24'b0, rdata[23:16]}):
+               (size == 2'b01) ? (
+                   ld_h ? {{16{rdata[31]}},rdata[31:16]} : {16'b0, rdata[31:16]}):
+               rdata
+           ) :
+           (data_offset[1:0] == 2'b11) ? (
+               ld_b ? {{24{rdata[31]}},rdata[31:24]}: {24'b0, rdata[31:24]}
+           ) :
+           rdata;  // 默认情况返回原始数据
+
+    assign rdata_o = flush_sign ? 32'd0 : real_data;
     assign req = stop_signal ? 1'b0 : exu_state == 2'd1 && access_memo && waite_ready_i && !addr_ok;
 
     assign state_valid = (exu_state == 2'd1 &&  (wire_complete & div) ) ? 1'b1 : // 计算除法

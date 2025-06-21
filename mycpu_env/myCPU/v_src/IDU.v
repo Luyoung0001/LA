@@ -25,10 +25,6 @@ module IDU (
         output wire [31:0] idu_inst_o,
         output wire [7:0] out_mem_op,
 
-        // csr
-        // output wire [13:0] rd_csr_addr,
-        // input  wire [31:0] rd_csr_data,
-
         input  wire [1:0]  csr_plv,
 
         // exception
@@ -114,8 +110,6 @@ module IDU (
     wire caculate_done_2;
 
     wire caculate_done;
-
-
 
     wire flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
 
@@ -639,35 +633,10 @@ module IDU (
            inst_rdcntvl_w |
            inst_rdcntvh_w;
 
-
-
-    // 解决 tid 数据相关
-    // 1c076234:	0401002d 	csrwr	$r13,0x40
-    // 1c076238:	0000600f 	rdtimel.w	$r15,$r0
-    // 1c07623c:	00006180 	rdtimel.w	$r0,$r12
-
-    // assign {rdcnt_en, rdcnt_result} = ({33{inst_rdcntvl_w}} & {1'b1, timer_64[31: 0]}) |
-    //        ({33{inst_rdcntvh_w}} & {1'b1, timer_64[63:32]}) |
-    //        ({33{inst_rdcntid_w}} & {1'b1, csr_tid});
-
-    // 解决 csr 数据相关
-
     assign rd_csr_addr = csr_idx;
-    // wire [31:0] conflict_csr_data;
-    // assign conflict_csr_data = exu_csr_we && (exu_csr_idx == csr_idx) ? exu_csr_wdata :
-    //        mem_csr_we && (mem_csr_idx == csr_idx) ? mem_csr_wdata :
-    //        wbu_csr_we && (wbu_csr_idx == csr_idx) ? wbu_csr_wdata :
-    //        rdcnt_en ? rdcnt_result : rd_csr_data;
-
-    // assign csr_data = conflict_csr_data;
     assign csr_we = inst_csrwr | inst_csrxchg; // 修改 csr
-
-    // // 根据掩码 rj，将 old_rd 写入到 rj[x]=1 对应的 csr 位中
     assign csr_mask = inst_csrwr ? 32'hffffffff : rj_value;
-    // assign csr_wdata = rkd_value & csr_mask | (csr_data & ~csr_mask);
     assign csr_rkd_value = rkd_value;
-
-
     assign is_inst_ertn = inst_ertn; // 是 ertn 指令
 
     assign dst_is_r1 = inst_bl;

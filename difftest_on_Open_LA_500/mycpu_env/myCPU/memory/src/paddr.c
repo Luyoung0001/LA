@@ -6,7 +6,7 @@
 uint8_t* pmem = NULL;
 
 // 加载指令
-#define img_file "/home/luyoung/LA/mycpu_env/func/obj/main.bin"
+#define img_file "/home/luyoung/LA/mycpu_env/func/obj/hello_world.bin"
 #define RESET_VECTOR 0x1c000000
 
 void init_mem() {

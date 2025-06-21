@@ -224,8 +224,10 @@ void get_good_level() {
 #endif
 void print_info() {
 #ifdef EASY_MODE
+    // uint32_t inst = top->rootp->verilator_top->debug_wb_inst;
     printf("-->CPU %d %08x %02x %08x\n", mycpu_trace_info.we,
-           mycpu_trace_info.pc, mycpu_trace_info.wnum, mycpu_trace_info.value);
+           mycpu_trace_info.pc, mycpu_trace_info.wnum,
+           mycpu_trace_info.value);
     printf("-->REF %d %08x %02x %08x\n\n\n", ref_struct.we, ref_struct.pc,
            ref_struct.wnum, ref_struct.value);
 #else
@@ -354,6 +356,7 @@ int difftest() {
     mycpu_trace_info.pc = top->rootp->verilator_top->debug_wb_pc;
     mycpu_trace_info.value = top->rootp->verilator_top->debug_wb_rf_wdata;
     // 防止一个指令保持多个周期，这里需要判断等幂性，如果等幂直接退出
+
     if (last_op.pc == mycpu_trace_info.pc) {
         return 1;
     }
@@ -368,8 +371,6 @@ int difftest() {
         // 直接跳过
         return 1;
     } else {
-        // 此时，mycpu 会对 GPR 进行修改
-
         // 读取 ref
         // 一直读到 ref 的 we 为 1
         read_ref();
@@ -381,7 +382,7 @@ int difftest() {
             return 1;
         }
         // pc 应该每次都进行打印
-        print_info();
+        // print_info();
         // 比较
         int good = (ref_struct.we == mycpu_trace_info.we &&
                     ref_struct.wnum == mycpu_trace_info.wnum &&

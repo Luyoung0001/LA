@@ -1126,7 +1126,41 @@ module mycpu_top
               .wr_data(icache_wr_data),
               .wr_rdy(icache_wr_rdy)
           );
+    // 后期的工作，应该在 MEM 中发起内存访问
+    // 因此d cache 的访问接口应该放在 MEM 中
+    // cache dcache(
+    //           .clk(aclk),
+    //           .resetn(aresetn),
+    //           // ifu
+    //           .flush_sign_cancel(ifu_flush_sign_cancel),
+    //           .valid(ifu_icache_valid),
+    //           .op(ifu_icache_op),
+    //           .tag(ifu_icache_tag),
+    //           .index(ifu_icache_index),
+    //           .offset(ifu_icache_offset),
+    //           .wstrb(ifu_icache_wstrb),
+    //           .wdata(ifu_icache_wdata),
 
+    //           .addr_ok(icache_addr_ok),
+    //           .data_ok(icache_data_ok),
+    //           .rdata(icache_rdata),
+    //           // axi
+    //           .rd_req(icache_rd_req),
+    //           .rd_type(icache_rd_type),
+    //           .rd_addr(icache_rd_addr),
+    //           .rd_rdy(icache_rd_rdy),
+    //           .ret_valid(icache_ret_valid),
+    //           .ret_last(icache_ret_last),
+    //           .ret_data(icache_ret_data),
+
+
+    //           .wr_req(icache_wr_req),
+    //           .wr_type(icache_wr_type),
+    //           .wr_addr(icache_wr_addr),
+    //           .wr_wstrb(icache_wr_wstrb),
+    //           .wr_data(icache_wr_data),
+    //           .wr_rdy(icache_wr_rdy)
+    //       );
     assign debug_wb_pc = wbu_pc;
     assign debug_wb_rf_we = {4{wbu_rf_we}};
     assign debug_wb_rf_wnum = wbu_rf_waddr;

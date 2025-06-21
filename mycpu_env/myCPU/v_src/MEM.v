@@ -248,20 +248,7 @@ module MEM
     wire ld_w = mem_op[7];
 
     // 这里读出来的数据也很讲究
-    wire [31:0] mem_result = ld_b && mem_mask[0] ? {{24{reg_rdata[7]}}, reg_rdata[7:0]}:
-         ld_b && mem_mask[1] ? {{24{reg_rdata[15]}}, reg_rdata[15:8]}:
-         ld_b && mem_mask[2] ? {{24{reg_rdata[23]}}, reg_rdata[23:16]}:
-         ld_b && mem_mask[3] ? {{24{reg_rdata[31]}}, reg_rdata[31:24]}:
-         ld_bu && mem_mask[0] ? {24'b0, reg_rdata[7:0]}:
-         ld_bu && mem_mask[1] ? {24'b0, reg_rdata[15:8]}:
-         ld_bu && mem_mask[2] ? {24'b0, reg_rdata[23:16]}:
-         ld_bu && mem_mask[3] ? {24'b0, reg_rdata[31:24]}:
-         ld_h && mem_mask == 4'b0011 ? {{16{reg_rdata[15]}}, reg_rdata[15:0]}:
-         ld_h && mem_mask == 4'b0110 ? {{16{reg_rdata[23]}}, reg_rdata[23:8]}:
-         ld_h && mem_mask == 4'b1100 ? {{16{reg_rdata[31]}}, reg_rdata[31:16]}:
-         ld_hu && mem_mask == 4'b0011 ? {16'b0, reg_rdata[15:0]}:
-         ld_hu && mem_mask == 4'b0110 ? {16'b0, reg_rdata[23:8]}:
-         ld_hu && mem_mask == 4'b1100 ? {16'b0, reg_rdata[31:16]}:
+    wire [31:0] mem_result = 
          reg_rdata;
 
     // 解决数据相关
