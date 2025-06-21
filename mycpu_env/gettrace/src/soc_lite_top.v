@@ -55,7 +55,7 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //*************************************************************************
 
 
-`define INST_COE "../../../../../func/obj/axi_ram.mif"
+`define INST_COE "../../../../../func/obj/inst_ram.mif"
 
 module soc_lite_top #(parameter SIMULATION=1'b0)
 (
@@ -174,7 +174,7 @@ assign inst_sram_addr_need_highest_4bits = cpu_inst_addr[31:28] != 4'h0 &&
 wire [31:0] inst_sram_addr_mapped;
 assign inst_sram_addr_mapped = inst_sram_addr_need_highest_4bits ? {12'b0, 4'hf, cpu_inst_addr[31:28], cpu_inst_addr[11:0]} : cpu_inst_addr;
 
-reg [31:0] data_ram [103940000:0];
+reg [31:0] data_ram [262144:0];
 assign data_sram_rdata = data_sram_en ? data_ram[data_sram_addr_mapped[19:2]] : 32'h00000000;
 assign cpu_inst_rdata = cpu_inst_en ? (data_ram[inst_sram_addr_mapped[19:2]]) : 32'h00000000;
 always @(posedge clk)
