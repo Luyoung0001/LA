@@ -103,7 +103,9 @@ module WBU
          output        ws_lladdr_set                    ,
          output [27:0] ws_lladdr                        ,
          input wire [1:0]   ll_sc_i,
-         input wire [31:0]  paddr_i
+         input wire [31:0]  paddr_i,
+
+         output   wire   ws_to_ds_valid
      );
     reg [31:0] paddr_i_r;
     reg [1:0] ll_sc_i_r;
@@ -428,4 +430,6 @@ module WBU
     assign refetch_flush = refetch_excp_i_r && !ws_excp && !ertn_flush; // 保持一个周期???
 
     assign excp_tlbrefill_o = excp_tlbrefill;
+
+    assign ws_to_ds_valid = ws_valid;
 endmodule

@@ -65,8 +65,17 @@ module IDU (
         input wbu_refetch_flush,
 
         // 对于 csr 读的操作转移到 MEM
-        output wire [82:0] bus_csr_rd_wr_data
+        output wire [82:0] bus_csr_rd_wr_data,
+
+        //every stage valid sign
+        input                               es_to_ds_valid,
+        input                               ms_to_ds_valid,
+        input                               ws_to_ds_valid
     );
+
+    wire        pipeline_no_empty;
+    wire        dbar_stall;
+    wire        ibar_stall;
     wire [13:0] rd_csr_addr;
     wire [31:0] csr_rkd_value;
 
@@ -376,7 +385,7 @@ module IDU (
         end
     end
 
-    assign state_valid = idu_state == 2'd1 && caculate_done;
+    assign state_valid = idu_state == 2'd1 && caculate_done && !(dbar_stall || ibar_stall);
     assign waite_ready_o = idu_state == 2'd0 ? 1'b1 : 1'b0; // 阻塞
 
 
@@ -905,5 +914,10 @@ module IDU (
                inst_rdcntvh_w,
                inst_rdcntid_w
            };
+
+    //ibar dbar
+    assign pipeline_no_empty = es_to_ds_valid || ms_to_ds_valid || ws_to_ds_valid;
+    assign dbar_stall = inst_dbar && pipeline_no_empty;
+    assign ibar_stall = inst_ibar && pipeline_no_empty;
 
 endmodule

@@ -78,12 +78,14 @@ module MEM
 
          output wire [1:0] ll_sc,
          input wire [31:0] paddr_i,
-         output wire [31:0] paddr_o
+         output wire [31:0] paddr_o,
+
+         output wire  ms_to_ds_valid
 
      );
     reg [31:0] paddr_i_r;
     assign paddr_o = paddr_i_r;
-    
+
     reg [82:0] bus_csr_rd_wr_data_i_r;
     reg is_csr_wr_i_r;
 
@@ -197,8 +199,6 @@ module MEM
     wire wire_inst_rdcntvl_w;
     wire wire_inst_rdcntvh_w;
     wire wire_inst_rdcntid_w;
-
-
 
     assign {
             wire_res_from_csr,
@@ -382,6 +382,8 @@ module MEM
     assign pc_pro_o = pc_pro_i_r;
 
     assign ll_sc = mem_op[9:8];
+
+    assign ms_to_ds_valid = state_valid;
 
 
 endmodule

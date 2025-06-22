@@ -121,7 +121,9 @@ module EXU
 
          output wire [31:0] paddr,
 
-         input  [27:0]     lladdr
+         input  [27:0]     lladdr,
+
+         output wire es_to_ds_valid
      );
 
     reg [82:0] bus_csr_rd_wr_data_i_r;
@@ -668,5 +670,7 @@ module EXU
     assign bus_csr_rd_wr_data_o = bus_csr_rd_wr_data_i_r;
 
     assign paddr = {data_tag, error_va[11:0]};
+
+    assign  es_to_ds_valid = state_valid;
 
 endmodule
