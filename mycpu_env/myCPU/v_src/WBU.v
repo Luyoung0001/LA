@@ -32,7 +32,6 @@ module WBU
          // 握手信号
          input  wire up_valid,
          output wire waite_ready_o,
-
          // tlb
          input wire [4:0] tlb_inst_bus,
          // from csr
@@ -97,8 +96,22 @@ module WBU
          output wire        refetch_sign,
          output wire        refetch_flush,
 
-         output wire        excp_tlbrefill_o
+         output wire        excp_tlbrefill_o,
+         //llbit
+         output        ws_llbit_set                     ,
+         output        ws_llbit                         ,
+         output        ws_lladdr_set                    ,
+         output [27:0] ws_lladdr                        ,
+         input wire [1:0]   ll_sc_i,
+         input wire [31:0]  paddr_i
      );
+    reg [31:0] paddr_i_r;
+    reg [1:0] ll_sc_i_r;
+
+    wire ll_w;
+    wire sc_w;
+
+    assign {sc_w,ll_w} = ll_sc_i_r;
 
     // for debug
     reg is_csr_wr_i_r;
@@ -220,6 +233,10 @@ module WBU
 
             refetch_excp_i_r <= 1'b0;
 
+            ll_sc_i_r <= 2'd0;
+
+            paddr_i_r <= 32'd0;
+
         end
         else if (wbu_state == 2'd0 && up_valid) begin
             bus_mem_to_wbu_data_r <= bus_mem_to_wbu_data;
@@ -243,6 +260,8 @@ module WBU
 
             pc_pro_i_r <= pc_pro_i;
 
+            ll_sc_i_r  <= ll_sc_i;
+            paddr_i_r <= paddr_i;
         end
         else if(wbu_state == 2'd1) begin
             wbu_state <= 2'd0;
@@ -380,9 +399,14 @@ module WBU
                excp_tlb_vppn,
                csr_era};
 
+    //llbit
+    assign ws_llbit_set  = (ll_w | sc_w) & ws_valid & !ws_excp;
+    assign ws_llbit      = ll_w;
+    assign ws_lladdr_set = ll_w && ws_valid && !ws_excp;
+    assign ws_lladdr     =  paddr_i_r[31:4];
+
 
     assign inst_data_o = inst_data_i_r;
-
     assign is_csr_wr_o = is_csr_wr_i_r;
 
     // 这里发出 refetch_sign 信号，这里的保持时间要注意，保持整个周期，以便于上游模块设置"异常"

@@ -259,7 +259,7 @@ module mycpu_top
     wire [ 4:0]  idu_rf_raddr2;
     wire [226:0] idu_bus_ds_to_es_data;
     wire [31:0]  idu_idu_inst_o;
-    wire [ 7:0]  idu_out_mem_op;
+    wire [ 9:0]  idu_out_mem_op;
     wire [13:0]  idu_rd_csr_addr;
     wire         idu_state_valid;
     wire         idu_waite_ready_o;
@@ -280,7 +280,7 @@ module mycpu_top
     wire [150:0] exu_bus_exu_to_mem_data;
     wire [31:0]  exu_rdata_o;
     wire [85:0]  exu_bus_exu_bypass_data;
-    wire [ 7:0]  exu_out_mem_op;
+    wire [ 9:0]  exu_out_mem_op;
     wire [ 3:0]  exu_out_mem_mask;
     wire         exu_exu_excp;
     wire         exu_exu_is_etrn;
@@ -308,6 +308,7 @@ module mycpu_top
     wire [18:0]                    exu_invtlb_vpn_o;
 
     wire [82:0] exu_bus_csr_rd_wr_data_o;
+    wire [31:0] exu_paddr;
 
     // MEM signals
     wire         mem_ms_excp_out;
@@ -330,6 +331,10 @@ module mycpu_top
     wire [ 4:0]               mem_invtlb_op_o;
     wire [ 9:0]               mem_invtlb_asid_o;
     wire [18:0]               mem_invtlb_vpn_o;
+
+    wire [1:0] mem_ll_sc;
+    wire [31:0] mem_paddr_o;
+
 
 
 
@@ -376,6 +381,11 @@ module mycpu_top
 
     wire                      wbu_excp_tlbrefill_o;
 
+    wire wbu_ws_llbit_set;
+    wire wbu_ws_llbit;
+    wire wbu_ws_lladdr_set;
+    wire [27:0] wbu_ws_lladdr;
+
     // Register file signals
     wire [31:0] rf_rdata1;
     wire [31:0] rf_rdata2;
@@ -403,6 +413,9 @@ module mycpu_top
     wire [ 1:0] csr_datm_out;
     wire [ 5:0] csr_ecode_out;
     wire [$clog2(TLBNUM)-1:0] csr_rand_index;
+
+    wire csr_llbit_out;
+    wire [27:0] csr_lladdr_out;
 
     // TLB signals
     wire                      tlb_s0_found;
@@ -616,11 +629,8 @@ module mycpu_top
             .out_mem_op            (idu_out_mem_op),
 
             // CSR interface
-            // .rd_csr_addr           (idu_rd_csr_addr),
-            // .rd_csr_data           (csr_rd_data),
+            .llbit(csr_llbit_out),
             .csr_plv               (csr_plv_out),
-            // .timer_64              (csr_timer_64_out),
-            // .csr_tid               (csr_tid_out),
 
             // Control signals
             .flush                 (wbu_flush),
@@ -721,6 +731,7 @@ module mycpu_top
             .csr_tlbelo1(csr_tlbelo1_out),
             .csr_vppn(csr_vppn_out),
             .csr_asid(csr_asid_out),
+            .ds_llbit(csr_llbit_out),
 
             // 地址转换接口
             .data_addr_trans_en(exu_data_addr_trans_en),
@@ -767,7 +778,9 @@ module mycpu_top
             .pc_pro_o(exu_pc_pro_o),
             .wbu_refetch_flush(wbu_wbu_refetch_flush),
             .bus_csr_rd_wr_data_i(idu_bus_csr_rd_wr_data),
-            .bus_csr_rd_wr_data_o(exu_bus_csr_rd_wr_data_o)
+            .bus_csr_rd_wr_data_o(exu_bus_csr_rd_wr_data_o),
+            .paddr(exu_paddr),
+            .lladdr(csr_lladdr_out)
         );
     MEM #(TLBNUM) mem(
             // 时钟和复位
@@ -837,7 +850,10 @@ module mycpu_top
             .wbu_refetch_flush(wbu_wbu_refetch_flush),
             .rd_csr_addr           (idu_rd_csr_addr),
             .rd_csr_data           (csr_rd_data),
-            .bus_csr_rd_wr_data_i(exu_bus_csr_rd_wr_data_o)
+            .bus_csr_rd_wr_data_i(exu_bus_csr_rd_wr_data_o),
+            .ll_sc(mem_ll_sc),
+            .paddr_i(exu_paddr),
+            .paddr_o(mem_paddr_o)
         );
 
     WBU #(TLBNUM) wbu(
@@ -939,7 +955,14 @@ module mycpu_top
             .refetch_sign(wbu_refetch_sign),
             .pc_pro_i(mem_pc_pro_o),
             .refetch_flush(wbu_wbu_refetch_flush),
-            .excp_tlbrefill_o(wbu_excp_tlbrefill_o)
+            .excp_tlbrefill_o(wbu_excp_tlbrefill_o),
+
+            .ws_llbit_set(wbu_ws_llbit_set),
+            .ws_llbit    (wbu_ws_llbit),
+            .ws_lladdr_set(wbu_ws_lladdr_set),
+            .ws_lladdr    (wbu_ws_lladdr),
+            .ll_sc_i      (mem_ll_sc),
+            .paddr_i      (mem_paddr_o)
         );
 
     csr #(TLBNUM)csr_o(
@@ -967,6 +990,13 @@ module mycpu_top
             .tlbrentry_out(csr_tlbrentry_out),
             .plv_out(csr_plv_out),
 
+            .llbit_in(wbu_ws_llbit),
+            .llbit_set_in(wbu_ws_llbit_set),
+            .lladdr_in(wbu_ws_lladdr),
+            .lladdr_set_in(wbu_ws_lladdr_set),
+            .llbit_out(csr_llbit_out),
+            .lladdr_out(csr_lladdr_out),
+            
             // TLB读取接口
             .tlbrd_en(wbu_csr_tlbrd_en_o),
             .tlbehi_in(wbu_csr_tlbehi_o),

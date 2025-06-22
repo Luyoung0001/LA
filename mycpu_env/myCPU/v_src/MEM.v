@@ -13,7 +13,7 @@ module MEM
          output wire ms_excp_out,
          output wire [15:0] ms_excp_num_out,
 
-         input wire [7:0] in_mem_op,
+         input wire [9:0] in_mem_op,
          input wire [3:0] in_mem_mask,
 
          input wire [150:0] bus_exu_to_mem_data,
@@ -74,9 +74,16 @@ module MEM
          input [63:0] timer_64,
          input [31:0] csr_tid,
 
-         input [82:0] bus_csr_rd_wr_data_i
+         input [82:0] bus_csr_rd_wr_data_i,
+
+         output wire [1:0] ll_sc,
+         input wire [31:0] paddr_i,
+         output wire [31:0] paddr_o
 
      );
+    reg [31:0] paddr_i_r;
+    assign paddr_o = paddr_i_r;
+    
     reg [82:0] bus_csr_rd_wr_data_i_r;
     reg is_csr_wr_i_r;
 
@@ -128,7 +135,7 @@ module MEM
     wire [31:0] pc;
     wire [31:0] final_result;
 
-    reg [7:0] mem_op_reg;
+    reg [9:0] mem_op_reg;
     reg [3:0] mem_mask_reg;
 
     // tlb
@@ -235,7 +242,7 @@ module MEM
     assign pc             = wire_pc;
 
 
-    wire [7:0] mem_op = mem_op_reg;
+    wire [9:0] mem_op = mem_op_reg;
     wire [3:0] mem_mask = mem_mask_reg;
 
     wire st_b = mem_op[0];
@@ -246,9 +253,11 @@ module MEM
     wire ld_h = mem_op[5];
     wire ld_hu = mem_op[6];
     wire ld_w = mem_op[7];
+    wire ll_w = mem_op[8];
+    wire sc_w = mem_op[9];
 
     // 这里读出来的数据也很讲究
-    wire [31:0] mem_result = 
+    wire [31:0] mem_result =
          reg_rdata;
 
     // 解决数据相关
@@ -288,7 +297,7 @@ module MEM
             reg_rdata <= 32'd0;
             bus_exu_to_mem_data_r <= 151'd0;
             inst_data_i_r <= 32'd0;
-            mem_op_reg <= 8'd0;
+            mem_op_reg <=10'd0;
             mem_mask_reg <= 4'd0;
             es_excp_num_r <= 16'd0;
             es_excp_r <= 1'b0;
@@ -307,6 +316,9 @@ module MEM
             refetch_excp_i_r <= 1'b0;
 
             bus_csr_rd_wr_data_i_r <= 83'd0;
+
+            paddr_i_r <= 32'd0;
+
 
         end
         else if (mem_state == 2'd0 && up_valid) begin
@@ -335,6 +347,8 @@ module MEM
             pc_pro_i_r <= pc_pro_i;
 
             bus_csr_rd_wr_data_i_r <= bus_csr_rd_wr_data_i;
+
+            paddr_i_r <= paddr_i;
         end
 
         else if(mem_state == 2'd1) begin
@@ -366,6 +380,8 @@ module MEM
     assign refetch_excp_o = refetch_excp_i_r;
 
     assign pc_pro_o = pc_pro_i_r;
+
+    assign ll_sc = mem_op[9:8];
 
 
 endmodule

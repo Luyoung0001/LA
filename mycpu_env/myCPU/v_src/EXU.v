@@ -18,7 +18,7 @@ module EXU
          output wire [31:0] inst_data_o,
          output wire [150:0] bus_exu_to_mem_data,
 
-         input wire [7:0] in_mem_op,
+         input wire [9:0] in_mem_op,
 
          output wire req, //
          output wr,   // |we
@@ -33,7 +33,7 @@ module EXU
          output wire [31:0] rdata_o,
 
          output wire [85:0] bus_exu_bypass_data,
-         output wire [7:0] out_mem_op,
+         output wire [9:0] out_mem_op,
          output wire [3:0] out_mem_mask,
 
 
@@ -66,6 +66,7 @@ module EXU
          input wire [31:0] csr_tlbelo1,
          input wire [18:0] csr_vppn,
          input wire [9:0]  csr_asid,
+         input             ds_llbit,
 
          // from or to addr_trans
          // for tlbsrch and access mem
@@ -116,8 +117,13 @@ module EXU
 
          input wbu_refetch_flush,
          input [82:0] bus_csr_rd_wr_data_i,
-         output [82:0] bus_csr_rd_wr_data_o
+         output [82:0] bus_csr_rd_wr_data_o,
+
+         output wire [31:0] paddr,
+
+         input  [27:0]     lladdr
      );
+
     reg [82:0] bus_csr_rd_wr_data_i_r;
     reg is_csr_wr_i_r;
     wire excp_flush;
@@ -147,9 +153,6 @@ module EXU
     wire exu_excp_pme;
     wire [15:0] excp_pme_num;
 
-
-
-
     wire [31:0] pv_addr ;
     wire [31:0] error_va ;
 
@@ -166,7 +169,7 @@ module EXU
     reg [226:0] ds_to_es_bus_data_r;
     reg [31:0] inst_data_i_r;
 
-    reg [7:0] mem_op_reg;
+    reg [9:0] mem_op_reg;
 
     wire [9:0] mul_div_op;
     wire [31:0] wire_alu_op;
@@ -292,7 +295,7 @@ module EXU
     // 提前发射访存信号，必须在 es 阶段有效
     // 写使能信号，根据地址生成
 
-    wire [7:0] mem_op;
+    wire [9:0] mem_op;
     assign mem_op = mem_op_reg;
     assign out_mem_op = mem_op_reg;
 
@@ -306,6 +309,9 @@ module EXU
     wire ld_hu;
     wire ld_w;
 
+    wire ll_w;
+    wire sc_w;
+
     assign st_b = mem_op[0];
     assign st_h = mem_op[1];
     assign st_w = mem_op[2];
@@ -315,6 +321,8 @@ module EXU
     assign ld_h = mem_op[5];
     assign ld_hu = mem_op[6];
     assign ld_w = mem_op[7];
+    assign ll_w = mem_op[8];
+    assign sc_w = mem_op[9];
 
 
     wire [3:0] st_b_we;
@@ -329,9 +337,9 @@ module EXU
            (ld_b |ld_bu ) && (alu_result[1:0] == 2'b01) ? 4'b0010 :
            (ld_b | ld_bu) && (alu_result[1:0] == 2'b10) ? 4'b0100 :
            (ld_b | ld_bu) && (alu_result[1:0] == 2'b11) ? 4'b1000 :
-           (ld_h |ld_hu)  && (alu_result[1:0] == 2'b00) ? 4'b0011 :
-           (ld_h |ld_hu) && (alu_result[1:0] == 2'b10) ? 4'b1100 :
-           ld_w && (alu_result[1:0] == 2'b00) ? 4'b1111 :
+           (ld_h | ld_hu)  && (alu_result[1:0] == 2'b00) ? 4'b0011 :
+           (ld_h | ld_hu) && (alu_result[1:0] == 2'b10) ? 4'b1100 :
+           (ld_w | ll_w) && (alu_result[1:0] == 2'b00) ? 4'b1111 :
            4'b0000;
 
     assign st_b_we = alu_result[1:0] == 2'b00 ? 4'b0001 :
@@ -397,6 +405,7 @@ module EXU
 
     wire [31:0] real_data;
     assign exu_result =
+           sc_w ? {{31{1'b0}},1'b1}: // 如果是 sc，就看能否成功执行
            res_from_mem ? real_data :
            op_div || op_divu ? div_result :
            op_mod || op_modu ? mod_result :
@@ -416,6 +425,10 @@ module EXU
            alu_result;
 
 
+    // sc 是否执行，如果执行了，就往 rd 中写 1
+    wire sc_do;
+    assign sc_do = (sc_w & ds_llbit && lladdr == paddr[31:4]);
+
     // 是否访存
     // 握手信号
     assign gr_we = wire_in_gr_we;
@@ -424,22 +437,22 @@ module EXU
     // 访存信号
     assign size = ld_b || ld_bu || st_b ? 2'b00 :
            ld_h || ld_hu || st_h ? 2'b01 :
-           st_w || ld_w ? 2'b10 : 2'b00;
-    assign wr = (st_b || st_h || st_w) ;
+           st_w || ld_w || ll_w || sc_do ? 2'b10 : 2'b00;
+    assign wr = (st_b || st_h || st_w || sc_do) ;
 
     assign wstrb = stop_signal ? 4'b0000 : // 异常
            st_b  ? st_b_we :
            st_h  ? st_h_we :
-           st_w  ? st_w_we:
+           st_w | sc_do  ? st_w_we :
            4'b0000 ;
     // assign req = 1'b0; // 默认信号
     // 写入
     assign wdata = st_b ? {4{wire_in_rkd_value[7:0]}} :
            st_h ? {2{wire_in_rkd_value[15:0]}} :
-           st_w ? wire_in_rkd_value : 32'b0;
+           st_w | sc_do ? wire_in_rkd_value : 32'b0;
 
     wire access_memo = ld_b || ld_bu || ld_h || ld_hu || ld_w ||
-         st_b || st_h || st_w;
+         st_b || st_h || st_w || ll_w || sc_do;
 
     reg [4:0] invtlb_op_i_r;
     reg [9:0] invtlb_asid_i_r;
@@ -453,7 +466,7 @@ module EXU
             exu_state <= 2'd0;
             ds_to_es_bus_data_r <= 227'd0;
             inst_data_i_r <= 32'd0;
-            mem_op_reg <= 8'd0;
+            mem_op_reg <= 10'd0;
             ds_excp_num_r <= 16'd0;
             ds_excp_r <= 1'b0;
             // tlb
@@ -653,5 +666,7 @@ module EXU
     assign pc_pro_o = pc_pro_i_r;
 
     assign bus_csr_rd_wr_data_o = bus_csr_rd_wr_data_i_r;
+
+    assign paddr = {data_tag, error_va[11:0]};
 
 endmodule

@@ -45,8 +45,8 @@ module pre_IFU (
            wbu_excp_tlbrefill ? csr_tlbrentry :
            excp_flush ? csr_eentry:
            ertn_flush ? inst_flush_pc:
-           br_taken ? br_target :
            refetch_sign_i ? refetch_pc_i :
+           br_taken ? br_target :
            seq_pc;
 
     reg [1:0] pfs_state;

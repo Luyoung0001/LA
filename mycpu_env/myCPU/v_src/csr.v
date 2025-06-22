@@ -24,8 +24,18 @@ module csr
          output wire [31:0] era_out,
          output wire [31:0] eentry_out,
          output wire [31:0] tlbrentry_out,
-
          output [ 1:0]      plv_out,
+
+         //from ws llbit
+         input                           llbit_in     ,
+         input                           llbit_set_in ,
+         input  [27:0]                   lladdr_in    ,
+         input                           lladdr_set_in,
+         //to es
+         output                          llbit_out    ,
+         output [27:0]                   lladdr_out   ,
+
+
 
 
          //from addr trans
@@ -226,6 +236,8 @@ module csr
     reg [31:0] csr_ticlr;
 
     reg [31:0] csr_llbctl;
+    reg        llbit;
+    reg [27:0] lladdr;
 
     // csr 读取发生在 idu 中
     assign rd_data = {32{rd_addr == CRMD  }}  & csr_crmd    |
@@ -253,6 +265,7 @@ module csr
            {32{rd_addr == TID   }}  & csr_tid     |
            {32{rd_addr == TCFG  }}  & csr_tcfg    |
            {32{rd_addr == TICLR }}  & csr_ticlr   |
+           {32{rd_addr == LLBCTL}}  & {csr_llbctl[31:1], llbit} |
            {32{rd_addr == TVAL  }}  & csr_tval;
 
     assign era_out      = csr_era;
@@ -269,6 +282,9 @@ module csr
     assign tlbelo1_out  = csr_tlbelo1;
     assign tlbidx_out   = csr_tlbidx;
     assign rand_index   = timer_64[$clog2(TLBNUM)-1:0];
+
+    assign llbit_out    = llbit;
+    assign lladdr_out   = lladdr;
 
     assign plv_out      = {2{excp_flush}} & 2'b0            |
            {2{ertn_flush}} & csr_prmd[`PPLV] |
@@ -674,6 +690,43 @@ module csr
     end
 
 
+    //llbctl
+    always @(posedge clk) begin
+        if (rst) begin
+            csr_llbctl[`KLO]   <= 1'b0;
+            csr_llbctl[31:3]   <= 29'b0;
+            csr_llbctl[`WCLLB] <= 1'b0;
+            llbit <= 1'b0;
+        end
+        else if (ertn_flush) begin
+            if (csr_llbctl[`KLO]) begin
+                csr_llbctl[`KLO] <= 1'b0;
+            end
+            else begin
+                llbit <= 1'b0;
+            end
+        end
+        else if (llbctl_wen) begin
+            csr_llbctl[  `KLO] <= csr_wdata[  `KLO];
+            if (csr_wdata[`WCLLB] == 1'b1) begin
+                llbit <= 1'b0;
+            end
+        end
+        else if (llbit_set_in) begin
+            llbit <= llbit_in;
+        end
+    end
+
+    always @(posedge clk) begin
+        if (rst) begin
+            lladdr <= 28'b0;
+        end
+        else if (lladdr_set_in) begin
+            lladdr <= lladdr_in;
+        end
+    end
+
+
     // difftest
     assign csr_crmd_diff        = csr_crmd;
     assign csr_prmd_diff        = csr_prmd;
@@ -695,8 +748,7 @@ module csr
     assign csr_tcfg_diff        = csr_tcfg;
     assign csr_tval_diff        = csr_tval;
     assign csr_ticlr_diff       = csr_ticlr;
-    // assign csr_llbctl_diff      = {csr_llbctl[31:1], llbit};
-    assign csr_llbctl_diff      = csr_llbctl;
+    assign csr_llbctl_diff      = {csr_llbctl[31:1], llbit};
     assign csr_tlbrentry_diff   = csr_tlbrentry;
     assign csr_dmw0_diff        = csr_dmw0;
     assign csr_dmw1_diff        = csr_dmw1;

@@ -23,8 +23,9 @@ module IDU (
         // bus
         output wire [226:0] bus_ds_to_es_data,
         output wire [31:0] idu_inst_o,
-        output wire [7:0] out_mem_op,
+        output wire [9:0] out_mem_op,
 
+        input  wire llbit,
         input  wire [1:0]  csr_plv,
 
         // exception
@@ -212,6 +213,7 @@ module IDU (
     wire [ 4:0] rj;
     wire [ 4:0] rk;
     wire [11:0] i12;
+    wire [13:0] i14;
     wire [19:0] i20;
     wire [15:0] i16;
     wire [25:0] i26;
@@ -296,11 +298,18 @@ module IDU (
 
     wire        need_ui5;
     wire        need_si12;
+    wire        need_si14;
     wire        need_si16;
     wire        need_si20;
     wire        need_si26;
     wire        src2_is_4;
     wire        need_ui12;
+
+    wire        inst_ll_w;
+    wire        inst_sc_w;
+
+    wire inst_dbar;
+    wire inst_ibar;
 
 
     wire br_taken;
@@ -312,7 +321,7 @@ module IDU (
                alu_op,
                alu_src1,
                alu_src2,
-               mem_we,
+               mem_we, // 无用的信号
                rkd_value,
                res_from_mem,
                gr_we,
@@ -440,6 +449,7 @@ module IDU (
     assign rk   = idu_inst[14:10];
 
     assign i12  = idu_inst[21:10];
+    assign i14  = idu_inst[23:10];
     assign i20  = idu_inst[24:5];
     assign i16  = idu_inst[25:10];
     assign i26  = {idu_inst[9:
@@ -528,13 +538,22 @@ module IDU (
     assign inst_tlbwr      = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & rk_d[5'h0c] & rj_d[5'h00] & rd_d[5'h00];
     assign inst_tlbfill    = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & rk_d[5'h0d] & rj_d[5'h00] & rd_d[5'h00];
 
+    assign inst_ll_w       = op_31_26_d[6'h08] & ~idu_inst[25] & ~idu_inst[24];
+    assign inst_sc_w       = op_31_26_d[6'h08] & ~idu_inst[25] &  idu_inst[24];
+
+    assign inst_dbar       = op_31_26_d[6'h0e] & op_25_22_d[4'h1] & op_21_20_d[2'h3] & op_19_15_d[5'h04];
+    assign inst_ibar       = op_31_26_d[6'h0e] & op_25_22_d[4'h1] & op_21_20_d[2'h3] & op_19_15_d[5'h05];
+
     // assign kernel_inst = inst_csrrd|
     //        inst_csrwr|
     //        inst_csrxchg;
 
+    // 需要用到 alu 的指令
     assign alu_op[0] = inst_add_w | inst_addi_w | inst_ld_w | inst_st_w |
            | inst_jirl | inst_bl | inst_pcaddu12i | inst_ld_b | inst_ld_bu |
-           inst_ld_h | inst_ld_hu | inst_st_b | inst_st_h;
+           inst_ld_h | inst_ld_hu | inst_st_b | inst_st_h | inst_ll_w |
+           inst_sc_w;
+
     assign alu_op[1] = inst_sub_w;
     assign alu_op[2] = inst_slt | inst_slti;
     assign alu_op[3] = inst_sltu| inst_sltui;
@@ -562,6 +581,8 @@ module IDU (
     assign need_si12  =  inst_addi_w | inst_ld_w | inst_st_w | inst_slti | inst_sltui | inst_ld_b | inst_ld_bu |
            inst_ld_h | inst_ld_hu | inst_st_b | inst_st_h;
 
+    assign need_si14  =  inst_ll_w | inst_sc_w; // 符号扩展 14
+
     assign need_si16  =  inst_jirl | inst_beq | inst_bne;
     assign need_si20  =  inst_lu12i_w | inst_pcaddu12i;
     assign need_si26  =  inst_b | inst_bl;
@@ -571,6 +592,7 @@ module IDU (
 
     assign imm = src2_is_4 ? 32'h4:
            need_ui12 ? {20'b0, i12[11:0]}: // 12位零扩展立即数
+           need_si14 ? {{16{i14[13]}}, i14[13:0],2'b00}: // 左移 2 位有符号扩展
            need_si20 ? {i20[19:0], 12'b0}:
            {{20{i12[11]}}, i12[11:0]};     // 12位符号扩展立即数
 
@@ -586,6 +608,7 @@ module IDU (
            inst_st_w |
            inst_st_h |
            inst_st_b |
+           inst_sc_w |
            inst_blt |
            inst_bltu |
            inst_bge |
@@ -616,15 +639,19 @@ module IDU (
            inst_ld_bu  |
            inst_ld_h   |
            inst_ld_hu  |
-           inst_ld_w;
+           inst_ld_w   |
 
-    assign out_mem_op = {inst_ld_w, inst_ld_hu, inst_ld_h, inst_ld_bu, inst_ld_b, inst_st_w, inst_st_h, inst_st_b};
+           inst_ll_w   |
+           inst_sc_w;
+
+    assign out_mem_op = {inst_sc_w, inst_ll_w, inst_ld_w, inst_ld_hu, inst_ld_h, inst_ld_bu, inst_ld_b, inst_st_w, inst_st_h, inst_st_b};
 
     assign res_from_mem  = inst_ld_w |
            inst_ld_b |
            inst_ld_bu |
            inst_ld_h |
-           inst_ld_hu;
+           inst_ld_hu |
+           inst_ll_w;
 
     assign res_from_csr =  inst_csrrd |
            inst_csrwr |
@@ -682,10 +709,12 @@ module IDU (
            inst_csrwr|
            inst_rdcntid_w|
            inst_rdcntvl_w|
-           inst_rdcntvh_w
-           ;
+           inst_rdcntvh_w|
 
-    assign mem_we = inst_st_w | inst_st_b | inst_st_h;
+           inst_ll_w|
+           inst_sc_w;
+
+    assign mem_we = inst_st_w | inst_st_b | inst_st_h | (inst_sc_w & llbit);
     assign dest = dst_is_r1 ? 5'd1 :
            dst_is_rj ? rj : rd;
 
@@ -723,7 +752,6 @@ module IDU (
                        || inst_bge  && rj_gt_rd
                        || inst_bgeu && rj_gtu_rd
                       )  && !wire_fs_excp && !refetch_excp_i_r;
-    //   )  && !wire_fs_excp ;
     assign br_target = (inst_beq || inst_bne || inst_bl || inst_b || inst_blt || inst_bltu || inst_bge || inst_bgeu) ? (idu_pc + br_offs) :
            /*inst_jirl*/  (rj_value + jirl_offs);
 
@@ -787,6 +815,10 @@ module IDU (
            inst_tlbrd      |
            inst_tlbwr      |
            inst_tlbfill    |
+           inst_ll_w       |
+           inst_sc_w       |
+           inst_dbar       |
+           inst_ibar       |
            (inst_invtlb && (rd == 5'd0 ||
                             rd == 5'd1 ||
                             rd == 5'd2 ||
@@ -870,8 +902,8 @@ module IDU (
                csr_mask,
                csr_rkd_value,
                inst_rdcntvl_w,
-                inst_rdcntvh_w,
-                inst_rdcntid_w
+               inst_rdcntvh_w,
+               inst_rdcntid_w
            };
 
 endmodule

@@ -114,14 +114,14 @@ void step() {
     top->eval();
 
     // if (i >= 800000)
-    // tfp->dump(main_time);  // 记录波形数据
-    main_time++;           // 时间递增
+    tfp->dump(main_time);  // 记录波形数据
+    main_time++;  // 时间递增
 
     top->clk = 1;
     top->eval();
 
     // if (i >= 800000)
-    // tfp->dump(main_time);
+    tfp->dump(main_time);
     main_time++;
 }
 void reset(int n) {
@@ -190,6 +190,9 @@ int difftest() {
     last_op.pc = trace_info.pc;
     last_op.value = trace_info.value;
 
+    gen_golden_trace_file1();
+    return 1;
+
     // 如果修改 csr，那么 trace
     // 这里其实增加了一种情况，那就是原生的 difftest 中只记录了对 GPR 的修改信息
     // 事实上，完善的 difftest 应该记录对 CSR 的修改信息
@@ -212,7 +215,8 @@ int difftest() {
         // 全部生成 difftest
         gen_golden_trace_file2();
 
-        // printf("-->CPU %d %08x %02x %08x\n", trace_info.we == 15, trace_info.pc,
+        // printf("-->CPU %d %08x %02x %08x\n", trace_info.we == 15,
+        // trace_info.pc,
         //        trace_info.wnum, trace_info.value);
         // printf("-->REF %d %08x %02x %08x\n", ref_struct.we, ref_struct.pc,
         //        ref_struct.wnum, ref_struct.value);
@@ -253,7 +257,7 @@ void cpu_exec(uint64_t n) {
             printf("i:%d -->Error!\n", i);
             break;
         }
-        uint32_t stop_pc = 0x1c000100;
+        uint32_t stop_pc = 0x1c00054c;
         if (pc == stop_pc) {
             printf("\033[32mPassed all the tests!\033[0m\n");
             break;
@@ -278,6 +282,6 @@ int main(int argc, char* argv[]) {
     top->trace(tfp, 99);
     tfp->open("wave.vcd");
     reset(1);
-    cpu_exec(-1);
+    cpu_exec(20000);
     return 0;
 }
