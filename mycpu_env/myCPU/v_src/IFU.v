@@ -49,19 +49,7 @@ module IFU (
         input [ 1:0]  inst_tlb_mat,
         input [ 1:0]  inst_tlb_plv,
 
-
-        // like SRAM
-        // output wire req, // en
-        // output wr,   // |we
-        // output [1:0] size, // 新增
-        // output [3:0] wstrb, // we
-        // output wire [31:0] addr,
-        // output [31:0] wdata,
-        // input addr_ok, // 新增
-        // input data_ok,
-        // input [31:0] rdata,
         //icache
-
         output wire icache_valid,
         output wire icache_op,
         output wire [19:0] icache_tag,

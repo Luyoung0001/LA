@@ -1,16 +1,6 @@
 module sram_like_to_axi_bridge(
         input wire clk,
         input wire rst,
-        // // SRAM like
-        // input wire         inst_sram_req,
-        // input wire         inst_sram_wr,
-        // input wire [1:0]   inst_sram_size,
-        // input wire [3:0]   inst_sram_wstrb,
-        // input wire [31:0]  inst_sram_addr,
-        // input wire [31:0]  inst_sram_wdata,
-        // output  wire         inst_sram_addr_ok,
-        // output  wire         inst_sram_data_ok,
-        // output  wire [31:0]  inst_sram_rdata,
 
         input wire          data_sram_req,
         input wire          data_sram_wr,
@@ -183,70 +173,7 @@ module sram_like_to_axi_bridge(
     reg [7:0] data_arlen;
     reg data_rready;
 
-    // // Main FSM for instruction requests
-    // always @(posedge clk) begin
-    //     if (rst) begin
-    //         inst_state <= IDLE;
-    //         inst_addr_accepted <= 1'b0;
-    //         inst_data_received <= 1'b0;
-    //         inst_read_data <= 32'b0;
-    //         handling_inst_request <= 1'b0;
 
-    //         inst_arvalid <= 1'b0;
-    //         inst_arid <= 4'd0;
-    //         inst_araddr <= 32'd0;
-    //         inst_arsize <= 3'd0;
-    //         inst_arlen <= 8'd0;
-    //         inst_rready <= 1'b0;
-    //     end
-
-    //     else begin
-    //         // Reset per-cycle signals
-    //         inst_addr_accepted <= 1'b0;
-    //         inst_data_received <= 1'b0;
-    //         case (inst_state)
-    //             IDLE: begin
-    //                 if (inst_read_request && !handling_data_request) begin
-    //                     inst_state <= READ_ADDR;
-    //                     handling_inst_request <= 1'b1;
-    //                     inst_arvalid <= 1'b1;
-    //                     inst_arid <= 4'b0000; // ID for instruction reads
-    //                     inst_araddr <= icache_rd_addr;
-    //                     inst_arsize <= inst_real_rd_size;
-    //                     inst_arlen <= inst_real_rd_len;
-    //                 end
-    //             end
-
-    //             READ_ADDR: begin
-    //                 inst_arvalid <= 1'b1;
-    //                 inst_arid <= 4'b0000; // ID for instruction reads
-    //                 inst_araddr <= icache_rd_addr;
-    //                 inst_arsize <= inst_real_rd_size;
-    //                 inst_arlen <= inst_real_rd_len;
-
-    //                 if (arready) begin
-    //                     inst_arvalid <= 1'b0;
-    //                     inst_state <= READ_DATA;
-    //                     inst_addr_accepted <= 1'b1;
-    //                     inst_rready <= 1'b1;
-    //                 end
-    //             end
-
-    //             READ_DATA: begin
-    //                 if (rvalid && rid[0] == 1'b0) begin  // Check if it's instruction data (rid[0] = 0)
-    //                     inst_read_data <= rdata;
-    //                     inst_data_received <= 1'b1;
-    //                     inst_rready <= 1'b0;
-    //                     inst_state <= IDLE;
-    //                     handling_inst_request <= 1'b0;
-    //                 end
-    //             end
-
-    //             default:
-    //                 inst_state <= IDLE;
-    //         endcase
-    //     end
-    // end
 
     // Main FSM for instruction requests
 
@@ -268,7 +195,6 @@ module sram_like_to_axi_bridge(
             inst_arlen <= 8'd0;
             inst_rready <= 1'b0;
 
-            // 娣诲姞绐佸彂浼犺緭鏀寔淇″彿
             inst_beat_count <= 8'd0;
             inst_total_beats <= 8'd0;
             inst_burst_complete <= 1'b0;
@@ -291,8 +217,7 @@ module sram_like_to_axi_bridge(
                         inst_arsize <= inst_real_rd_size;
                         inst_arlen <= inst_real_rd_len;
 
-                        // 鍒濆鍖栫獊鍙戜紶杈撹鏁板櫒
-                        inst_total_beats <= inst_real_rd_len + 1; // arlen=0琛ㄧず1涓妭鎷?
+                        inst_total_beats <= inst_real_rd_len + 1;
                         inst_beat_count <= 8'd0;
                     end
                 end
@@ -313,23 +238,23 @@ module sram_like_to_axi_bridge(
                 end
 
                 READ_DATA: begin
-                    inst_rready <= 1'b1; // 淇濇寔ready淇″彿
+                    inst_rready <= 1'b1;
                     if (rvalid && rid[0] == 1'b0) begin  // Check if it's instruction data (rid[0] = 0)
-                        // 澶勭悊褰撳墠鑺傛媿鐨勬暟鎹?
+
                         // inst_read_data <= rdata;
                         inst_data_received <= 1'b1;
-                        // 鏇存柊鑺傛媿璁℃暟鍣?
+
                         inst_beat_count <= inst_beat_count + 1;
-                        // 妫?鏌ユ槸鍚︿负鏈?鍚庝竴涓妭鎷?
+
                         if (rlast || (inst_beat_count == (inst_total_beats - 1))) begin
-                            // 绐佸彂浼犺緭瀹屾垚
+
                             inst_rready <= 1'b0;
                             inst_state <= IDLE;
                             handling_inst_request <= 1'b0;
                             inst_burst_complete <= 1'b1;
                             inst_beat_count <= 8'd0;
                         end
-                        // 濡傛灉涓嶆槸鏈?鍚庝竴涓妭鎷嶏紝缁х画鍦≧EAD_DATA鐘舵?佺瓑寰呬笅涓?涓暟鎹?
+
                     end
                 end
 
@@ -396,12 +321,12 @@ module sram_like_to_axi_bridge(
                 end
 
                 READ_ADDR: begin
+
                     // arvalid <= 1'b1;
                     // arid <= 4'b0001; // ID for data reads
                     // araddr <= data_sram_addr;
                     // arsize <= convert_size(data_sram_size);
                     // arlen <= 8'b00000000; // Single transfer
-
 
                     data_arvalid <= 1'b1;
                     data_arid <= 4'b0001; // ID for data reads

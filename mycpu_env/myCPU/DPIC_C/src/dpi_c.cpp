@@ -28,7 +28,6 @@
 
 extern "C" int data_ram_read(int addr) {
     // gpio
-    // printf("data_read_addr:%08x\n", addr);
     if (addr == SW_INTER_ADDR) {
         return 0x0000aaaa;
     } else if (addr == OPEN_TRACE_ADDR) {
@@ -41,6 +40,22 @@ extern "C" int inst_ram_read(int addr) {
 }
 
 extern "C" void data_ram_write(int addr, int wdata, unsigned char wmask) {
+    // printf("data_write_addr:%08x--->wdata:%08x--->wmask%x\n", addr, wdata,
+    //        wmask);
+    char ch;
+    if (wmask == 0x00) {
+        ch = wdata & 0x000000ff;
+    } else if (wmask == 0x01) {
+        ch = (wdata >> 8) & 0x000000ff;
+    } else if (wmask == 0x02) {
+        ch = (wdata >> 16) & 0x000000ff;
+    } else if (wmask == 0x04) {
+        ch = (wdata >> 24) & 0x000000ff;
+    }
+    if (addr == VIRTUAL_UART_ADDR) {
+        printf("%c", ch);
+        return;
+    }
     // 底层写的实现原理为：
     // 所有的写写地址都对齐到 4 字节
     // 写之前，先读出，之后根据 wmask 修改这个数据

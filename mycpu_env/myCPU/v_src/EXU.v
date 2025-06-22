@@ -671,6 +671,6 @@ module EXU
 
     assign paddr = {data_tag, error_va[11:0]};
 
-    assign  es_to_ds_valid = state_valid;
+    assign es_to_ds_valid = state_valid;
 
 endmodule

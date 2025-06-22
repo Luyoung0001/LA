@@ -68,9 +68,9 @@ module IDU (
         output wire [82:0] bus_csr_rd_wr_data,
 
         //every stage valid sign
-        input                               es_to_ds_valid,
-        input                               ms_to_ds_valid,
-        input                               ws_to_ds_valid
+        input wire es_to_ds_valid,
+        input wire ms_to_ds_valid,
+        input wire ws_to_ds_valid
     );
 
     wire        pipeline_no_empty;
