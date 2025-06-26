@@ -58,72 +58,6 @@
       "-Os",
       "-c",
       "-o",
-      "dpi_c.o",
-      "/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/src/dpi_c.cpp"
-    ],
-    "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/src/dpi_c.cpp",
-    "output": "/home/luyoung/LA/obj_dir/dpi_c.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/g++",
-      "-I.",
-      "-I/usr/local/share/verilator/include",
-      "-I/usr/local/share/verilator/include/vltstd",
-      "-DVM_COVERAGE=0",
-      "-DVM_SC=0",
-      "-DVM_TRACE=1",
-      "-DVM_TRACE_FST=1",
-      "-DVM_TRACE_VCD=0",
-      "-faligned-new",
-      "-fcf-protection=none",
-      "-Wno-bool-operation",
-      "-Wno-sign-compare",
-      "-Wno-uninitialized",
-      "-Wno-unused-but-set-variable",
-      "-Wno-unused-parameter",
-      "-Wno-unused-variable",
-      "-Wno-shadow",
-      "-I/home/luyoung/LA/Verilator/include",
-      "-I/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/include",
-      "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
-      "-Os",
-      "-c",
-      "-o",
-      "verilated.o",
-      "/usr/local/share/verilator/include/verilated.cpp"
-    ],
-    "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/usr/local/share/verilator/include/verilated.cpp",
-    "output": "/home/luyoung/LA/obj_dir/verilated.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/g++",
-      "-I.",
-      "-I/usr/local/share/verilator/include",
-      "-I/usr/local/share/verilator/include/vltstd",
-      "-DVM_COVERAGE=0",
-      "-DVM_SC=0",
-      "-DVM_TRACE=1",
-      "-DVM_TRACE_FST=1",
-      "-DVM_TRACE_VCD=0",
-      "-faligned-new",
-      "-fcf-protection=none",
-      "-Wno-bool-operation",
-      "-Wno-sign-compare",
-      "-Wno-uninitialized",
-      "-Wno-unused-but-set-variable",
-      "-Wno-unused-parameter",
-      "-Wno-unused-variable",
-      "-Wno-shadow",
-      "-I/home/luyoung/LA/Verilator/include",
-      "-I/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/include",
-      "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
-      "-Os",
-      "-c",
-      "-o",
       "paddr.o",
       "/home/luyoung/LA/mycpu_env/myCPU/memory/src/paddr.c"
     ],
@@ -223,12 +157,12 @@
       "-Os",
       "-c",
       "-o",
-      "Vverilator_top.o",
-      "Vverilator_top.cpp"
+      "verilated.o",
+      "/usr/local/share/verilator/include/verilated.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vverilator_top.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vverilator_top.o"
+    "file": "/usr/local/share/verilator/include/verilated.cpp",
+    "output": "/home/luyoung/LA/obj_dir/verilated.o"
   },
   {
     "arguments": [
@@ -289,12 +223,12 @@
       "-Os",
       "-c",
       "-o",
-      "Vverilator_top___024root__DepSet_hef16cffa__0.o",
-      "Vverilator_top___024root__DepSet_hef16cffa__0.cpp"
+      "dpi_c.o",
+      "/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/src/dpi_c.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vverilator_top___024root__DepSet_hef16cffa__0.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vverilator_top___024root__DepSet_hef16cffa__0.o"
+    "file": "/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/src/dpi_c.cpp",
+    "output": "/home/luyoung/LA/obj_dir/dpi_c.o"
   },
   {
     "arguments": [
@@ -322,12 +256,12 @@
       "-Os",
       "-c",
       "-o",
-      "Vverilator_top_verilator_top__DepSet_h408301e3__0.o",
-      "Vverilator_top_verilator_top__DepSet_h408301e3__0.cpp"
+      "Vverilator_top___024root__DepSet_hef16cffa__0.o",
+      "Vverilator_top___024root__DepSet_hef16cffa__0.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_verilator_top__DepSet_h408301e3__0.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_verilator_top__DepSet_h408301e3__0.o"
+    "file": "/home/luyoung/LA/obj_dir/Vverilator_top___024root__DepSet_hef16cffa__0.cpp",
+    "output": "/home/luyoung/LA/obj_dir/Vverilator_top___024root__DepSet_hef16cffa__0.o"
   },
   {
     "arguments": [
@@ -388,12 +322,45 @@
       "-Os",
       "-c",
       "-o",
-      "Vverilator_top_mycpu_top__DepSet_h17fa71d1__0.o",
-      "Vverilator_top_mycpu_top__DepSet_h17fa71d1__0.cpp"
+      "Vverilator_top.o",
+      "Vverilator_top.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_mycpu_top__DepSet_h17fa71d1__0.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_mycpu_top__DepSet_h17fa71d1__0.o"
+    "file": "/home/luyoung/LA/obj_dir/Vverilator_top.cpp",
+    "output": "/home/luyoung/LA/obj_dir/Vverilator_top.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-I.",
+      "-I/usr/local/share/verilator/include",
+      "-I/usr/local/share/verilator/include/vltstd",
+      "-DVM_COVERAGE=0",
+      "-DVM_SC=0",
+      "-DVM_TRACE=1",
+      "-DVM_TRACE_FST=1",
+      "-DVM_TRACE_VCD=0",
+      "-faligned-new",
+      "-fcf-protection=none",
+      "-Wno-bool-operation",
+      "-Wno-sign-compare",
+      "-Wno-uninitialized",
+      "-Wno-unused-but-set-variable",
+      "-Wno-unused-parameter",
+      "-Wno-unused-variable",
+      "-Wno-shadow",
+      "-I/home/luyoung/LA/Verilator/include",
+      "-I/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/include",
+      "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
+      "-Os",
+      "-c",
+      "-o",
+      "Vverilator_top_verilator_top__DepSet_h408301e3__0.o",
+      "Vverilator_top_verilator_top__DepSet_h408301e3__0.cpp"
+    ],
+    "directory": "/home/luyoung/LA/obj_dir",
+    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_verilator_top__DepSet_h408301e3__0.cpp",
+    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_verilator_top__DepSet_h408301e3__0.o"
   },
   {
     "arguments": [
@@ -454,12 +421,12 @@
       "-Os",
       "-c",
       "-o",
-      "Vverilator_top_tlb__DepSet_hcd6d0541__0.o",
-      "Vverilator_top_tlb__DepSet_hcd6d0541__0.cpp"
+      "Vverilator_top_mycpu_top__DepSet_h17fa71d1__0.o",
+      "Vverilator_top_mycpu_top__DepSet_h17fa71d1__0.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_tlb__DepSet_hcd6d0541__0.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_tlb__DepSet_hcd6d0541__0.o"
+    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_mycpu_top__DepSet_h17fa71d1__0.cpp",
+    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_mycpu_top__DepSet_h17fa71d1__0.o"
   },
   {
     "arguments": [
@@ -493,6 +460,39 @@
     "directory": "/home/luyoung/LA/obj_dir",
     "file": "/home/luyoung/LA/obj_dir/Vverilator_top_addr_trans__DepSet_ha76376f1__0.cpp",
     "output": "/home/luyoung/LA/obj_dir/Vverilator_top_addr_trans__DepSet_ha76376f1__0.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-I.",
+      "-I/usr/local/share/verilator/include",
+      "-I/usr/local/share/verilator/include/vltstd",
+      "-DVM_COVERAGE=0",
+      "-DVM_SC=0",
+      "-DVM_TRACE=1",
+      "-DVM_TRACE_FST=1",
+      "-DVM_TRACE_VCD=0",
+      "-faligned-new",
+      "-fcf-protection=none",
+      "-Wno-bool-operation",
+      "-Wno-sign-compare",
+      "-Wno-uninitialized",
+      "-Wno-unused-but-set-variable",
+      "-Wno-unused-parameter",
+      "-Wno-unused-variable",
+      "-Wno-shadow",
+      "-I/home/luyoung/LA/Verilator/include",
+      "-I/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/include",
+      "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
+      "-Os",
+      "-c",
+      "-o",
+      "Vverilator_top_tlb__DepSet_hcd6d0541__0.o",
+      "Vverilator_top_tlb__DepSet_hcd6d0541__0.cpp"
+    ],
+    "directory": "/home/luyoung/LA/obj_dir",
+    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_tlb__DepSet_hcd6d0541__0.cpp",
+    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_tlb__DepSet_hcd6d0541__0.o"
   },
   {
     "arguments": [
@@ -586,12 +586,12 @@
       "-Os",
       "-c",
       "-o",
-      "Vverilator_top_WallaceTree32X32__DepSet_h140160a2__0.o",
-      "Vverilator_top_WallaceTree32X32__DepSet_h140160a2__0.cpp"
+      "Vverilator_top_WallaceTree32X32__DepSet_h140160a2__1.o",
+      "Vverilator_top_WallaceTree32X32__DepSet_h140160a2__1.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_WallaceTree32X32__DepSet_h140160a2__0.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_WallaceTree32X32__DepSet_h140160a2__0.o"
+    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_WallaceTree32X32__DepSet_h140160a2__1.cpp",
+    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_WallaceTree32X32__DepSet_h140160a2__1.o"
   },
   {
     "arguments": [
@@ -652,12 +652,12 @@
       "-Os",
       "-c",
       "-o",
-      "Vverilator_top_WallaceTree32X32__DepSet_h140160a2__1.o",
-      "Vverilator_top_WallaceTree32X32__DepSet_h140160a2__1.cpp"
+      "Vverilator_top_WallaceTree32X32__DepSet_h140160a2__0.o",
+      "Vverilator_top_WallaceTree32X32__DepSet_h140160a2__0.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_WallaceTree32X32__DepSet_h140160a2__1.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_WallaceTree32X32__DepSet_h140160a2__1.o"
+    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_WallaceTree32X32__DepSet_h140160a2__0.cpp",
+    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_WallaceTree32X32__DepSet_h140160a2__0.o"
   },
   {
     "arguments": [
@@ -761,6 +761,14 @@
   {
     "arguments": [
       "/usr/bin/g++",
+      "-I.",
+      "-I/usr/local/share/verilator/include",
+      "-I/usr/local/share/verilator/include/vltstd",
+      "-DVM_COVERAGE=0",
+      "-DVM_SC=0",
+      "-DVM_TRACE=1",
+      "-DVM_TRACE_FST=1",
+      "-DVM_TRACE_VCD=0",
       "-faligned-new",
       "-fcf-protection=none",
       "-Wno-bool-operation",
@@ -770,27 +778,17 @@
       "-Wno-unused-parameter",
       "-Wno-unused-variable",
       "-Wno-shadow",
-      "-Os",
-      "-I.",
-      "-I/usr/local/share/verilator/include",
-      "-I/usr/local/share/verilator/include/vltstd",
-      "-DVM_COVERAGE=0",
-      "-DVM_SC=0",
-      "-DVM_TRACE=1",
-      "-DVM_TRACE_FST=1",
-      "-DVM_TRACE_VCD=0",
       "-I/home/luyoung/LA/Verilator/include",
       "-I/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/include",
       "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
       "-c",
-      "-fdiagnostics-color",
       "-o",
-      "dpi_c.o",
-      "/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/src/dpi_c.cpp"
+      "Vverilator_top___024root__Slow.o",
+      "Vverilator_top___024root__Slow.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/src/dpi_c.cpp",
-    "output": "/home/luyoung/LA/obj_dir/dpi_c.o"
+    "file": "/home/luyoung/LA/obj_dir/Vverilator_top___024root__Slow.cpp",
+    "output": "/home/luyoung/LA/obj_dir/Vverilator_top___024root__Slow.o"
   },
   {
     "arguments": [
@@ -850,44 +848,12 @@
       "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
       "-c",
       "-o",
-      "Vverilator_top___024root__Slow.o",
-      "Vverilator_top___024root__Slow.cpp"
+      "Vverilator_top___024root__DepSet_h59ee0ea1__0__Slow.o",
+      "Vverilator_top___024root__DepSet_h59ee0ea1__0__Slow.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vverilator_top___024root__Slow.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vverilator_top___024root__Slow.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/g++",
-      "-I.",
-      "-I/usr/local/share/verilator/include",
-      "-I/usr/local/share/verilator/include/vltstd",
-      "-DVM_COVERAGE=0",
-      "-DVM_SC=0",
-      "-DVM_TRACE=1",
-      "-DVM_TRACE_FST=1",
-      "-DVM_TRACE_VCD=0",
-      "-faligned-new",
-      "-fcf-protection=none",
-      "-Wno-bool-operation",
-      "-Wno-sign-compare",
-      "-Wno-uninitialized",
-      "-Wno-unused-but-set-variable",
-      "-Wno-unused-parameter",
-      "-Wno-unused-variable",
-      "-Wno-shadow",
-      "-I/home/luyoung/LA/Verilator/include",
-      "-I/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/include",
-      "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
-      "-c",
-      "-o",
-      "Vverilator_top_verilator_top__Slow.o",
-      "Vverilator_top_verilator_top__Slow.cpp"
-    ],
-    "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_verilator_top__Slow.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_verilator_top__Slow.o"
+    "file": "/home/luyoung/LA/obj_dir/Vverilator_top___024root__DepSet_h59ee0ea1__0__Slow.cpp",
+    "output": "/home/luyoung/LA/obj_dir/Vverilator_top___024root__DepSet_h59ee0ea1__0__Slow.o"
   },
   {
     "arguments": [
@@ -946,38 +912,6 @@
       "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
       "-c",
       "-o",
-      "Vverilator_top_verilator_top__DepSet_h408301e3__0__Slow.o",
-      "Vverilator_top_verilator_top__DepSet_h408301e3__0__Slow.cpp"
-    ],
-    "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_verilator_top__DepSet_h408301e3__0__Slow.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_verilator_top__DepSet_h408301e3__0__Slow.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/g++",
-      "-I.",
-      "-I/usr/local/share/verilator/include",
-      "-I/usr/local/share/verilator/include/vltstd",
-      "-DVM_COVERAGE=0",
-      "-DVM_SC=0",
-      "-DVM_TRACE=1",
-      "-DVM_TRACE_FST=1",
-      "-DVM_TRACE_VCD=0",
-      "-faligned-new",
-      "-fcf-protection=none",
-      "-Wno-bool-operation",
-      "-Wno-sign-compare",
-      "-Wno-uninitialized",
-      "-Wno-unused-but-set-variable",
-      "-Wno-unused-parameter",
-      "-Wno-unused-variable",
-      "-Wno-shadow",
-      "-I/home/luyoung/LA/Verilator/include",
-      "-I/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/include",
-      "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
-      "-c",
-      "-o",
       "Vverilator_top_verilator_top__DepSet_hb5624c88__0__Slow.o",
       "Vverilator_top_verilator_top__DepSet_hb5624c88__0__Slow.cpp"
     ],
@@ -1010,12 +944,44 @@
       "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
       "-c",
       "-o",
-      "Vverilator_top___024root__DepSet_h59ee0ea1__0__Slow.o",
-      "Vverilator_top___024root__DepSet_h59ee0ea1__0__Slow.cpp"
+      "Vverilator_top_verilator_top__DepSet_h408301e3__0__Slow.o",
+      "Vverilator_top_verilator_top__DepSet_h408301e3__0__Slow.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vverilator_top___024root__DepSet_h59ee0ea1__0__Slow.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vverilator_top___024root__DepSet_h59ee0ea1__0__Slow.o"
+    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_verilator_top__DepSet_h408301e3__0__Slow.cpp",
+    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_verilator_top__DepSet_h408301e3__0__Slow.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-I.",
+      "-I/usr/local/share/verilator/include",
+      "-I/usr/local/share/verilator/include/vltstd",
+      "-DVM_COVERAGE=0",
+      "-DVM_SC=0",
+      "-DVM_TRACE=1",
+      "-DVM_TRACE_FST=1",
+      "-DVM_TRACE_VCD=0",
+      "-faligned-new",
+      "-fcf-protection=none",
+      "-Wno-bool-operation",
+      "-Wno-sign-compare",
+      "-Wno-uninitialized",
+      "-Wno-unused-but-set-variable",
+      "-Wno-unused-parameter",
+      "-Wno-unused-variable",
+      "-Wno-shadow",
+      "-I/home/luyoung/LA/Verilator/include",
+      "-I/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/include",
+      "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
+      "-c",
+      "-o",
+      "Vverilator_top_verilator_top__Slow.o",
+      "Vverilator_top_verilator_top__Slow.cpp"
+    ],
+    "directory": "/home/luyoung/LA/obj_dir",
+    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_verilator_top__Slow.cpp",
+    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_verilator_top__Slow.o"
   },
   {
     "arguments": [
@@ -1074,44 +1040,12 @@
       "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
       "-c",
       "-o",
-      "Vverilator_top_mycpu_top__DepSet_h17fa71d1__0__Slow.o",
-      "Vverilator_top_mycpu_top__DepSet_h17fa71d1__0__Slow.cpp"
+      "Vverilator_top_mycpu_top__DepSet_he289bcba__0__Slow.o",
+      "Vverilator_top_mycpu_top__DepSet_he289bcba__0__Slow.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_mycpu_top__DepSet_h17fa71d1__0__Slow.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_mycpu_top__DepSet_h17fa71d1__0__Slow.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/g++",
-      "-I.",
-      "-I/usr/local/share/verilator/include",
-      "-I/usr/local/share/verilator/include/vltstd",
-      "-DVM_COVERAGE=0",
-      "-DVM_SC=0",
-      "-DVM_TRACE=1",
-      "-DVM_TRACE_FST=1",
-      "-DVM_TRACE_VCD=0",
-      "-faligned-new",
-      "-fcf-protection=none",
-      "-Wno-bool-operation",
-      "-Wno-sign-compare",
-      "-Wno-uninitialized",
-      "-Wno-unused-but-set-variable",
-      "-Wno-unused-parameter",
-      "-Wno-unused-variable",
-      "-Wno-shadow",
-      "-I/home/luyoung/LA/Verilator/include",
-      "-I/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/include",
-      "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
-      "-c",
-      "-o",
-      "Vverilator_top_addr_trans__Slow.o",
-      "Vverilator_top_addr_trans__Slow.cpp"
-    ],
-    "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_addr_trans__Slow.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_addr_trans__Slow.o"
+    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_mycpu_top__DepSet_he289bcba__0__Slow.cpp",
+    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_mycpu_top__DepSet_he289bcba__0__Slow.o"
   },
   {
     "arguments": [
@@ -1170,12 +1104,44 @@
       "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
       "-c",
       "-o",
-      "Vverilator_top_mycpu_top__DepSet_he289bcba__0__Slow.o",
-      "Vverilator_top_mycpu_top__DepSet_he289bcba__0__Slow.cpp"
+      "Vverilator_top_addr_trans__Slow.o",
+      "Vverilator_top_addr_trans__Slow.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_mycpu_top__DepSet_he289bcba__0__Slow.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_mycpu_top__DepSet_he289bcba__0__Slow.o"
+    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_addr_trans__Slow.cpp",
+    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_addr_trans__Slow.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-I.",
+      "-I/usr/local/share/verilator/include",
+      "-I/usr/local/share/verilator/include/vltstd",
+      "-DVM_COVERAGE=0",
+      "-DVM_SC=0",
+      "-DVM_TRACE=1",
+      "-DVM_TRACE_FST=1",
+      "-DVM_TRACE_VCD=0",
+      "-faligned-new",
+      "-fcf-protection=none",
+      "-Wno-bool-operation",
+      "-Wno-sign-compare",
+      "-Wno-uninitialized",
+      "-Wno-unused-but-set-variable",
+      "-Wno-unused-parameter",
+      "-Wno-unused-variable",
+      "-Wno-shadow",
+      "-I/home/luyoung/LA/Verilator/include",
+      "-I/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/include",
+      "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
+      "-c",
+      "-o",
+      "Vverilator_top_mycpu_top__DepSet_h17fa71d1__0__Slow.o",
+      "Vverilator_top_mycpu_top__DepSet_h17fa71d1__0__Slow.cpp"
+    ],
+    "directory": "/home/luyoung/LA/obj_dir",
+    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_mycpu_top__DepSet_h17fa71d1__0__Slow.cpp",
+    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_mycpu_top__DepSet_h17fa71d1__0__Slow.o"
   },
   {
     "arguments": [
@@ -1266,38 +1232,6 @@
       "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
       "-c",
       "-o",
-      "Vverilator_top_CS_Adder64__DepSet_h57709497__0__Slow.o",
-      "Vverilator_top_CS_Adder64__DepSet_h57709497__0__Slow.cpp"
-    ],
-    "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_CS_Adder64__DepSet_h57709497__0__Slow.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_CS_Adder64__DepSet_h57709497__0__Slow.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/g++",
-      "-I.",
-      "-I/usr/local/share/verilator/include",
-      "-I/usr/local/share/verilator/include/vltstd",
-      "-DVM_COVERAGE=0",
-      "-DVM_SC=0",
-      "-DVM_TRACE=1",
-      "-DVM_TRACE_FST=1",
-      "-DVM_TRACE_VCD=0",
-      "-faligned-new",
-      "-fcf-protection=none",
-      "-Wno-bool-operation",
-      "-Wno-sign-compare",
-      "-Wno-uninitialized",
-      "-Wno-unused-but-set-variable",
-      "-Wno-unused-parameter",
-      "-Wno-unused-variable",
-      "-Wno-shadow",
-      "-I/home/luyoung/LA/Verilator/include",
-      "-I/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/include",
-      "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
-      "-c",
-      "-o",
       "Vverilator_top_tlb__DepSet_h37f4492a__0__Slow.o",
       "Vverilator_top_tlb__DepSet_h37f4492a__0__Slow.cpp"
     ],
@@ -1362,12 +1296,12 @@
       "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
       "-c",
       "-o",
-      "Vverilator_top_WallaceTree32X32__Slow.o",
-      "Vverilator_top_WallaceTree32X32__Slow.cpp"
+      "Vverilator_top_CS_Adder64__DepSet_h57709497__0__Slow.o",
+      "Vverilator_top_CS_Adder64__DepSet_h57709497__0__Slow.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_WallaceTree32X32__Slow.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_WallaceTree32X32__Slow.o"
+    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_CS_Adder64__DepSet_h57709497__0__Slow.cpp",
+    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_CS_Adder64__DepSet_h57709497__0__Slow.o"
   },
   {
     "arguments": [
@@ -1458,6 +1392,38 @@
       "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
       "-c",
       "-o",
+      "Vverilator_top_WallaceTree32X32__Slow.o",
+      "Vverilator_top_WallaceTree32X32__Slow.cpp"
+    ],
+    "directory": "/home/luyoung/LA/obj_dir",
+    "file": "/home/luyoung/LA/obj_dir/Vverilator_top_WallaceTree32X32__Slow.cpp",
+    "output": "/home/luyoung/LA/obj_dir/Vverilator_top_WallaceTree32X32__Slow.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-I.",
+      "-I/usr/local/share/verilator/include",
+      "-I/usr/local/share/verilator/include/vltstd",
+      "-DVM_COVERAGE=0",
+      "-DVM_SC=0",
+      "-DVM_TRACE=1",
+      "-DVM_TRACE_FST=1",
+      "-DVM_TRACE_VCD=0",
+      "-faligned-new",
+      "-fcf-protection=none",
+      "-Wno-bool-operation",
+      "-Wno-sign-compare",
+      "-Wno-uninitialized",
+      "-Wno-unused-but-set-variable",
+      "-Wno-unused-parameter",
+      "-Wno-unused-variable",
+      "-Wno-shadow",
+      "-I/home/luyoung/LA/Verilator/include",
+      "-I/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/include",
+      "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
+      "-c",
+      "-o",
       "Vverilator_top__Trace__0__Slow.o",
       "Vverilator_top__Trace__0__Slow.cpp"
     ],
@@ -1490,12 +1456,12 @@
       "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
       "-c",
       "-o",
-      "Vverilator_top__Trace__2__Slow.o",
-      "Vverilator_top__Trace__2__Slow.cpp"
+      "Vverilator_top__Trace__1__Slow.o",
+      "Vverilator_top__Trace__1__Slow.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vverilator_top__Trace__2__Slow.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vverilator_top__Trace__2__Slow.o"
+    "file": "/home/luyoung/LA/obj_dir/Vverilator_top__Trace__1__Slow.cpp",
+    "output": "/home/luyoung/LA/obj_dir/Vverilator_top__Trace__1__Slow.o"
   },
   {
     "arguments": [
@@ -1522,12 +1488,12 @@
       "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
       "-c",
       "-o",
-      "Vverilator_top__Trace__1__Slow.o",
-      "Vverilator_top__Trace__1__Slow.cpp"
+      "Vverilator_top__Trace__2__Slow.o",
+      "Vverilator_top__Trace__2__Slow.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/home/luyoung/LA/obj_dir/Vverilator_top__Trace__1__Slow.cpp",
-    "output": "/home/luyoung/LA/obj_dir/Vverilator_top__Trace__1__Slow.o"
+    "file": "/home/luyoung/LA/obj_dir/Vverilator_top__Trace__2__Slow.cpp",
+    "output": "/home/luyoung/LA/obj_dir/Vverilator_top__Trace__2__Slow.o"
   },
   {
     "arguments": [
