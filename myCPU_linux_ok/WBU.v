@@ -108,9 +108,7 @@ module WBU
 
          output   wire   ws_to_ds_valid,
 
-         //  output wire csr_rstat_o,
-         //  // csr_data : 当csr_rstat == 1时，当前指令读取到的csr寄存器(estat)的值
-         //  output wire [31:0] csr_estat_data
+         // csr_data : 当csr_rstat == 1时，当前指令读取到的csr寄存器(estat)的值
          input wire csr_rstat_i,
          input wire [31:0] csr_estat_data_i,
 
@@ -532,13 +530,15 @@ module WBU
                               wire_inst_tlbfill || wire_csr_we) && !refetch_excp_i_r;
 
     // 如果是 ibar，只需要重 ibar 后面的指令重新取址就行了，否则都重新取址取本条指令，这里复用了 refecth 数据通路
-    assign refetch_pc = wire_ibar ? pc_pro_i_r + 32'd4 : pc_pro_i_r;
-    assign refetch_sign = refetch_excp_i_r || wire_ibar;
+    // assign refetch_pc = wire_ibar ? pc_pro_i_r + 32'd4 : pc_pro_i_r;
+    // assign refetch_sign = refetch_excp_i_r || wire_ibar;
+    assign refetch_pc = pc_pro_i_r;
+    assign refetch_sign = refetch_excp_i_r;
     assign has_refetch_excp_o = refetch_excp_i_r;
 
 
     // 取消上游执行效果以及指令缓存
-    assign refetch_flush = (refetch_excp_i_r || wire_ibar) && ws_valid; // 天王老子来了都给我去重新执行
+    assign refetch_flush = refetch_excp_i_r && ws_valid; // 天王老子来了都给我去重新执行
 
     assign excp_tlbrefill_o = excp_tlbrefill;
 

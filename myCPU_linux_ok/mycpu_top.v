@@ -541,6 +541,8 @@ module core_top
     wire [3:0]  icache_wr_wstrb;
     wire [127:0] icache_wr_data;
 
+    wire icache_ibar_flushing;
+
     // Module Instantiations
 
     // Pre-IFU
@@ -558,7 +560,9 @@ module core_top
                 .state_valid       (preifu_state_valid),
                 .refetch_pc_i      (wbu_refetch_pc),
                 .refetch_sign_i    (wbu_refetch_sign),
-                .wbu_refetch_flush (wbu_wbu_refetch_flush)
+                .wbu_refetch_flush (wbu_wbu_refetch_flush),
+
+                .ibar_flushing(icache_ibar_flushing)
             );
 
     // IFU
@@ -617,6 +621,7 @@ module core_top
             // .addr_ok           (inst_sram_addr_ok),
             // .data_ok           (inst_sram_data_ok),
             // .rdata             (inst_sram_rdata),
+
             .icache_valid(ifu_icache_valid),
             .icache_op(ifu_icache_op),
             .icache_tag(ifu_icache_tag),
@@ -1370,8 +1375,9 @@ module core_top
               .wr_addr(icache_wr_addr),
               .wr_wstrb(icache_wr_wstrb),
               .wr_data(icache_wr_data),
-              .wr_rdy(icache_wr_rdy),
-              .ibar_flush(wbu_ibar_flush)
+              .wr_rdy(icache_wr_rdy)
+            //   .ibar_flush(wbu_ibar_flush),
+            //   .ibar_flushing(icache_ibar_flushing)
           );
     // 后期的工作，应该在 MEM 中发起内存访问
     // 因此d cache 的访问接口应该放在 MEM 中

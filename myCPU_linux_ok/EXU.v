@@ -444,6 +444,10 @@ module EXU
            op_div || op_divu ? div_result :
            op_mod || op_modu ? mod_result :
            mul_div_op[0] || mul_div_op[1] || mul_div_op[2] ? mul_result :
+           //    op_div ? $signed(wire_alu_src1) / $signed(wire_alu_src2) :
+           //    op_divu ? wire_alu_src1 / wire_alu_src2 :
+           //    op_mod ? $signed(wire_alu_src1) % $signed(wire_alu_src2) :
+           //    op_modu ? wire_alu_src1 % wire_alu_src2 :
            wire_alu_op[0] ||
            wire_alu_op[1] ||
            wire_alu_op[2] ||
@@ -638,9 +642,10 @@ module EXU
     assign rdata_o = flush_sign ? 32'd0 : real_data;
     assign req = stop_signal ? 1'b0 : exu_state == 2'd1 && access_memo && waite_ready_i && !addr_ok;
 
-    assign state_valid = (exu_state == 2'd1 &&  (wire_complete & div) ) ? 1'b1 : // 计算除法
+    assign state_valid = (exu_state == 2'd1 && (wire_complete & div) ) ? 1'b1 : // 计算除法
            exu_state == 2'd2 && data_ok ? 1'b1 :  // 访存
            exu_state == 2'd1 && (!div) && (!access_memo) || stop_signal;
+
 
     assign waite_ready_o = idle_flush ? 1'b0: (exu_state == 2'd0);
     assign exu_over = exu_state == 2'b0;
@@ -652,22 +657,22 @@ module EXU
     // 如果是 ld_w 或者 st_w，对齐到4字节
     // 0x9
     assign excp_ale = (ld_h | ld_hu | st_h) && alu_result[0] ? 1'b1 :
-           (ld_w | st_w) && (alu_result[1:0] != 2'b00) ? 1'b1 : 1'b0;
+           (ld_w | st_w | sc_do) && (alu_result[1:0] != 2'b00) ? 1'b1 : 1'b0;
     assign excp_ale_num = excp_ale ? 16'h0200 :16'b0;
     // 0x10
     assign exu_excp_tlbr = access_memo && !data_tlb_found && data_addr_trans_en;
     assign excp_tlbr_num = exu_excp_tlbr ? 16'h0400 : 16'b0;
     // 0x11
-    assign exu_excp_pil  = (ld_b | ld_bu | ld_h | ld_hu | ld_w) && !data_tlb_v && data_addr_trans_en;
+    assign exu_excp_pil  = (ld_b | ld_bu | ld_h | ld_hu | ld_w | ll_w) && !data_tlb_v && data_addr_trans_en;
     assign excp_pil_num = exu_excp_pil ? 16'h0800 : 16'b0;
     // 0x12
-    assign exu_excp_pis  = (st_b | st_h | st_w) && !data_tlb_v && data_addr_trans_en;
+    assign exu_excp_pis  = (st_b | st_h | st_w | sc_do) && !data_tlb_v && data_addr_trans_en;
     assign excp_pis_num = exu_excp_pis ? 16'h1000 : 16'b0;
     // 0x13
     assign exu_excp_ppi  = access_memo && data_tlb_v && (csr_plv > data_tlb_plv) && data_addr_trans_en;
     assign excp_ppi_num = exu_excp_ppi ? 16'h2000 : 16'b0;
     // 0x14
-    assign exu_excp_pme  = (st_b | st_h | st_w) && data_tlb_v && (csr_plv <= data_tlb_plv) && !data_tlb_d && data_addr_trans_en;
+    assign exu_excp_pme  = (st_b | st_h | st_w | sc_do) && data_tlb_v && (csr_plv <= data_tlb_plv) && !data_tlb_d && data_addr_trans_en;
     assign excp_pme_num = exu_excp_pme ? 16'h4000 : 16'b0;
 
     wire [15:0] wire_ds_excp_num = ds_excp_num_r;
