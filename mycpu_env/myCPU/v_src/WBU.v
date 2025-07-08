@@ -1,7 +1,7 @@
 `include "csr.h"
 module WBU
     #(
-         parameter TLBNUM = 16
+         parameter TLBNUM = 32
      )
      (
          // from mem
@@ -21,7 +21,7 @@ module WBU
          output wire [31:0] rf_wdata,
          output wire [31:0] pc,
          // bus
-         output wire [85:0] bus_wbu_bypass_data,
+         output wire [70:0] bus_wbu_bypass_data,
          // csr
          output wire [147:0] bus_wub_to_csr_data,
          // exception
@@ -91,6 +91,7 @@ module WBU
          // refetch_sign
          output wire        is_refetch_sign,
          input  wire        refetch_excp_i,
+
          // 发射新的PC
          output wire [31:0] refetch_pc,
          output wire        refetch_sign,
@@ -105,8 +106,71 @@ module WBU
          input wire [1:0]   ll_sc_i,
          input wire [31:0]  paddr_i,
 
-         output   wire   ws_to_ds_valid
+         output   wire   ws_to_ds_valid,
+
+         // csr_data : 当csr_rstat == 1时，当前指令读取到的csr寄存器(estat)的值
+         input wire csr_rstat_i,
+         input wire [31:0] csr_estat_data_i,
+
+         output   wire   ws_valid_diff,
+         output   wire   ws_csr_rstat_en_diff,
+         output   wire  [31:0] ws_csr_data_diff,
+
+         input  wire cnt_inst_diff_i,
+         input wire [63:0] timer_64_diff_i,
+
+
+         input   wire [7:0] ld_diff_i,
+         input   wire [31:0] paddr_diff_i,
+         input   wire [31:0] vaddr_diff_i,
+
+
+         output   wire   cmt_tlbfill_en,
+         output   wire   [$clog2(TLBNUM)-1:0] cmt_rand_index,
+         output   wire eret_diff,
+         output   wire [5:0] ecode_diff,
+
+
+         output   wire [7:0] ld_diff,
+         output   wire [31:0] paddr_diff,
+         output   wire [31:0] vaddr_diff,
+         output wire cnt_inst_diff_o,
+         output wire [63:0] timer_64_diff_o,
+
+         input  wire [7:0] st_diff_i,
+         input  wire [31:0] st_data_diff_i,
+
+         output  wire [7:0] st_diff,
+         output  wire [31:0] st_data_diff,
+
+         input  wire after_br_invalid_i,
+
+         output wire ws_excp_diff,
+
+         input wire inst_idle_i,
+         output wire idle_flush,
+         input wire has_int, // 有了 has_int 立即解冻
+
+         input wire [1:0] bar_i,
+
+         output wire ibar_flush // 通知 icache，无效掉所有
      );
+    reg [1:0] bar_i_r;
+    reg inst_idle_i_r;
+    reg after_br_invalid_i_r;
+    reg csr_rstat_i_r;
+    reg [31:0] csr_estat_data_i_r;
+    reg cnt_inst_diff_i_r;
+    reg [63:0] timer_64_diff_i_r;
+
+    reg [7:0]ld_diff_i_r;
+    reg [31:0] paddr_diff_i_r;
+    reg [31:0] vaddr_diff_i_r;
+
+    reg [7:0]st_diff_i_r;
+    reg [31:0] st_data_diff_i_r;
+
+
     reg [31:0] paddr_i_r;
     reg [1:0] ll_sc_i_r;
 
@@ -121,6 +185,10 @@ module WBU
     wire excp_flush;
     wire ertn_flush;
     assign flush = {excp_flush, ertn_flush};
+
+    wire wire_ibar;
+    wire wire_dbar;
+    assign {wire_dbar, wire_ibar} = bar_i_r;
 
     // to_csr
     wire csr_we;
@@ -159,9 +227,9 @@ module WBU
     wire [4:0] wbu_regAddr;
     wire wbu_over;
 
-    wire wbu_csr_we;
-    wire [13:0] wbu_csr_idx;
-    wire [31:0] wbu_csr_wdata;
+    // wire wbu_csr_we;
+    // wire [13:0] wbu_csr_idx;
+    // wire [31:0] wbu_csr_wdata;
 
     wire wire_gr_we;
     wire [4:0] wire_dest;
@@ -203,7 +271,7 @@ module WBU
         } = tlb_inst_bus_r;
 
     reg [1:0] wbu_state;
-    reg [3:0] tlbsrch_index_r;
+    reg [$clog2(TLBNUM)-1:0] tlbsrch_index_r;
     reg tlbsrch_found_r;
 
     reg [4:0] invtlb_op_i_r;
@@ -224,7 +292,7 @@ module WBU
             wbu_state <= 2'd0;
             tlb_inst_bus_r <= 5'd0;
             // tlbsrch
-            tlbsrch_index_r <= 4'd0;
+            tlbsrch_index_r <= 5'd0;
             tlbsrch_found_r <= 1'b0;
             // invtlb
             invtlb_op_i_r <= 5'd0;
@@ -238,6 +306,25 @@ module WBU
             ll_sc_i_r <= 2'd0;
 
             paddr_i_r <= 32'd0;
+
+            csr_rstat_i_r <= 1'b0;
+            csr_estat_data_i_r <= 32'b0;
+
+            cnt_inst_diff_i_r <= 1'b0;
+            timer_64_diff_i_r <= 64'b0;
+
+            ld_diff_i_r <= 8'b0;
+            paddr_diff_i_r <= 32'b0;
+            vaddr_diff_i_r <= 32'b0;
+
+            st_diff_i_r <= 8'b0;
+            st_data_diff_i_r <= 32'b0;
+
+            after_br_invalid_i_r <= 1'b0;
+
+            inst_idle_i_r <= 1'b0;
+
+            bar_i_r <= 2'b0;
 
         end
         else if (wbu_state == 2'd0 && up_valid) begin
@@ -264,19 +351,39 @@ module WBU
 
             ll_sc_i_r  <= ll_sc_i;
             paddr_i_r <= paddr_i;
+
+            csr_rstat_i_r <= csr_rstat_i;
+            csr_estat_data_i_r <= csr_estat_data_i;
+
+            cnt_inst_diff_i_r <= cnt_inst_diff_i;
+            timer_64_diff_i_r <= timer_64_diff_i;
+
+
+            ld_diff_i_r <= ld_diff_i;
+            paddr_diff_i_r <= paddr_diff_i;
+            vaddr_diff_i_r <= vaddr_diff_i;
+
+
+            st_diff_i_r <= st_diff_i;
+            st_data_diff_i_r <= st_data_diff_i;
+
+            after_br_invalid_i_r <= after_br_invalid_i;
+            inst_idle_i_r <= inst_idle_i;
+
+            bar_i_r <= bar_i;
         end
-        else if(wbu_state == 2'd1) begin
+        else if(wbu_state == 2'd1 && !idle_flush) begin
             wbu_state <= 2'd0;
         end
     end
 
     wire ws_valid;
     assign ws_valid = wbu_state == 2'd1;
-    assign waite_ready_o = wbu_state == 2'd0 ? 1'b1 : 1'b0;
+    assign waite_ready_o = idle_flush ? 1'b0: (wbu_state == 2'd0);
     assign wbu_over = wbu_state == 2'd0;
 
     // 输出到 regfile
-    assign rf_we    = wire_gr_we & ws_valid & !ws_excp && !refetch_excp_i_r;
+    assign rf_we    = wire_gr_we & ws_valid & !ws_excp && !refetch_excp_i_r && !after_br_invalid_i_r;
     assign rf_waddr = wire_dest;
     assign rf_wdata = wire_final_result;
     assign pc       = wire_pc;
@@ -317,28 +424,30 @@ module WBU
     assign invtlb_vpn_o = invtlb_vpn_i_r;
 
 
-    assign ertn_flush = wire_is_inst_ertn & ws_valid & !ws_excp; // 保持一个周期
+    assign ertn_flush = wire_is_inst_ertn & ws_valid & !ws_excp && !refetch_excp_i_r;
 
     // 解决数据相关
     assign wbu_regWr = rf_we;
     assign wbu_data = wire_final_result;
     assign wbu_regAddr = wire_dest;
 
-    assign wbu_csr_we = csr_we;
-    assign wbu_csr_idx = csr_addr;
-    assign wbu_csr_wdata = csr_wdata;
+    // assign wbu_csr_we = csr_we;
+    // assign wbu_csr_idx = csr_addr;
+    // assign wbu_csr_wdata = csr_wdata;
 
+    wire [31:0] wbu_pc = pc_pro_i_r;
     assign bus_wbu_bypass_data = {
                wbu_regWr,
                wbu_data,
                wbu_regAddr,
-               wbu_csr_we,
-               wbu_csr_idx,
-               wbu_csr_wdata,
+               //    wbu_csr_we,
+               //    wbu_csr_idx,
+               //    wbu_csr_wdata,
+               wbu_pc,
                wbu_over
            };
 
-    assign excp_flush = ws_excp & ws_valid; // 保持一个周期
+    assign excp_flush = ws_excp & ws_valid && !refetch_excp_i_r;
     assign flush_sign = excp_flush || ertn_flush || refetch_flush;
 
     assign is_ertn = wire_is_inst_ertn;
@@ -402,9 +511,9 @@ module WBU
                csr_era};
 
     //llbit
-    assign ws_llbit_set  = (ll_w | sc_w) & ws_valid & !ws_excp;
+    assign ws_llbit_set  = (ll_w | sc_w) & ws_valid & !ws_excp && !refetch_excp_i_r;
     assign ws_llbit      = ll_w;
-    assign ws_lladdr_set = ll_w && ws_valid && !ws_excp;
+    assign ws_lladdr_set = ll_w && ws_valid & !ws_excp && !refetch_excp_i_r;
     assign ws_lladdr     =  paddr_i_r[31:4];
 
 
@@ -422,14 +531,48 @@ module WBU
                               wire_inst_tlbwr ||
                               wire_inst_tlbfill || wire_csr_we) && !refetch_excp_i_r;
 
+    // 如果是 ibar，只需要重 ibar 后面的指令重新取址就行了，否则都重新取址取本条指令，这里复用了 refecth 数据通路
+    // assign refetch_pc = wire_ibar ? pc_pro_i_r + 32'd4 : pc_pro_i_r;
+    // assign refetch_sign = refetch_excp_i_r || wire_ibar;
     assign refetch_pc = pc_pro_i_r;
     assign refetch_sign = refetch_excp_i_r;
-
     assign has_refetch_excp_o = refetch_excp_i_r;
 
-    assign refetch_flush = refetch_excp_i_r && !ws_excp && !ertn_flush; // 保持一个周期???
+
+    // 取消上游执行效果以及指令缓存
+    assign refetch_flush = refetch_excp_i_r && ws_valid; // 天王老子来了都给我去重新执行
 
     assign excp_tlbrefill_o = excp_tlbrefill;
 
     assign ws_to_ds_valid = ws_valid;
+
+    // 如果当前指令idle 到来的时候，has_int 有效，那么就不会有 idle_flush, 可认为 idle失效？
+    assign idle_flush = inst_idle_i_r && !has_int;
+
+    assign ibar_flush = wire_ibar && ws_valid;
+
+    // difftest
+    assign ws_valid_diff = ws_valid & !ws_excp && !refetch_excp_i_r && !after_br_invalid_i_r;
+    assign ws_csr_rstat_en_diff = csr_rstat_i_r;
+    assign ws_csr_data_diff     = csr_estat_data_i_r;
+
+    assign cnt_inst_diff_o = cnt_inst_diff_i_r;
+    assign timer_64_diff_o = timer_64_diff_i_r;
+
+    assign cmt_tlbfill_en = wire_inst_tlbfill && ws_valid && !ws_excp && !refetch_excp_i_r;
+    assign cmt_rand_index = rand_index_o;
+
+    assign ld_diff = ld_diff_i_r;
+    assign paddr_diff = paddr_diff_i_r;
+    assign vaddr_diff = vaddr_diff_i_r;
+
+    assign eret_diff = wire_is_inst_ertn && ws_valid && !ws_excp && !refetch_excp_i_r;
+    assign ecode_diff = csr_ecode;
+
+    assign st_data_diff = st_data_diff_i_r;
+    assign st_diff = st_diff_i_r;
+
+    assign ws_excp_diff = ws_excp && ws_valid && !refetch_excp_i_r;
+
+
 endmodule

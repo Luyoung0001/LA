@@ -1,6 +1,6 @@
 module tlb
     #(
-         parameter TLBNUM = 16
+         parameter TLBNUM = 32
      )
      (
          input  wire         clk,
@@ -120,12 +120,12 @@ module tlb
     endgenerate
 
     // Encoders for match results
-    encoder_16_4 en_match0 (.in({{(16-TLBNUM){1'b0}}, match0}), .out(match0_en));
-    encoder_16_4 en_match1 (.in({{(16-TLBNUM){1'b0}}, match1}), .out(match1_en));
+    encoder_32_5 en_match0 (.in({{(32-TLBNUM){1'b0}}, match0}), .out(match0_en));
+    encoder_32_5 en_match1 (.in({{(32-TLBNUM){1'b0}}, match1}), .out(match1_en));
 
     // Search port 0 outputs
     assign s0_found = |match0;
-    assign s0_index = {{(4-$clog2(TLBNUM)){1'b0}}, match0_en};
+    assign s0_index = {{(5-$clog2(TLBNUM)){1'b0}}, match0_en};
     assign s0_ps    = tlb_ps[match0_en];
     assign s0_ppn   = s0_odd_page_buffer[match0_en] ? tlb_ppn1[match0_en] : tlb_ppn0[match0_en];
     assign s0_v     = s0_odd_page_buffer[match0_en] ? tlb_v1[match0_en]   : tlb_v0[match0_en];
@@ -135,7 +135,7 @@ module tlb
 
     // Search port 1 outputs
     assign s1_found = |match1;
-    assign s1_index = {{(4-$clog2(TLBNUM)){1'b0}}, match1_en};
+    assign s1_index = {{(5-$clog2(TLBNUM)){1'b0}}, match1_en};
     assign s1_ps    = tlb_ps[match1_en];
     assign s1_ppn   = s1_odd_page_buffer[match1_en] ? tlb_ppn1[match1_en] : tlb_ppn0[match1_en];
     assign s1_v     = s1_odd_page_buffer[match1_en] ? tlb_v1[match1_en]   : tlb_v0[match1_en];

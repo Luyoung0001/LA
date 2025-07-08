@@ -141,7 +141,6 @@ module csr
     localparam TLBELO1=14'h13;
     localparam ASID  = 14'h18;
     localparam PGDL  = 14'h19;
-    localparam CPUID = 14'h20;
     localparam PGDH  = 14'h1a;
     localparam PGD   = 14'h1b;
     localparam TLBRENTRY = 14'h88;
@@ -155,7 +154,6 @@ module csr
     localparam TID   = 14'h40;
     localparam TCFG  = 14'h41;
     localparam TVAL  = 14'h42;
-    localparam CNTC  = 14'h43;
     localparam TICLR = 14'h44;
 
     localparam LLBCTL= 14'h60;
@@ -174,7 +172,6 @@ module csr
     wire tlbelo1_wen= csr_wr_en & (csr_waddr == TLBELO1);
     wire asid_wen   = csr_wr_en & (csr_waddr == ASID);
     wire pgdl_wen   = csr_wr_en & (csr_waddr == PGDL);
-    wire cpuid_wen  = csr_wr_en & (csr_waddr == CPUID);
     wire pgdh_wen   = csr_wr_en & (csr_waddr == PGDH);
     wire pgd_wen    = csr_wr_en & (csr_waddr == PGD);
     wire tlbrentry_wen = csr_wr_en & (csr_waddr == TLBRENTRY);
@@ -190,7 +187,6 @@ module csr
     wire tcfg_wen   = csr_wr_en & (csr_waddr == TCFG);
     wire tval_wen   = csr_wr_en & (csr_waddr == TVAL);
     wire ticlr_wen  = csr_wr_en & (csr_waddr == TICLR);
-    wire cntc_wen   = csr_wr_en & (csr_waddr == CNTC);
 
     wire llbctl_wen = csr_wr_en & (csr_waddr == LLBCTL);
 
@@ -212,8 +208,6 @@ module csr
     reg [31:0] csr_dmw1;
     reg [31:0] csr_pgdl;
     reg [31:0] csr_pgdh;
-    reg [31:0] csr_cpuid;
-    reg [31:0] csr_cntc;
 
     wire [31:0] csr_pgd;
     wire tlbrd_valid_wr_en;
@@ -263,10 +257,6 @@ module csr
            {32{rd_addr == PGDH  }}  & csr_pgdh    |
            {32{rd_addr == PGD   }}  & csr_pgd     |
            {32{rd_addr == TLBRENTRY}} & csr_tlbrentry|
-           {32{rd_addr == DMW0}}    & csr_dmw0    |
-           {32{rd_addr == DMW1}}    & csr_dmw1    |
-           {32{rd_addr == CPUID }}  & csr_cpuid   |
-           {32{rd_addr == CNTC  }}  & csr_cntc    |
 
            {32{rd_addr == SAVE0 }}  & csr_save0   |
            {32{rd_addr == SAVE1 }}  & csr_save1   |
@@ -277,7 +267,6 @@ module csr
            {32{rd_addr == TICLR }}  & csr_ticlr   |
            {32{rd_addr == LLBCTL}}  & {csr_llbctl[31:1], llbit} |
            {32{rd_addr == TVAL  }}  & csr_tval;
-
 
     assign era_out      = csr_era;
     assign eentry_out   = csr_eentry;
@@ -434,13 +423,6 @@ module csr
         end
     end
 
-    //cpuid
-    always @(posedge clk) begin
-        if (rst) begin
-            csr_cpuid <= 32'b0;
-        end
-    end
-
     //save0
     always @(posedge clk) begin
         if (save0_wen) begin
@@ -502,15 +484,6 @@ module csr
         end
     end
 
-    //cntc
-    always @(posedge clk) begin
-        if (rst) begin
-            csr_cntc <= 32'b0;
-        end
-        else if (cntc_wen) begin
-            csr_cntc <= csr_wdata;
-        end
-    end
     //tval
     always @(posedge clk) begin
         if (tcfg_wen) begin
@@ -713,20 +686,6 @@ module csr
             csr_dmw1[`DMW_MAT] <= csr_wdata[`DMW_MAT];
             csr_dmw1[`PSEG]    <= csr_wdata[`PSEG];
             csr_dmw1[`VSEG]    <= csr_wdata[`VSEG];
-        end
-    end
-
-    //pgdl
-    always @(posedge clk) begin
-        if (pgdl_wen) begin
-            csr_pgdl[`BASE] <= csr_wdata[`BASE];
-        end
-    end
-
-    //pgdh
-    always @(posedge clk) begin
-        if (pgdh_wen) begin
-            csr_pgdh[`BASE] <= csr_wdata[`BASE];
         end
     end
 

@@ -429,13 +429,14 @@ module IDU (
            1'b1;
 
     always @(*) begin
-        if (exu_regWr && (rf_raddr1 == exu_regAddr) && rf_raddr1 != 5'd0) begin
+        if (exu_regWr && (rf_raddr1 == exu_regAddr) && rf_raddr1 != 5'd0 && state_valid) begin
             conflict_regaData = exu_data;
+
         end
-        else if (mem_regWr && (rf_raddr1 == mem_regAddr)&& rf_raddr1 != 5'd0) begin
+        else if (mem_regWr && (rf_raddr1 == mem_regAddr)&& rf_raddr1 != 5'd0 && state_valid) begin
             conflict_regaData = mem_data;
         end
-        else if (wbu_regWr && (rf_raddr1 == wbu_regAddr)&& rf_raddr1 != 5'd0) begin
+        else if (wbu_regWr && (rf_raddr1 == wbu_regAddr)&& rf_raddr1 != 5'd0 && state_valid) begin
             conflict_regaData = wbu_data;
         end
         else begin
@@ -444,13 +445,13 @@ module IDU (
     end
 
     always @(*) begin
-        if (exu_regWr && (rf_raddr2 == exu_regAddr) && rf_raddr2 != 5'd0) begin
+        if (exu_regWr && (rf_raddr2 == exu_regAddr) && rf_raddr2 != 5'd0 && state_valid) begin
             conflict_regbData = exu_data;
         end
-        else if (mem_regWr && (rf_raddr2 == mem_regAddr)&& rf_raddr2 != 5'd0) begin
+        else if (mem_regWr && (rf_raddr2 == mem_regAddr)&& rf_raddr2 != 5'd0 && state_valid) begin
             conflict_regbData = mem_data;
         end
-        else if (wbu_regWr && (rf_raddr2 == wbu_regAddr)&& rf_raddr2 != 5'd0) begin
+        else if (wbu_regWr && (rf_raddr2 == wbu_regAddr)&& rf_raddr2 != 5'd0 && state_valid) begin
             conflict_regbData = wbu_data;
         end
         else begin
@@ -774,8 +775,7 @@ module IDU (
     // 因为有前递数据会不断得刷新
     // 什么是就计算完了？
     // 我的思路是，让下游每一个模块都计算完毕，这样
-    // IDU 才会拿到完整的数据并顺利完成计算
-
+    // IDU 才会拿到完整的数据并顺利完成计算d
 
     assign br_taken = (inst_beq  &&  rj_eq_rd
                        || inst_bne  && !rj_eq_rd

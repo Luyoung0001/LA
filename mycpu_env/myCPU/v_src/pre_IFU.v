@@ -42,14 +42,15 @@ module pre_IFU (
 
     // 这里要注意优先级
     assign nextpc       =
+           refetch_sign_i ? refetch_pc_i :
            wbu_excp_tlbrefill ? csr_tlbrentry :
            excp_flush ? csr_eentry:
            ertn_flush ? inst_flush_pc:
-           refetch_sign_i ? refetch_pc_i :
            br_taken ? br_target :
            seq_pc;
 
     reg [1:0] pfs_state;
+
     always @(posedge clk) begin
         if (rst) begin
             pfs_state <= 2'd0;
@@ -74,7 +75,7 @@ module pre_IFU (
     end
 
     assign pc_o = pc;
-    assign state_valid = pfs_state == 2'd1  ? 1'b1 : 1'b0;
+    assign state_valid = (pfs_state == 2'd1)  ? 1'b1 : 1'b0;
 
 endmodule
 

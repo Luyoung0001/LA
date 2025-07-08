@@ -30,8 +30,10 @@ module cache(
         output wire [31:0]  wr_addr,
         output wire [3:0]   wr_wstrb,
         output wire [127:0] wr_data, // 可以直接发射一个 cache line 到 axi 的 buffer
-        input  wire         wr_rdy,
-        input  wire ibar_flush
+        input  wire         wr_rdy
+        // input  wire ibar_flush,
+
+        // output wire ibar_flushing
     );
     // IFU 发送请求，这里返回数据或者通过 AXI 和 SRAM 交互完后返回数据
 
@@ -211,15 +213,38 @@ module cache(
          };
 
     integer i;
+    // reg [7:0] flush_idx;
+    // reg flushing;
+    // reg ibar_flashing;
+
+    // // assign ibar_flushing = ibar_flashing;
+
     always @(posedge clk) begin
-        if(ibar_flush) begin
-            // for(i = 0; i < 256; i = i + 1) begin : invalid
-            cache_line_0[request_buffer_index][`V] <= 1'b0;
-            cache_line_1[request_buffer_index][`V] <= 1'b0;
-            cache_line_2[request_buffer_index][`V] <= 1'b0;
-            cache_line_3[request_buffer_index][`V] <= 1'b0;
-            // end
-        end
+        //     // 清空 cache
+        //     if (!resetn) begin
+        //         flush_idx <= 0;
+        //         flushing <= 0;
+        //         ibar_flashing <= 1'b0;
+        //     end
+        //     if (ibar_flush) begin
+        //         flushing <= ibar_flush;
+        //         ibar_flashing <= 1'b1;
+        //     end
+        //     if (flushing) begin
+        //         cache_line_0[flush_idx][`V] <= 1'b0;
+        //         cache_line_1[flush_idx][`V] <= 1'b0;
+        //         cache_line_2[flush_idx][`V] <= 1'b0;
+        //         cache_line_3[flush_idx][`V] <= 1'b0;
+
+        //         if (flush_idx == 8'd255) begin
+        //             flushing <= 0;
+        //             ibar_flashing <= 1'b0;
+        //             flush_idx <= 8'd0;
+        //         end
+        //         else begin
+        //             flush_idx <= flush_idx + 1;
+        //         end
+        //     end
 
         // 如果重填完成，就可以就 refill_data 填到对应的 way 了
         if(refill_done) begin

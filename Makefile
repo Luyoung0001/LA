@@ -25,7 +25,7 @@ SRC = $(CPPSRC) $(DPIC_C_SRC) $(MEM_SRC)
 
 VSRC = $(VSRC_mycpu_env_vsrc) $(VSRC_dpic)/*.sv
 
-V_FLAGS = --cc $(VSRC) --Wno-UNOPTFLAT --exe $(SRC) $(SV_FLAGS) --top $(TOP)  --trace-fst --CFLAGS "$(INCFLAGS)"
+V_FLAGS = --cc $(VSRC) --Wno-UNOPTFLAT -Wno-fatal --exe $(SRC) $(SV_FLAGS) --top $(TOP)  --trace-fst --CFLAGS "$(INCFLAGS)"
 
 OBJ_DIR = obj_dir
 

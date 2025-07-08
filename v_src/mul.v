@@ -17,17 +17,16 @@ module mul(
     assign op_mulhu= mul_div_op[2];
 
     // // 这里会自动调用 ip
-    // // verilator 仿真
-    assign signed_mul_result64 = $signed(alu_src1) * $signed(alu_src2);
-    assign unsigned_mul_result64 = $unsigned(alu_src1) * $unsigned(alu_src2);
 
-    // mul_top o(
-    //             .alu_src1(alu_src1),
-    //             .alu_src2(alu_src2),
-    //             .mul_div_op(1'b1),
-    //             .signed_mul_result(signed_mul_result64),
-    //             .unsigned_mul_result(unsigned_mul_result64)
-    //         );
+    // assign signed_mul_result64 = $signed(alu_src1) * $signed(alu_src2);
+    // assign unsigned_mul_result64 = $unsigned(alu_src1) * $unsigned(alu_src2);
+    mul_top o(
+                .alu_src1(alu_src1),
+                .alu_src2(alu_src2),
+                .mul_div_op(1'b1),
+                .signed_mul_result(signed_mul_result64),
+                .unsigned_mul_result(unsigned_mul_result64)
+            );
 
     assign mul_result = ({32{op_mul       }} & signed_mul_result64[31:0])
            | ({32{op_mulh      }} & signed_mul_result64[63:32])

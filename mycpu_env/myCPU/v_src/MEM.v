@@ -1,29 +1,85 @@
 `include "csr.h"
 module MEM
     #(
-         parameter TLBNUM = 16
+         parameter TLBNUM = 32
      )
      (
          // from exu
          input wire clk,
          input wire rst,
 
-         input wire es_excp,
-         input wire [15:0] es_excp_num,
-         output wire ms_excp_out,
-         output wire [15:0] ms_excp_num_out,
+         input wire es_excp_i,
+         input wire [15:0] es_excp_num_i,
 
-         input wire [9:0] in_mem_op,
-         input wire [3:0] in_mem_mask,
+         output wire ms_excp_o,
+         output wire [15:0] ms_excp_num_o,
 
-         input wire [150:0] bus_exu_to_mem_data,
-         input wire [31:0] inst_data_i,
-         output wire [31:0] inst_data_o,
-         output wire [149:0] bus_mem_to_wbu_data,
+         output wire [32:0] inst_ld,
+
+         input wire [9:0]  es_mem_op_i,
+         input wire [31:0] es_rkd_value_i,
+         input wire [31:0] es_alu_result_i,
+         // ================访存单元================
+         output wire req, //
+         output wr,   // |we
+         output [1:0] size, // 新增
+         output [3:0] wstrb, // we
+         output wire [31:0] addr,
+         output [31:0] wdata,
+         input addr_ok, // 新增
+         input data_ok,
+         input [31:0] rdata,
+
+
+         // from csr
+         input wire [1:0]  csr_plv,
+         input wire [31:0] csr_dmw0,
+         input wire [31:0] csr_dmw1,
+         input wire        csr_da,
+         input wire        csr_pg,
+         input wire [31:0] csr_tlbidx,
+         input wire [31:0] csr_tlbehi,
+         input wire [31:0] csr_tlbelo0,
+         input wire [31:0] csr_tlbelo1,
+         input wire [18:0] csr_vppn,
+         input wire [9:0]  csr_asid,
+         input wire        ds_llbit,
+         input wire [27:0] lladdr,
+
+         // from or to addr_trans
+         // for tlbsrch and access mem
+         output wire           data_addr_trans_en,
+         output wire [9:0]     data_asid,
+         output wire [31:0]    data_vaddr,
+         output wire           data_dmw0_en,
+         output wire           data_dmw1_en,
+         output wire [31:0]    data_dmw0,
+         output wire [31:0]    data_dmw1,
+         output wire           data_da,
+         output wire           data_pg,
+
+         input wire  [ 7:0]    data_index,
+         input wire  [19:0]    data_tag,
+         input wire  [ 3:0]    data_offset,
+
+         input wire            data_tlb_found,
+         input wire  [$clog2(TLBNUM)-1:0]     data_tlb_index,
+
+         input wire            data_tlb_v,
+         input wire            data_tlb_d,
+         input wire  [1:0]     data_tlb_mat,
+         input wire  [1:0]     data_tlb_plv,
+
+         // ================访存单元================
+
+         input wire [150:0] es_to_ms_data_i,
+         input wire [31:0]  es_inst_data_i,
+
+         output wire [31:0]  ms_inst_data_o,
+         output wire [149:0] ms_to_ws_data_o,
 
          // from mem_sram
-         input wire [31:0] data_sram_rdata,
-         output wire [85:0] bus_mem_bypass_data,
+         output wire [70:0] bus_mem_bypass_data,
 
          // exception
          input wire [1:0] flush,
@@ -38,32 +94,35 @@ module MEM
          input waite_ready_i,
          output waite_ready_o,
          // tlb
-         input wire [4:0] tlb_inst_bus,
-         output wire [4:0] tlb_inst_bus_o,
+         input wire [4:0] es_tlb_inst_bus_i,
+         output wire [4:0] ms_tlb_inst_bus_o,
          // tlbsrch
          input wire[$clog2(TLBNUM)-1:0] tlbsrch_index,
          input wire                     tlbsrch_found,
-         output wire [$clog2(TLBNUM)-1:0] tlbsrch_index_o,
-         output wire                     tlbsrch_found_o,
+
+         output wire [$clog2(TLBNUM)-1:0] ms_tlbsrch_index_o,
+         output wire                     ms_tlbsrch_found_o,
          // invtlb
-         input wire [4:0]       invtlb_op_i,
-         input wire [9:0]       invtlb_asid_i,
-         input wire [18:0]      invtlb_vpn_i,
-         output wire [4:0]      invtlb_op_o,
-         output wire [9:0]      invtlb_asid_o,
-         output wire [18:0]     invtlb_vpn_o,
+         input wire [4:0]       es_invtlb_op_i,
+         input wire [9:0]       es_invtlb_asid_i,
+         input wire [18:0]      es_invtlb_vpn_i,
+
+         output wire [4:0]      ms_invtlb_op_o,
+         output wire [9:0]      ms_invtlb_asid_o,
+         output wire [18:0]     ms_invtlb_vpn_o,
 
          // debug
-         input wire is_csr_wr_i,
-         output wire is_csr_wr_o,
+         input wire es_is_csr_wr_i,
+         output wire ms_is_csr_wr_o,
 
          // refetch sign
          input wire wbu_refetch_sign_i,
-         input wire refetch_excp_i,
-         output wire refetch_excp_o,
 
-         input [31:0] pc_pro_i,
-         output [31:0] pc_pro_o,
+         input wire es_refetch_excp_i,
+         output wire ms_refetch_excp_o,
+
+         input [31:0] es_pc_pro_i,
+         output [31:0] ms_pc_pro_o,
 
          input wbu_refetch_flush,
 
@@ -77,31 +136,93 @@ module MEM
          input [82:0] bus_csr_rd_wr_data_i,
 
          output wire [1:0] ll_sc,
-         input wire [31:0] paddr_i,
-         output wire [31:0] paddr_o,
 
-         output wire  ms_to_ds_valid
+         output wire [31:0] ms_paddr_o,
 
+         output wire  ms_to_ds_valid,
+
+         input wire csr_rstat_i,
+         output wire csr_rstat_o,
+         // csr_data : 当csrstat == 1时，当前指令读取到的csr寄存器(estat)的值
+         output wire [31:0] csr_estat_data,
+
+         output wire cnt_inst_diff,
+         output wire [63:0] timer_64_diff,
+
+
+         output   wire [7:0] ld_diff,
+         output   wire [31:0] paddr_diff,
+         output   wire [31:0] vaddr_diff,
+
+
+         output  wire [7:0] st_diff,
+         output  wire [31:0] st_data_diff,
+
+         input  wire after_br_invalid_i,
+         output wire after_br_invalid_o,
+
+         input wire inst_idle_i,
+         output wire inst_idle_o,
+         input wire idle_flush,
+
+         input wire [1:0] bar_i,
+         output wire [1:0] bar_o,
+
+         output wire do_sc
      );
-    reg [31:0] paddr_i_r;
-    assign paddr_o = paddr_i_r;
 
-    reg [82:0] bus_csr_rd_wr_data_i_r;
-    reg is_csr_wr_i_r;
+    // 寄存器
+    reg es_excp_i_r;
+    reg [15:0] es_excp_num_i_r;
+
+    reg [9:0]  es_mem_op_i_r;
+    reg [31:0] es_rkd_value_i_r;
+    reg [31:0] es_alu_result_i_r;
+
+    reg [150:0] es_to_ms_data_i_r;
+    reg [31:0]  es_inst_data_i_r;
+
+    reg [4:0]  es_tlb_inst_bus_i_r;
+
+    reg [4:0]  es_invtlb_op_i_r;
+    reg [9:0]  es_invtlb_asid_i_r;
+    reg [18:0] es_invtlb_vpn_i_r;
+
+    reg         es_is_csr_wr_i_r;
+    reg         es_refetch_excp_i_r;
+    reg [31:0]  es_pc_pro_i_r;
+
+    reg [82:0] bus_csrd_wr_data_i_r;
+
+    reg csr_rstat_i_r;
+    reg after_br_invalid_i_r;
+    reg inst_idle_i_r;
+    reg [1:0] bar_i_r;
 
     wire excp_flush;
     wire ertn_flush;
     assign {excp_flush, ertn_flush} = flush;
 
     // 异常信号
-    reg [15:0] es_excp_num_r; // 从上一级接收
-    reg es_excp_r;
 
-    wire [15:0] wire_es_excp_num = es_excp_num_r;
-    wire wire_es_excp = es_excp_r;
-
-    wire [15:0] ms_excp_num = wire_es_excp_num; // 当前阶段的异常 += 上一阶段
-    wire ms_excp = wire_es_excp; // 当前阶段的异常 += 上一阶段
+    // 地址非对齐
+    wire mem_excp_ale;
+    wire [15:0] excp_ale_num;
+    // TLB重填异常
+    wire mem_excp_tlbr;
+    wire [15:0] excp_tlbr_num;
+    // load 操作页无效异常
+    wire mem_excp_pil;
+    wire [15:0] excp_pil_num;
+    // store 操作页无效异常
+    wire mem_excp_pis;
+    wire [15:0] excp_pis_num;
+    // 页特权异常
+    wire mem_excp_ppi;
+    wire [15:0] excp_ppi_num;
+    // 页修改例外
+    wire mem_excp_pme;
+    wire [15:0] excp_pme_num;
 
     // 清空信号
     wire flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
@@ -112,21 +233,17 @@ module MEM
     wire [4:0] mem_regAddr;
     wire mem_over;
 
-    wire mem_csr_we;
-    wire [13:0] mem_csr_idx;
-    wire [31:0] mem_csr_wdata;
+    // wire mem_csr_we;
+    // wire [13:0] mem_csr_idx;
+    // wire [31:0] mem_csr_wdata;
 
-
-    reg [150:0] bus_exu_to_mem_data_r;
-    reg [31:0] inst_data_i_r;
-    reg [31:0] reg_rdata;
 
     wire [31:0] wire_exu_result;
     wire wire_res_from_mem;
     wire [4:0] wire_dest;
     wire wire_gr_we;
     wire [31:0] wire_pc;
-    wire wire_csr_we;
+    wire wire_csr_we_1;
     wire [13:0] wire_csr_idx;
     wire [31:0] wire_csr_wdata;
     wire wire_is_inst_ertn;
@@ -137,19 +254,12 @@ module MEM
     wire [31:0] pc;
     wire [31:0] final_result;
 
-    reg [9:0] mem_op_reg;
-    reg [3:0] mem_mask_reg;
-
     // tlb
-    reg [4:0] tlb_inst_bus_r;
     wire wire_inst_tlbsrch;
     wire wire_inst_tlbrd;
     wire wire_inst_tlbwr;
     wire wire_inst_tlbfill;
     wire wire_inst_invtlb;
-
-
-
 
     assign {
             wire_inst_tlbsrch,
@@ -157,7 +267,7 @@ module MEM
             wire_inst_tlbwr,
             wire_inst_tlbfill,
             wire_inst_invtlb
-        } = tlb_inst_bus_r;
+        } = es_tlb_inst_bus_i_r;
 
 
     assign {
@@ -166,14 +276,14 @@ module MEM
             wire_gr_we,
             wire_dest,
             wire_pc,
-            wire_csr_we,
+            wire_csr_we_1,
             wire_csr_idx,
             wire_csr_wdata,
             wire_is_inst_ertn,
             wire_error_va
-        } = bus_exu_to_mem_data_r;
+        } = es_to_ms_data_i_r;
 
-    assign bus_mem_to_wbu_data = flush_sign ? 150'd0 : {
+    assign ms_to_ws_data_o = flush_sign ? 150'd0 : {
                gr_we,
                dest,
                final_result,
@@ -189,13 +299,13 @@ module MEM
     //    rd_csr_addr,
     //    csr_we,
     //    csr_mask,
-    //    csr_rkd_value
+    //    csrkd_value
 
     wire wire_res_from_csr;
     wire [13:0] wire_rd_csr_addr;
     wire wire_csr_we;
     wire [31:0] wire_csr_mask;
-    wire [31:0] wire_csr_rkd_value;
+    wire [31:0] wire_csrkd_value;
     wire wire_inst_rdcntvl_w;
     wire wire_inst_rdcntvh_w;
     wire wire_inst_rdcntid_w;
@@ -205,16 +315,17 @@ module MEM
             wire_rd_csr_addr,
             wire_csr_we,
             wire_csr_mask,
-            wire_csr_rkd_value,
+            wire_csrkd_value,
             wire_inst_rdcntvl_w,
             wire_inst_rdcntvh_w,
             wire_inst_rdcntid_w
-        } = bus_csr_rd_wr_data_i_r;
+        } = bus_csrd_wr_data_i_r;
 
     wire rdcnt_en;
+    wire [63:0] timer_64_set;
     wire [31:0] rdcnt_result;
-    assign {rdcnt_en, rdcnt_result} = ({33{wire_inst_rdcntvl_w}} & {1'b1, timer_64[31: 0]}) |
-           ({33{wire_inst_rdcntvh_w}} & {1'b1, timer_64[63:32]}) |
+    assign {rdcnt_en, rdcnt_result} = ({33{wire_inst_rdcntvl_w}} & {1'b1, timer_64_set[31: 0]}) |
+           ({33{wire_inst_rdcntvh_w}} & {1'b1, timer_64_set[63:32]}) |
            ({33{wire_inst_rdcntid_w}} & {1'b1, csr_tid});
 
     // 从 csr 独读出的值有两种情况
@@ -223,16 +334,24 @@ module MEM
 
     // 从 csr 中读取数据
     // 其中，如果是读计数器寄存器，则直接返回计数器的值
-    assign rd_csr_addr = wire_rd_csr_addr;
-    wire [31:0] csr_wdata = wire_csr_rkd_value & wire_csr_mask | (csr_data & ~wire_csr_mask);
+    // 但是这个值可能会被上游用到，因此这里应该应该将这个值固定下来
+    reg [63:0] timer_64_set_r;
+    assign timer_64_set = timer_64_set_r;
+    always @(posedge clk) begin
+        if (up_valid) begin
+            timer_64_set_r <= timer_64;
+        end
+    end
 
-    assign final_result = wire_res_from_mem ? mem_result :
+    assign rd_csr_addr = wire_rd_csr_addr;
+    wire [31:0] csr_wdata = wire_csrkd_value & wire_csr_mask | (csr_data & ~wire_csr_mask);
+
+    assign final_result = wire_res_from_mem ? rdata_final :
            wire_res_from_csr ? csr_data :
+           sc_w ? {{31{1'b0}},do_sc}: // 如果是 sc，就看能否成功执行
            wire_exu_result;
 
-    // 输出
-    assign ms_excp_out = ms_excp;
-    assign ms_excp_num_out = ms_excp_num;
+
 
     assign mem_excp = ms_excp;   // 发送给上一级，目的是为了取消上一级的一些执行效果，比如内存写、除法计算等等
     assign is_ertn = wire_is_inst_ertn; // 同样也是为了取消上一级的执行效果
@@ -242,148 +361,341 @@ module MEM
     assign pc             = wire_pc;
 
 
-    wire [9:0] mem_op = mem_op_reg;
-    wire [3:0] mem_mask = mem_mask_reg;
+    wire [9:0] mem_op = es_mem_op_i_r;
 
-    wire st_b = mem_op[0];
-    wire st_h = mem_op[1];
-    wire st_w = mem_op[2];
-    wire ld_b = mem_op[3];
+    wire st_b =  mem_op[0];
+    wire st_h =  mem_op[1];
+    wire st_w =  mem_op[2];
+    wire ld_b =  mem_op[3];
     wire ld_bu = mem_op[4];
-    wire ld_h = mem_op[5];
+    wire ld_h =  mem_op[5];
     wire ld_hu = mem_op[6];
-    wire ld_w = mem_op[7];
-    wire ll_w = mem_op[8];
-    wire sc_w = mem_op[9];
+    wire ld_w =  mem_op[7];
+
+    wire ll_w =  mem_op[8];
+    wire sc_w =  mem_op[9];
+
+
+    wire [3:0] st_b_we;
+    wire [3:0] st_h_we;
+    wire [3:0] st_w_we;
+
+    assign st_b_we = es_alu_result_i_r[1:0] == 2'b00 ? 4'b0001 :
+           es_alu_result_i_r[1:0] == 2'b01 ? 4'b0010 :
+           es_alu_result_i_r[1:0] == 2'b10 ? 4'b0100 :
+           4'b1000;
+    assign st_h_we = es_alu_result_i_r[1:0] == 2'b00 ? 4'b0011 :
+           es_alu_result_i_r[1:0] == 2'b10 ? 4'b1100 :
+           4'b0000;
+    assign st_w_we = 4'b1111;
 
     // 这里读出来的数据也很讲究
-    wire [31:0] mem_result =
-         reg_rdata;
 
     // 解决数据相关
     assign mem_regWr = gr_we;
     assign mem_data = final_result;
     assign mem_regAddr = wire_dest;
 
-    assign mem_csr_we = wire_csr_we;
-    assign mem_csr_idx = wire_csr_idx;
-    assign mem_csr_wdata = csr_wdata;
+    // 当前是否执行 ld 执行
+    // 如果在执行 load 操作，将该信号传给 idu，如果 idu 发现load_use，可以直接从
+    assign inst_ld = {ld_b || ld_bu || ld_h || ld_hu || ld_w || ll_w, final_result};
 
+    // assign mem_csr_we = wire_csr_we;
+    // assign mem_csr_idx = wire_csr_idx;
+    // assign mem_csr_wdata = csr_wdata;
+
+    wire [31:0] mem_pc = es_pc_pro_i_r;
     assign bus_mem_bypass_data = {
                mem_regWr,
                mem_data,
                mem_regAddr,
-               mem_csr_we,
-               mem_csr_idx,
-               mem_csr_wdata,
+               //    mem_csr_we,
+               //    mem_csr_idx,
+               //    mem_csr_wdata,
+               mem_pc,
                mem_over
            };
 
     reg [1:0] mem_state;
-    reg [$clog2(TLBNUM)-1:0] tlbsrch_index_r;
-    reg tlbsrch_found_r;
-
-    reg [4:0] invtlb_op_i_r;
-    reg [9:0] invtlb_asid_i_r;
-    reg [18:0] invtlb_vpn_i_r;
-
-
-    reg refetch_excp_i_r;
-    reg [31:0] pc_pro_i_r;
 
     always @(posedge clk) begin
         if (rst || flush_sign) begin
             mem_state <= 2'd0;
-            reg_rdata <= 32'd0;
-            bus_exu_to_mem_data_r <= 151'd0;
-            inst_data_i_r <= 32'd0;
-            mem_op_reg <=10'd0;
-            mem_mask_reg <= 4'd0;
-            es_excp_num_r <= 16'd0;
-            es_excp_r <= 1'b0;
+
+            es_excp_i_r <= 1'b0;
+            es_excp_num_i_r <= 16'd0;
+            es_mem_op_i_r <=10'd0;
+            es_rkd_value_i_r <= 32'd0;
+            es_alu_result_i_r <= 32'd0;
+
+            es_to_ms_data_i_r <= 151'd0;
+            es_inst_data_i_r <= 32'd0;
             // tlb
-            tlb_inst_bus_r <= 5'd0;
-            // tlbsrch
-            tlbsrch_index_r <= 4'd0;
-            tlbsrch_found_r <= 1'b0;
+            es_tlb_inst_bus_i_r <= 5'd0;
             // invtlb
-            invtlb_op_i_r <= 5'd0;
-            invtlb_asid_i_r <= 10'd0;
-            invtlb_vpn_i_r <= 19'd0;
+            es_invtlb_op_i_r <= 5'd0;
+            es_invtlb_asid_i_r <= 10'd0;
+            es_invtlb_vpn_i_r <= 19'd0;
 
-            is_csr_wr_i_r <= 1'b0;
+            es_is_csr_wr_i_r <= 1'b0;
+            es_refetch_excp_i_r <= 1'b0;
+            es_pc_pro_i_r <= 32'd0;
 
-            refetch_excp_i_r <= 1'b0;
+            bus_csrd_wr_data_i_r <= 83'd0;
 
-            bus_csr_rd_wr_data_i_r <= 83'd0;
-
-            paddr_i_r <= 32'd0;
-
-
+            csr_rstat_i_r <= 1'b0;
+            after_br_invalid_i_r <= 1'b0;
+            inst_idle_i_r <= 1'b0;
+            bar_i_r <= 2'b0;
         end
         else if (mem_state == 2'd0 && up_valid) begin
-            reg_rdata <= data_sram_rdata;
-            bus_exu_to_mem_data_r <= bus_exu_to_mem_data;
-            inst_data_i_r <= inst_data_i;
-            mem_op_reg <= in_mem_op;
-            mem_mask_reg <= in_mem_mask;
-            es_excp_num_r <= es_excp_num;
-            es_excp_r <= es_excp;
             mem_state <= 2'd1;
+
+            es_excp_i_r <= es_excp_i;
+            es_excp_num_i_r <= es_excp_num_i;
+            es_mem_op_i_r <= es_mem_op_i;
+            es_rkd_value_i_r <= es_rkd_value_i;
+            es_alu_result_i_r <= es_alu_result_i;
+
+            es_to_ms_data_i_r <= es_to_ms_data_i;
+            es_inst_data_i_r <= es_inst_data_i;
             // tlb
-            tlb_inst_bus_r <= tlb_inst_bus;
-            // tlbsrch
-            tlbsrch_index_r <= tlbsrch_index;
-            tlbsrch_found_r <= tlbsrch_found;
+            es_tlb_inst_bus_i_r <= es_tlb_inst_bus_i;
             // invtlb
-            invtlb_op_i_r <= invtlb_op_i;
-            invtlb_asid_i_r <= invtlb_asid_i;
-            invtlb_vpn_i_r <= invtlb_vpn_i;
+            es_invtlb_op_i_r <= es_invtlb_op_i;
+            es_invtlb_asid_i_r <= es_invtlb_asid_i;
+            es_invtlb_vpn_i_r <= es_invtlb_vpn_i;
 
-            is_csr_wr_i_r <= is_csr_wr_i;
+            es_is_csr_wr_i_r <= es_is_csr_wr_i;
+            es_refetch_excp_i_r <= wbu_refetch_sign_i | wbu_refetch_sign_i;
+            es_pc_pro_i_r <= es_pc_pro_i;
 
-            refetch_excp_i_r <= wbu_refetch_sign_i | refetch_excp_i;
+            bus_csrd_wr_data_i_r <= bus_csr_rd_wr_data_i;
 
-            pc_pro_i_r <= pc_pro_i;
-
-            bus_csr_rd_wr_data_i_r <= bus_csr_rd_wr_data_i;
-
-            paddr_i_r <= paddr_i;
+            csr_rstat_i_r <= csr_rstat_i;
+            after_br_invalid_i_r <= after_br_invalid_i;
+            inst_idle_i_r <= inst_idle_i;
+            bar_i_r <= bar_i;
         end
-
         else if(mem_state == 2'd1) begin
-            if(waite_ready_i) begin
-                mem_state <= 2'd0;
+            if(access_memo && !stop_signal) begin
+                if(waite_ready_i && addr_ok) begin
+                    mem_state <= 2'd2; // 等待
+                end
+            end
+            else if(stop_signal) begin
+                mem_state <= waite_ready_i ? 2'd0 : 2'd1;
+            end
+            else begin
+                // 否则处理完成
+                mem_state <= waite_ready_i ? 2'd0 : 2'd1;
             end
         end
-
+        else if (mem_state == 2'd2) begin
+            if(data_ok) begin
+                mem_state <= 2'd0;// 处理完成
+            end
+        end
     end
 
-    assign state_valid = (mem_state == 2'd1) ? 1'b1 : 1'b0;
-    assign waite_ready_o = (mem_state == 2'd0) ? 1'b1 : 1'b0;
+
+    // real data
+    // axi 返回的永远是 4 字节，因此这里会根据 size 以及地址生成最终的数据
+    // offset[1:0] == 00 的时候：
+    // size:0--->0001
+    // size:1--->0011
+    // size:2--->1111
+    // offset[1:0] == 01 的时候：
+    // size:0--->0010
+    // offset[1:0] == 10 的时候：
+    // size:0--->0100
+    // size:1--->1100
+    // offset[1:0] == 11 的时候：
+    // size:0--->1000
+    // 另外，这里还得考虑一下符号扩展
+    wire [31:0] real_data;
+    wire [31:0] rdata_final;
+    // wire [31:0] paddr = {data_tag, wire_error_va[11:0]};
+    wire [31:0] paddr = {data_tag, es_alu_result_i_r[11:0]};
+
+    assign real_data =
+           (data_offset[1:0] == 2'b00) ? (
+               (size == 2'b00) ? (
+                   ld_b ? {{24{rdata[7]}},rdata[7:0]}: {24'b0, rdata[7:0]}):
+               (size == 2'b01) ? (
+                   ld_h ? {{16{rdata[15]}},rdata[15:0]} : {16'b0, rdata[15:0]}):
+               rdata
+           ) :
+           (data_offset[1:0] == 2'b01) ? (
+               ld_b ? {{24{rdata[15]}},rdata[15:8]}: {24'b0, rdata[15:8]}
+           ) :
+           (data_offset[1:0] == 2'b10) ? (
+               (size == 2'b00) ? (
+                   ld_b ? {{24{rdata[23]}},rdata[23:16]}: {24'b0, rdata[23:16]}):
+               (size == 2'b01) ? (
+                   ld_h ? {{16{rdata[31]}},rdata[31:16]} : {16'b0, rdata[31:16]}):
+               rdata
+           ) :
+           (data_offset[1:0] == 2'b11) ? (
+               ld_b ? {{24{rdata[31]}},rdata[31:24]}: {24'b0, rdata[31:24]}
+           ) :
+           rdata;  // 默认情况返回原始数据
+
+    assign rdata_final = flush_sign ? 32'd0 : real_data;
+
+    assign state_valid = access_memo && !stop_signal ? data_ok :
+           mem_state == 2'd1 && stop_signal ? 1'd1:
+           mem_state == 2'd1;
+
+
+    assign waite_ready_o = idle_flush ? 1'b0: (mem_state == 2'd0);
+
     assign mem_over = mem_state == 2'd0;
 
+    // ================访存单元================
+    wire stop_signal = es_excp_i_r || mem_excp || flush_sign || wbu_in_is_ertn || es_refetch_excp_i_r;
+
+    // sc 是否执行，如果执行了，就往 rd 中写 1
+    wire sc_do;
+    assign sc_do = (sc_w & ds_llbit && lladdr == paddr[31:4]);
+
+    assign size = ld_b || ld_bu || st_b ? 2'b00 :
+           ld_h || ld_hu || st_h ? 2'b01 :
+           st_w || ld_w || ll_w || sc_do ? 2'b10 : 2'b00;
+    assign wr = (st_b || st_h || st_w || sc_do) ;
+
+    assign wstrb = stop_signal ? 4'b0000 : // 异常
+           st_b  ? st_b_we :
+           st_h  ? st_h_we :
+           st_w | sc_do  ? st_w_we :
+           4'b0000 ;
+    // 写入
+    assign wdata = st_b ? {4{es_rkd_value_i_r[7:0]}} :
+           st_h ? {2{es_rkd_value_i_r[15:0]}} :
+           st_w | sc_do ? es_rkd_value_i_r : 32'b0;
+
+
+    assign req = stop_signal ? 1'b0 : mem_state == 2'd1 && access_memo && waite_ready_i && !addr_ok;
+
+    wire access_memo = ld_b || ld_bu || ld_h || ld_hu || ld_w ||
+         st_b || st_h || st_w || ll_w || sc_do;
+
+
+    // for difftest
+    wire [31:0] wdata_diff;
+    assign wdata_diff =  st_b ? (data_offset[1:0]==2'b00 ? {24'b0, es_rkd_value_i_r[7:0]} :
+                                 data_offset[1:0]==2'b01 ? {16'b0, es_rkd_value_i_r[7:0], 8'b0} :
+                                 data_offset[1:0]==2'b10 ? {8'b0, es_rkd_value_i_r[7:0], 16'b0} :
+                                 {es_rkd_value_i_r[7:0], 24'b0}
+                                ) :
+           st_h ? (data_offset[1:0]==2'b00 ? {16'b0, es_rkd_value_i_r[15:0]} :
+                   {es_rkd_value_i_r[15:0], 16'b0}
+                  ) :
+           es_rkd_value_i_r;
+
+    wire pg_mode;
+
+    // 加上 tlb 之后，地址的意义发生了变化
+    // 假设是 pg 映射模式，那么地址就得从 addr_trans 返回
+    // 这里将会考虑数据前递技术解决数据相关
+    assign data_vaddr = wire_inst_tlbsrch ? {csr_vppn,13'd0} : es_alu_result_i_r;
+    assign data_asid = csr_asid;
+    assign data_dmw0 = csr_dmw0;
+    assign data_dmw1 = csr_dmw1;
+    assign data_da = csr_da;
+    assign data_pg = csr_pg;
+    assign pg_mode = csr_pg && !csr_da;
+    assign data_dmw0_en = ((data_dmw0[`PLV0] && csr_plv == 2'd0) || (data_dmw0[`PLV3] && csr_plv == 2'd3)) && (es_alu_result_i_r[31:29] == data_dmw0[`VSEG]) && pg_mode;
+    assign data_dmw1_en = ((data_dmw1[`PLV0] && csr_plv == 2'd0) || (data_dmw1[`PLV3] && csr_plv == 2'd3)) && (es_alu_result_i_r[31:29] == data_dmw1[`VSEG]) && pg_mode;
+    assign data_addr_trans_en = pg_mode && !data_dmw0_en && !data_dmw1_en;
+    assign addr = {data_tag, data_index, data_offset}; // 物理地址
+
+
+    // for tlbsrch
+    assign ms_tlbsrch_index_o = data_tlb_index;
+    assign ms_tlbsrch_found_o = data_tlb_found;
+
+    // ================访存单元================
+    // 异常===========================================================================
+
+    // 检测地址是否自然对齐
+    // 如果是 ld_h 或者 st_h，对齐到偶数地址
+    // 如果是 ld_w 或者 st_w，对齐到4字节
+    // 0x9
+    assign mem_excp_ale = (ld_h | ld_hu | st_h) && es_alu_result_i_r[0] ? 1'b1 :
+           (ld_w | st_w | sc_do) && (es_alu_result_i_r[1:0] != 2'b00) ? 1'b1 : 1'b0;
+    assign excp_ale_num = mem_excp_ale ? 16'h0200 :16'b0;
+    // 0x10
+    assign mem_excp_tlbr = access_memo && !data_tlb_found && data_addr_trans_en;
+    assign excp_tlbr_num = mem_excp_tlbr ? 16'h0400 : 16'b0;
+    // 0x11
+    assign mem_excp_pil  = (ld_b | ld_bu | ld_h | ld_hu | ld_w | ll_w) && !data_tlb_v && data_addr_trans_en;
+    assign excp_pil_num = mem_excp_pil ? 16'h0800 : 16'b0;
+    // 0x12
+    assign mem_excp_pis  = (st_b | st_h | st_w | sc_do) && !data_tlb_v && data_addr_trans_en;
+    assign excp_pis_num = mem_excp_pis ? 16'h1000 : 16'b0;
+    // 0x13
+    assign mem_excp_ppi  = access_memo && data_tlb_v && (csr_plv > data_tlb_plv) && data_addr_trans_en;
+    assign excp_ppi_num = mem_excp_ppi ? 16'h2000 : 16'b0;
+    // 0x14
+    assign mem_excp_pme  = (st_b | st_h | st_w | sc_do) && data_tlb_v && (csr_plv <= data_tlb_plv) && !data_tlb_d && data_addr_trans_en;
+    assign excp_pme_num = mem_excp_pme ? 16'h4000 : 16'b0;
+
+
+    wire [15:0] wire_es_excp_num = es_excp_num_i_r;
+    wire wire_es_excp = es_excp_i_r;
+
+    // 当前阶段的异常 += 上一阶段
+    wire [15:0] ms_excp_num = wire_es_excp_num | excp_ale_num |
+         excp_tlbr_num | excp_pil_num | excp_pis_num |
+         excp_ppi_num | excp_pme_num;
+
+    // 当前阶段的异常 += 上一阶段
+    wire ms_excp = wire_es_excp | mem_excp_ale |
+         mem_excp_tlbr | mem_excp_pil | mem_excp_pis |
+         mem_excp_ppi | mem_excp_pme;
+
+    // 输出
+    assign ms_excp_o = ms_excp;
+    assign ms_excp_num_o = ms_excp_num;
+
     // tlb
-    assign tlb_inst_bus_o = tlb_inst_bus_r;
-    // tlbsrch
-    assign tlbsrch_index_o = tlbsrch_index_r;
-    assign tlbsrch_found_o = tlbsrch_found_r;
+    assign ms_tlb_inst_bus_o = es_tlb_inst_bus_i_r;
     // for invtlb
-    assign invtlb_op_o = invtlb_op_i_r;
-    assign invtlb_asid_o = invtlb_asid_i_r;
-    assign invtlb_vpn_o = invtlb_vpn_i_r;
+    assign ms_invtlb_op_o = es_invtlb_op_i_r;
+    assign ms_invtlb_asid_o = es_invtlb_asid_i_r;
+    assign ms_invtlb_vpn_o = es_invtlb_vpn_i_r;
 
-    assign inst_data_o = inst_data_i_r;
+    assign ms_inst_data_o = es_inst_data_i_r;
+    assign ms_is_csr_wr_o = es_is_csr_wr_i_r;
 
-    assign is_csr_wr_o = is_csr_wr_i_r;
+    assign ms_refetch_excp_o = es_refetch_excp_i_r;
 
-    assign refetch_excp_o = refetch_excp_i_r;
-
-    assign pc_pro_o = pc_pro_i_r;
-
-    assign ll_sc = mem_op[9:8];
+    assign ms_pc_pro_o = es_pc_pro_i_r;
+    assign ll_sc = es_mem_op_i_r[9:8];
 
     assign ms_to_ds_valid = state_valid;
 
+    assign csr_rstat_o = csr_rstat_i_r;
+    assign csr_estat_data = (csr_rstat_i_r == 1'b1) ? csr_data : 32'b0; // 信号最好具体化，尽管写一个 final_result 没错，但是这里延迟会更低
+    assign ms_paddr_o = {data_tag, es_alu_result_i_r[11:0]};
 
+
+
+    assign cnt_inst_diff = wire_inst_rdcntid_w || wire_inst_rdcntvh_w || wire_inst_rdcntvl_w;
+    assign timer_64_diff = timer_64_set;
+
+    assign ld_diff = {2'b0, ll_w, ld_w, ld_hu, ld_h, ld_bu, ld_b};
+    assign paddr_diff = {data_tag, data_index, data_offset};
+    assign vaddr_diff = es_alu_result_i_r;
+
+    assign st_data_diff = wdata_diff;
+    assign st_diff = {4'b0, ds_llbit && sc_w, st_w, st_h, st_b};
+
+    assign after_br_invalid_o = after_br_invalid_i_r;
+
+    assign inst_idle_o = inst_idle_i_r;
+
+    assign bar_o = bar_i_r;
+    assign do_sc = sc_do;
 endmodule

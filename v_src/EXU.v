@@ -1,7 +1,7 @@
 `include "csr.h"
 module EXU
     #(
-         parameter TLBNUM = 32
+         parameter TLBNUM = 16
      )
      (
          input wire clk,
@@ -123,43 +123,14 @@ module EXU
 
          input  [27:0]     lladdr,
 
-         output wire es_to_ds_valid,
-
-         input wire csr_rstat_i,
-         output wire csr_rstat_o,
-
-         output   wire [7:0] ld_diff,
-         output   wire [31:0] paddr_diff,
-         output   wire [31:0] vaddr_diff,
-
-         output  wire [7:0] st_diff,
-         output  wire [31:0] st_data_diff,
-
-         input  wire after_br_invalid_i,
-         output wire after_br_invalid_o,
-
-         input wire inst_idle_i,
-         output wire inst_idle_o,
-
-         input wire idle_flush,
-
-         input wire [1:0] bar_i,
-         output wire [1:0] bar_o
+         output wire es_to_ds_valid
      );
 
-    reg [1:0] bar_i_r;
-
-    reg inst_idle_i_r;
-    reg csr_rstat_i_r;
     reg [82:0] bus_csr_rd_wr_data_i_r;
     reg is_csr_wr_i_r;
     wire excp_flush;
     wire ertn_flush;
     assign {excp_flush, ertn_flush} = flush;
-
-    reg after_br_invalid_i_r;
-
-    reg refetch_excp_i_r;
 
     // 异常信号
     reg [15:0] ds_excp_num_r; // 从上一级接收
@@ -249,7 +220,7 @@ module EXU
     wire flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
 
     // 遇见这些信号不能产生任何执行效果
-    wire stop_signal = es_excp || mem_excp || flush_sign || mem_in_is_ertn || refetch_excp_i_r;
+    wire stop_signal = es_excp || mem_excp || flush_sign || mem_in_is_ertn;
 
     assign {
             mul_div_op,
@@ -433,21 +404,14 @@ module EXU
             );
 
     // 对结果进行汇总
-    // sc 是否执行，如果执行了，就往 rd 中写 1
-    wire sc_do;
-    assign sc_do = (sc_w & ds_llbit && lladdr == paddr[31:4]);
 
     wire [31:0] real_data;
     assign exu_result =
-           sc_w ? {{31{1'b0}},sc_do}: // 如果是 sc，就看能否成功执行
+           sc_w ? {{31{1'b0}},1'b1}: // 如果是 sc，就看能否成功执行
            res_from_mem ? real_data :
            op_div || op_divu ? div_result :
            op_mod || op_modu ? mod_result :
            mul_div_op[0] || mul_div_op[1] || mul_div_op[2] ? mul_result :
-           //    op_div ? $signed(wire_alu_src1) / $signed(wire_alu_src2) :
-           //    op_divu ? wire_alu_src1 / wire_alu_src2 :
-           //    op_mod ? $signed(wire_alu_src1) % $signed(wire_alu_src2) :
-           //    op_modu ? wire_alu_src1 % wire_alu_src2 :
            wire_alu_op[0] ||
            wire_alu_op[1] ||
            wire_alu_op[2] ||
@@ -463,7 +427,9 @@ module EXU
            alu_result;
 
 
-
+    // sc 是否执行，如果执行了，就往 rd 中写 1
+    wire sc_do;
+    assign sc_do = (sc_w & ds_llbit && lladdr == paddr[31:4]);
 
     // 是否访存
     // 握手信号
@@ -487,19 +453,6 @@ module EXU
            st_h ? {2{wire_in_rkd_value[15:0]}} :
            st_w | sc_do ? wire_in_rkd_value : 32'b0;
 
-    // for difftest
-    wire [31:0] wdata_diff;
-
-    assign wdata_diff =  st_b ? (data_offset[1:0]==2'b00 ? {24'b0, wire_in_rkd_value[7:0]} :
-                                 data_offset[1:0]==2'b01 ? {16'b0, wire_in_rkd_value[7:0], 8'b0} :
-                                 data_offset[1:0]==2'b10 ? {8'b0, wire_in_rkd_value[7:0], 16'b0} :
-                                 {wire_in_rkd_value[7:0], 24'b0}
-                                ) :
-           st_h ? (data_offset[1:0]==2'b00 ? {16'b0, wire_in_rkd_value[15:0]} :
-                   {wire_in_rkd_value[15:0], 16'b0}
-                  ) :
-           wire_in_rkd_value;
-
     wire access_memo = ld_b || ld_bu || ld_h || ld_hu || ld_w ||
          st_b || st_h || st_w || ll_w || sc_do;
 
@@ -509,7 +462,7 @@ module EXU
 
     reg [31:0] pc_pro_i_r;
 
-
+    reg refetch_excp_i_r;
     always @(posedge clk) begin
         if (rst || flush_sign) begin
             exu_state <= 2'd0;
@@ -530,14 +483,6 @@ module EXU
             refetch_excp_i_r <= 1'b0;
 
             bus_csr_rd_wr_data_i_r <= 83'd0;
-
-
-            csr_rstat_i_r <= 1'b0;
-
-            after_br_invalid_i_r <= 1'b0;
-            inst_idle_i_r <= 1'b0;
-
-            bar_i_r <= 2'b0;
         end
         else if (exu_state == 2'd0 && up_valid) begin
             ds_to_es_bus_data_r <= bus_ds_to_es_data;
@@ -560,13 +505,6 @@ module EXU
             pc_pro_i_r <= pc_pro_i;
 
             bus_csr_rd_wr_data_i_r <= bus_csr_rd_wr_data_i;
-
-            csr_rstat_i_r <= csr_rstat_i;
-
-            after_br_invalid_i_r <= after_br_invalid_i;
-            inst_idle_i_r <= inst_idle_i;
-
-            bar_i_r <= bar_i;
 
         end
         // 这里要处理，进入处理阶段
@@ -642,12 +580,11 @@ module EXU
     assign rdata_o = flush_sign ? 32'd0 : real_data;
     assign req = stop_signal ? 1'b0 : exu_state == 2'd1 && access_memo && waite_ready_i && !addr_ok;
 
-    assign state_valid = (exu_state == 2'd1 && (wire_complete & div) ) ? 1'b1 : // 计算除法
+    assign state_valid = (exu_state == 2'd1 &&  (wire_complete & div) ) ? 1'b1 : // 计算除法
            exu_state == 2'd2 && data_ok ? 1'b1 :  // 访存
            exu_state == 2'd1 && (!div) && (!access_memo) || stop_signal;
 
-
-    assign waite_ready_o = idle_flush ? 1'b0: (exu_state == 2'd0);
+    assign waite_ready_o = exu_state == 2'b0 ? 1'b1 : 1'b0;
     assign exu_over = exu_state == 2'b0;
 
     // 异常===========================================================================
@@ -657,22 +594,22 @@ module EXU
     // 如果是 ld_w 或者 st_w，对齐到4字节
     // 0x9
     assign excp_ale = (ld_h | ld_hu | st_h) && alu_result[0] ? 1'b1 :
-           (ld_w | st_w | sc_do) && (alu_result[1:0] != 2'b00) ? 1'b1 : 1'b0;
+           (ld_w | st_w) && (alu_result[1:0] != 2'b00) ? 1'b1 : 1'b0;
     assign excp_ale_num = excp_ale ? 16'h0200 :16'b0;
     // 0x10
     assign exu_excp_tlbr = access_memo && !data_tlb_found && data_addr_trans_en;
     assign excp_tlbr_num = exu_excp_tlbr ? 16'h0400 : 16'b0;
     // 0x11
-    assign exu_excp_pil  = (ld_b | ld_bu | ld_h | ld_hu | ld_w | ll_w) && !data_tlb_v && data_addr_trans_en;
+    assign exu_excp_pil  = (ld_b | ld_bu | ld_h | ld_hu | ld_w) && !data_tlb_v && data_addr_trans_en;
     assign excp_pil_num = exu_excp_pil ? 16'h0800 : 16'b0;
     // 0x12
-    assign exu_excp_pis  = (st_b | st_h | st_w | sc_do) && !data_tlb_v && data_addr_trans_en;
+    assign exu_excp_pis  = (st_b | st_h | st_w) && !data_tlb_v && data_addr_trans_en;
     assign excp_pis_num = exu_excp_pis ? 16'h1000 : 16'b0;
     // 0x13
     assign exu_excp_ppi  = access_memo && data_tlb_v && (csr_plv > data_tlb_plv) && data_addr_trans_en;
     assign excp_ppi_num = exu_excp_ppi ? 16'h2000 : 16'b0;
     // 0x14
-    assign exu_excp_pme  = (st_b | st_h | st_w | sc_do) && data_tlb_v && (csr_plv <= data_tlb_plv) && !data_tlb_d && data_addr_trans_en;
+    assign exu_excp_pme  = (st_b | st_h | st_w) && data_tlb_v && (csr_plv <= data_tlb_plv) && !data_tlb_d && data_addr_trans_en;
     assign excp_pme_num = exu_excp_pme ? 16'h4000 : 16'b0;
 
     wire [15:0] wire_ds_excp_num = ds_excp_num_r;
@@ -735,19 +672,5 @@ module EXU
     assign paddr = {data_tag, error_va[11:0]};
 
     assign es_to_ds_valid = state_valid;
-
-    assign csr_rstat_o = csr_rstat_i_r;
-
-    assign ld_diff =  {2'b0, ll_w, ld_w, ld_hu, ld_h, ld_bu, ld_b};
-    assign vaddr_diff = alu_result;
-    assign paddr_diff = {data_tag, data_index, data_offset};
-
-    assign st_diff = {4'b0, ds_llbit && sc_w, st_w, st_h, st_b};
-    assign st_data_diff = wdata_diff;
-
-    assign after_br_invalid_o = after_br_invalid_i_r;
-    assign inst_idle_o = inst_idle_i_r;
-
-    assign bar_o = bar_i;
 
 endmodule

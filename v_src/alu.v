@@ -73,7 +73,7 @@ module alu(
 
     // bitwise operation
     assign and_result = alu_src1 & alu_src2;
-    assign or_result  = alu_src1 | alu_src2; //<-------------------test difftest-----------------------
+    assign or_result  = alu_src1 | alu_src2;
     assign nor_result = ~or_result;
     assign xor_result = alu_src1 ^ alu_src2;
     assign lui_result = alu_src2;

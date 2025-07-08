@@ -1,7 +1,7 @@
 `include "csr.h"
 module MEM
     #(
-         parameter TLBNUM = 32
+         parameter TLBNUM = 16
      )
      (
          // from exu
@@ -80,54 +80,9 @@ module MEM
          input wire [31:0] paddr_i,
          output wire [31:0] paddr_o,
 
-         output wire  ms_to_ds_valid,
+         output wire  ms_to_ds_valid
 
-
-         input wire csr_rstat_i,
-         output wire csr_rstat_o,
-         // csr_data : 当csr_rstat == 1时，当前指令读取到的csr寄存器(estat)的值
-         output wire [31:0] csr_estat_data,
-
-         output wire cnt_inst_diff,
-         output wire [63:0] timer_64_diff,
-
-         input   wire [7:0] ld_diff_i,
-         input   wire [31:0] paddr_diff_i,
-         input   wire [31:0] vaddr_diff_i,
-
-         output   wire [7:0] ld_diff,
-         output   wire [31:0] paddr_diff,
-         output   wire [31:0] vaddr_diff,
-
-         input  wire [7:0] st_diff_i,
-         input  wire [31:0] st_data_diff_i,
-
-         output  wire [7:0] st_diff,
-         output  wire [31:0] st_data_diff,
-
-         input  wire after_br_invalid_i,
-         output wire after_br_invalid_o,
-
-         input wire inst_idle_i,
-         output wire inst_idle_o,
-         input wire idle_flush,
-
-         input wire [1:0] bar_i,
-         output wire [1:0] bar_o
      );
-
-    reg [1:0] bar_i_r;
-    reg inst_idle_i_r;
-    reg after_br_invalid_i_r;
-    reg [7:0] ld_diff_i_r;
-    reg [31:0] paddr_diff_i_r;
-    reg [31:0] vaddr_diff_i_r;
-
-    reg [7:0] st_diff_i_r;
-    reg [31:0] st_data_diff_i_r;
-
-
-    reg csr_rstat_i_r;
     reg [31:0] paddr_i_r;
     assign paddr_o = paddr_i_r;
 
@@ -171,7 +126,7 @@ module MEM
     wire [4:0] wire_dest;
     wire wire_gr_we;
     wire [31:0] wire_pc;
-    wire wire_csr_we_1;
+    wire wire_csr_we;
     wire [13:0] wire_csr_idx;
     wire [31:0] wire_csr_wdata;
     wire wire_is_inst_ertn;
@@ -211,7 +166,7 @@ module MEM
             wire_gr_we,
             wire_dest,
             wire_pc,
-            wire_csr_we_1,
+            wire_csr_we,
             wire_csr_idx,
             wire_csr_wdata,
             wire_is_inst_ertn,
@@ -257,10 +212,9 @@ module MEM
         } = bus_csr_rd_wr_data_i_r;
 
     wire rdcnt_en;
-    wire [63:0] timer_64_set;
     wire [31:0] rdcnt_result;
-    assign {rdcnt_en, rdcnt_result} = ({33{wire_inst_rdcntvl_w}} & {1'b1, timer_64_set[31: 0]}) |
-           ({33{wire_inst_rdcntvh_w}} & {1'b1, timer_64_set[63:32]}) |
+    assign {rdcnt_en, rdcnt_result} = ({33{wire_inst_rdcntvl_w}} & {1'b1, timer_64[31: 0]}) |
+           ({33{wire_inst_rdcntvh_w}} & {1'b1, timer_64[63:32]}) |
            ({33{wire_inst_rdcntid_w}} & {1'b1, csr_tid});
 
     // 从 csr 独读出的值有两种情况
@@ -269,15 +223,6 @@ module MEM
 
     // 从 csr 中读取数据
     // 其中，如果是读计数器寄存器，则直接返回计数器的值
-    // 但是这个值可能会被上游用到，因此这里应该应该将这个值固定下来
-    reg [63:0] timer_64_set_r;
-    assign timer_64_set = timer_64_set_r;
-    always @(posedge clk) begin
-        if (up_valid) begin
-            timer_64_set_r <= timer_64;
-        end
-    end
-
     assign rd_csr_addr = wire_rd_csr_addr;
     wire [31:0] csr_wdata = wire_csr_rkd_value & wire_csr_mask | (csr_data & ~wire_csr_mask);
 
@@ -359,7 +304,7 @@ module MEM
             // tlb
             tlb_inst_bus_r <= 5'd0;
             // tlbsrch
-            tlbsrch_index_r <= 5'd0;
+            tlbsrch_index_r <= 4'd0;
             tlbsrch_found_r <= 1'b0;
             // invtlb
             invtlb_op_i_r <= 5'd0;
@@ -373,19 +318,6 @@ module MEM
             bus_csr_rd_wr_data_i_r <= 83'd0;
 
             paddr_i_r <= 32'd0;
-            csr_rstat_i_r <= 1'b0;
-
-            ld_diff_i_r <= 8'b0;
-            paddr_diff_i_r <= 32'b0;
-            vaddr_diff_i_r <= 32'b0;
-
-            st_diff_i_r <= 8'b0;
-            st_data_diff_i_r <= 32'b0;
-
-            after_br_invalid_i_r <= 1'b0;
-            inst_idle_i_r <= 1'b0;
-
-            bar_i_r <= 2'b0;
 
 
         end
@@ -417,20 +349,6 @@ module MEM
             bus_csr_rd_wr_data_i_r <= bus_csr_rd_wr_data_i;
 
             paddr_i_r <= paddr_i;
-
-            csr_rstat_i_r <= csr_rstat_i;
-
-            ld_diff_i_r <= ld_diff_i;
-            paddr_diff_i_r <= paddr_diff_i;
-            vaddr_diff_i_r <= vaddr_diff_i;
-
-            st_diff_i_r <= st_diff_i;
-            st_data_diff_i_r <= st_data_diff_i;
-
-            after_br_invalid_i_r <= after_br_invalid_i;
-            inst_idle_i_r <= inst_idle_i;
-
-            bar_i_r <= bar_i;
         end
 
         else if(mem_state == 2'd1) begin
@@ -442,7 +360,7 @@ module MEM
     end
 
     assign state_valid = (mem_state == 2'd1) ? 1'b1 : 1'b0;
-    assign waite_ready_o = idle_flush ? 1'b0: (mem_state == 2'd0);
+    assign waite_ready_o = (mem_state == 2'd0) ? 1'b1 : 1'b0;
     assign mem_over = mem_state == 2'd0;
 
     // tlb
@@ -467,22 +385,5 @@ module MEM
 
     assign ms_to_ds_valid = state_valid;
 
-    assign csr_rstat_o = csr_rstat_i_r;
-    assign csr_estat_data = (csr_rstat_i_r == 1'b1) ? final_result : 32'b0;
 
-    assign cnt_inst_diff = wire_inst_rdcntid_w || wire_inst_rdcntvh_w || wire_inst_rdcntvl_w;
-    assign timer_64_diff = timer_64_set;
-
-    assign ld_diff = ld_diff_i_r;
-    assign paddr_diff = paddr_diff_i_r;
-    assign vaddr_diff = vaddr_diff_i_r;
-
-    assign st_data_diff = st_data_diff_i_r;
-    assign st_diff = st_diff_i_r;
-
-    assign after_br_invalid_o = after_br_invalid_i_r;
-
-    assign inst_idle_o = inst_idle_i_r;
-
-    assign bar_o = bar_i_r;
 endmodule

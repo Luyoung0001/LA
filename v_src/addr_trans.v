@@ -2,7 +2,7 @@
 
 module addr_trans
     #(
-         parameter TLBNUM = 32
+         parameter TLBNUM = 16
      )
      (
          input                  clk                  ,

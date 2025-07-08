@@ -351,7 +351,7 @@ void print_info() {
 
 int difftest() {
 #ifdef EASY_MODE
-    mycpu_trace_info.we = top->rootp->verilator_top->debug_wb_rf_we == 15;
+    mycpu_trace_info.we = top->rootp->verilator_top->debug_wb_rf_wen == 15;
     mycpu_trace_info.wnum = top->rootp->verilator_top->debug_wb_rf_wnum;
     mycpu_trace_info.pc = top->rootp->verilator_top->debug_wb_pc;
     mycpu_trace_info.value = top->rootp->verilator_top->debug_wb_rf_wdata;
@@ -382,7 +382,7 @@ int difftest() {
             return 1;
         }
         // pc 应该每次都进行打印
-        // print_info();
+        print_info();
         // 比较
         int good = (ref_struct.we == mycpu_trace_info.we &&
                     ref_struct.wnum == mycpu_trace_info.wnum &&

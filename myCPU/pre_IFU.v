@@ -16,7 +16,9 @@ module pre_IFU (
         // refetch
         input wire [31:0] refetch_pc_i,
         input wire refetch_sign_i,
-        input wire wbu_refetch_flush
+        input wire wbu_refetch_flush,
+
+        input wire ibar_flushing
     );
 
     reg  [31:0] pc;
@@ -46,11 +48,11 @@ module pre_IFU (
            wbu_excp_tlbrefill ? csr_tlbrentry :
            excp_flush ? csr_eentry:
            ertn_flush ? inst_flush_pc:
-
            br_taken ? br_target :
            seq_pc;
 
     reg [1:0] pfs_state;
+
     always @(posedge clk) begin
         if (rst) begin
             pfs_state <= 2'd0;
@@ -75,7 +77,7 @@ module pre_IFU (
     end
 
     assign pc_o = pc;
-    assign state_valid = pfs_state == 2'd1  ? 1'b1 : 1'b0;
+    assign state_valid = (pfs_state == 2'd1)  ? 1'b1 : 1'b0;
 
 endmodule
 

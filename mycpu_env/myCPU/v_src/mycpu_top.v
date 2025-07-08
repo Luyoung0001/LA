@@ -1,10 +1,11 @@
-module mycpu_top
+module core_top
     #(
-         parameter TLBNUM = 16
+         parameter TLBNUM = 32
      )
      (
          input  wire        aclk,
          input  wire        aresetn,
+         input  wire [ 7:0] intrpt,
 
          // AXI Interface
          // Read request channel
@@ -53,47 +54,87 @@ module mycpu_top
          input  wire        bvalid,
          output wire        bready,
 
-         // Trace debug interface
-         output wire [31:0] debug_wb_pc,
-         output wire [ 3:0] debug_wb_rf_we,
-         output wire [ 4:0] debug_wb_rf_wnum,
-         output wire [31:0] debug_wb_rf_wdata,
-         output wire [31:0] debug_wb_inst,
-         output wire        debug_wb_is_csr_wr_o,
-         output wire        debug_has_refetch_excp_o,
+         input           break_point,
+         input           infor_flag,
+         input  [ 4:0]   reg_num,
+         output          ws_valid,
+         output [31:0]   rf_rdata,
 
-         // CSR diff outputs
-         output [31:0] csr_crmd_diff,
-         output [31:0] csr_prmd_diff,
-         output [31:0] csr_ecfg_diff,
-         output [31:0] csr_estat_diff,
-         output [31:0] csr_era_diff,
-         output [31:0] csr_badv_diff,
-         output [31:0] csr_eentry_diff,
-         output [31:0] csr_tlbidx_diff,
-         output [31:0] csr_tlbehi_diff,
-         output [31:0] csr_tlbelo0_diff,
-         output [31:0] csr_tlbelo1_diff,
-         output [31:0] csr_asid_diff,
-         output [31:0] csr_save0_diff,
-         output [31:0] csr_save1_diff,
-         output [31:0] csr_save2_diff,
-         output [31:0] csr_save3_diff,
-         output [31:0] csr_tid_diff,
-         output [31:0] csr_tcfg_diff,
-         output [31:0] csr_tval_diff,
-         output [31:0] csr_ticlr_diff,
-         output [31:0] csr_llbctl_diff,
-         output [31:0] csr_tlbrentry_diff,
-         output [31:0] csr_dmw0_diff,
-         output [31:0] csr_dmw1_diff,
-         output [31:0] csr_pgdl_diff,
-         output [31:0] csr_pgdh_diff
+         // Trace debug interface
+         output wire [31:0] debug0_wb_pc,
+         output wire [ 3:0] debug0_wb_rf_wen,
+         output wire [ 4:0] debug0_wb_rf_wnum,
+         output wire [31:0] debug0_wb_rf_wdata
+
+         //  output wire [31:0] debug0_wb_inst
+         //  output wire        debug_wb_is_csr_wr_o,
+         //  output wire        debug_has_refetch_excp_o,
+
+         //  // CSR diff outputs
+         //  output [31:0] csr_crmd_diff,
+         //  output [31:0] csr_prmd_diff,
+         //  output [31:0] csr_ecfg_diff,
+         //  output [31:0] csr_estat_diff,
+         //  output [31:0] csr_era_diff,
+         //  output [31:0] csr_badv_diff,
+         //  output [31:0] csr_eentry_diff,
+         //  output [31:0] csr_tlbidx_diff,
+         //  output [31:0] csr_tlbehi_diff,
+         //  output [31:0] csr_tlbelo0_diff,
+         //  output [31:0] csr_tlbelo1_diff,
+         //  output [31:0] csr_asid_diff,
+         //  output [31:0] csr_save0_diff,
+         //  output [31:0] csr_save1_diff,
+         //  output [31:0] csr_save2_diff,
+         //  output [31:0] csr_save3_diff,
+         //  output [31:0] csr_tid_diff,
+         //  output [31:0] csr_tcfg_diff,
+         //  output [31:0] csr_tval_diff,
+         //  output [31:0] csr_ticlr_diff,
+         //  output [31:0] csr_llbctl_diff,
+         //  output [31:0] csr_tlbrentry_diff,
+         //  output [31:0] csr_dmw0_diff,
+         //  output [31:0] csr_dmw1_diff,
+         //  output [31:0] csr_pgdl_diff,
+         //  output [31:0] csr_pgdh_diff
      );
 
+    // from regfile
+    wire [31:0] debug0_wb_inst;
+    wire        debug_wb_is_csr_wr_o;
+    wire        debug_has_refetch_excp_o;
+
+    // CSR diff outputs
+    // wire [31:0] csr_crmd_diff;
+    // wire [31:0] csr_prmd_diff;
+    // wire [31:0] csr_ecfg_diff;
+    // wire [31:0] csr_estat_diff;
+    // wire [31:0] csr_era_diff;
+    // wire [31:0] csr_badv_diff;
+    // wire [31:0] csr_eentry_diff;
+    // wire [31:0] csr_tlbidx_diff;
+    // wire [31:0] csr_tlbehi_diff;
+    // wire [31:0] csr_tlbelo0_diff;
+    // wire [31:0] csr_tlbelo1_diff;
+    // wire [31:0] csr_asid_diff;
+    // wire [31:0] csr_save0_diff;
+    // wire [31:0] csr_save1_diff;
+    // wire [31:0] csr_save2_diff;
+    // wire [31:0] csr_save3_diff;
+    // wire [31:0] csr_tid_diff;
+    // wire [31:0] csr_tcfg_diff;
+    // wire [31:0] csr_tval_diff;
+    // wire [31:0] csr_ticlr_diff;
+    // wire [31:0] csr_llbctl_diff;
+    // wire [31:0] csr_tlbrentry_diff;
+    // wire [31:0] csr_dmw0_diff;
+    // wire [31:0] csr_dmw1_diff;
+    // wire [31:0] csr_pgdl_diff;
+    // wire [31:0] csr_pgdh_diff;
+
     // Internal signals
-    wire [7:0] intrpt;
-    assign intrpt = 8'b0;
+    // wire [7:0] intrpt;
+    // assign intrpt = 8'b0;
 
     wire reset;
     assign reset = ~aresetn;
@@ -213,6 +254,7 @@ module mycpu_top
                                 .bvalid         (bvalid),
                                 .bready         (bready)
                             );
+
 
     // Pre-IFU signals
     wire [31:0] preifu_pc_o;
@@ -391,6 +433,8 @@ module mycpu_top
 
     wire wbu_ws_to_ds_valid;
 
+    wire wbu_idle_flush;
+
     // Register file signals
     wire [31:0] rf_rdata1;
     wire [31:0] rf_rdata2;
@@ -498,6 +542,7 @@ module mycpu_top
     wire [3:0]  icache_wr_wstrb;
     wire [127:0] icache_wr_data;
 
+
     // Module Instantiations
 
     // Pre-IFU
@@ -574,6 +619,7 @@ module mycpu_top
             // .addr_ok           (inst_sram_addr_ok),
             // .data_ok           (inst_sram_data_ok),
             // .rdata             (inst_sram_rdata),
+
             .icache_valid(ifu_icache_valid),
             .icache_op(ifu_icache_op),
             .icache_tag(ifu_icache_tag),
@@ -591,7 +637,9 @@ module mycpu_top
             .rdata_o           (ifu_rdata_o),
             .wbu_refetch_sign_i(wbu_is_refetch_sign),
             .refetch_excp_o    (ifu_refetch_excp_o),
-            .wbu_refetch_flush (wbu_wbu_refetch_flush)
+            .wbu_refetch_flush (wbu_wbu_refetch_flush),
+
+            .idle_flush(wbu_idle_flush)
         );
 
     // Register File
@@ -604,8 +652,17 @@ module mycpu_top
                 .we     (wbu_rf_we),
                 .waddr  (wbu_rf_waddr),
                 .wdata  (wbu_rf_wdata)
+`ifdef DIFFTEST_EN
+                ,
+                .rf_o   (regs)
+`endif
+
             );
 
+    wire idu_csr_rstat;
+    wire idu_after_br_invalid;
+    wire idu_inst_idle_o;
+    wire [1:0] idu_bar_o;
     // IDU
     IDU idu(
             .clk                   (aclk),
@@ -671,8 +728,34 @@ module mycpu_top
 
             .es_to_ds_valid(exu_es_to_ds_valid),
             .ms_to_ds_valid(mem_ms_to_ds_valid),
-            .ws_to_ds_valid(wbu_ws_to_ds_valid)
+            .ws_to_ds_valid(wbu_ws_to_ds_valid),
+
+            .csr_rstat(idu_csr_rstat),
+            .after_br_invalid(idu_after_br_invalid),
+
+            .inst_idle_o(idu_inst_idle_o),
+            .flush_idle(wbu_idle_flush),
+
+            .bar_o(idu_bar_o)
         );
+
+
+    wire exu_csr_rstat_o;
+    wire [7:0]exu_ld_diff;
+    wire [31:0] exu_paddr_diff;
+    wire [31:0] exu_vaddr_diff;
+
+    wire [7:0]exu_st_diff;
+    wire [31:0] exu_st_data_diff;
+
+    wire exu_after_br_invalid_o;
+    wire exu_inst_idle_o;
+
+    wire [1:0] exu_bar_o;
+    wire [31:0] exu_alu_result_o;
+    wire [31:0] exu_wire_in_rkd_value_o;
+
+    wire [32:0] mem_inst_ld;
 
     EXU #(TLBNUM) exu(
             // 时钟和复位
@@ -693,23 +776,10 @@ module mycpu_top
 
             // 存储器操作
             .in_mem_op(idu_out_mem_op),
-
-            // SRAM接口
-            .req(data_sram_req),
-            .wr(data_sram_wr),
-            .size(data_sram_size),
-            .wstrb(data_sram_wstrb),
-            .addr(data_sram_addr),
-            .wdata(data_sram_wdata),
-            .addr_ok(data_sram_addr_ok),
-            .data_ok(data_sram_data_ok),
-            .rdata(data_sram_rdata),
-            .rdata_o(exu_rdata_o),
+            .out_mem_op(exu_out_mem_op),
 
             // 旁路数据
             .bus_exu_bypass_data(exu_bus_exu_bypass_data),
-            .out_mem_op(exu_out_mem_op),
-            .out_mem_mask(exu_out_mem_mask),
 
             // 控制信号
             .flush(wbu_flush),
@@ -728,44 +798,8 @@ module mycpu_top
             .tlb_inst_bus(idu_tlb_inst_bus),
             .tlb_inst_bus_o(exu_tlb_inst_bus_o),
 
-            // CSR寄存器输入
-            .csr_plv(csr_plv_out),
-            .csr_dmw0(csr_dmw0_out),
-            .csr_dmw1(csr_dmw1_out),
-            .csr_da(csr_da_out),
-            .csr_pg(csr_pg_out),
-            .csr_tlbidx(csr_tlbidx_out),
-            .csr_tlbehi(csr_tlbehi_out),
-            .csr_tlbelo0(csr_tlbelo0_out),
-            .csr_tlbelo1(csr_tlbelo1_out),
-            .csr_vppn(csr_vppn_out),
-            .csr_asid(csr_asid_out),
-            .ds_llbit(csr_llbit_out),
-
-            // 地址转换接口
-            .data_addr_trans_en(exu_data_addr_trans_en),
-            .data_asid(exu_data_asid),
-            .data_vaddr(exu_data_vaddr),
-            .data_dmw0_en(exu_data_dmw0_en),
-            .data_dmw1_en(exu_data_dmw1_en),
-            .data_dmw0(exu_data_dmw0),
-            .data_dmw1(exu_data_dmw1),
-            .data_da(exu_data_da),
-            .data_pg(exu_data_pg),
-
-            .data_index(trans_data_index),
-            .data_tag(trans_data_tag),
-            .data_offset(trans_data_offset),
-            .data_tlb_found(trans_data_tlb_found),
-            .data_tlb_index(trans_data_tlb_index),
-            .data_tlb_v(trans_data_tlb_v),
-            .data_tlb_d(trans_data_tlb_d),
-            .data_tlb_mat(trans_data_tlb_mat),
-            .data_tlb_plv(trans_data_tlb_plv),
-
-            // TLB搜索
-            .tlbsrch_index(exu_tlbsrch_index),
-            .tlbsrch_found(exu_tlbsrch_found),
+            .alu_result_o(exu_alu_result_o),
+            .wire_in_rkd_value_o(exu_wire_in_rkd_value_o),
 
             // TLB无效化
             .invtlb_op_i(idu_invtlb_op),
@@ -788,31 +822,133 @@ module mycpu_top
             .wbu_refetch_flush(wbu_wbu_refetch_flush),
             .bus_csr_rd_wr_data_i(idu_bus_csr_rd_wr_data),
             .bus_csr_rd_wr_data_o(exu_bus_csr_rd_wr_data_o),
-            .paddr(exu_paddr),
-            .lladdr(csr_lladdr_out),
-            .es_to_ds_valid(exu_es_to_ds_valid)
+
+            .es_to_ds_valid(exu_es_to_ds_valid),
+
+            .csr_rstat_i(idu_csr_rstat),
+            .csr_rstat_o(exu_csr_rstat_o),
+
+            .after_br_invalid_i(idu_after_br_invalid),
+            .after_br_invalid_o(exu_after_br_invalid_o),
+
+
+            .inst_idle_i(idu_inst_idle_o),
+            .inst_idle_o(exu_inst_idle_o),
+            .idle_flush(wbu_idle_flush),
+
+            .bar_i(idu_bar_o),
+            .bar_o(exu_bar_o),
+
+            .inst_ld_from_mem(mem_inst_ld)
         );
+
+    wire mem_csr_rstat_o;
+    wire [31:0] mem_csr_estat_data;
+    wire mem_cnt_inst_diff;
+    wire [63:0] mem_timer_64_diff;
+
+    wire [7:0]mem_ld_diff;
+    wire [31:0] mem_paddr_diff;
+    wire [31:0] mem_vaddr_diff;
+
+
+    wire [7:0]mem_st_diff;
+    wire [31:0] mem_st_data_diff;
+
+    wire mem_after_br_invalid_o;
+
+    wire mem_inst_idle_o;
+    wire [1:0] mem_bar_o;
+
+    wire ms_excp_o;
+    wire [15:0] ms_excp_num_o;
+    wire [4:0] ms_tlb_inst_bus_o;
+    wire [$clog2(TLBNUM)-1:0] ms_tlbsrch_index_o;
+    wire                     ms_tlbsrch_found_o;
+
+    wire [4:0]      ms_invtlb_op_o;
+    wire [9:0]      ms_invtlb_asid_o;
+    wire [18:0]     ms_invtlb_vpn_o;
+    wire ms_is_csr_wr_o;
+    wire ms_refetch_excp_o;
+
+    wire [31:0] ms_pc_pro_o;
+
+    wire [31:0] ms_paddr_o;
+
     MEM #(TLBNUM) mem(
             // 时钟和复位
             .clk(aclk),
             .rst(reset),
 
             // 异常处理
-            .es_excp(exu_es_excp_out),
-            .es_excp_num(exu_es_excp_num_out),
-            .ms_excp_out(mem_ms_excp_out),
-            .ms_excp_num_out(mem_ms_excp_num_out),
+            .es_excp_i(exu_es_excp_out),
+            .es_excp_num_i(exu_es_excp_num_out),
+            .ms_excp_o(ms_excp_o),
+            .ms_excp_num_o(ms_excp_num_o),
+
+            .inst_ld(mem_inst_ld),
 
             // 存储器操作
-            .in_mem_op(exu_out_mem_op),
-            .in_mem_mask(exu_out_mem_mask),
+            .es_mem_op_i(exu_out_mem_op),
+            .es_rkd_value_i(exu_wire_in_rkd_value_o),
+            .es_alu_result_i(exu_alu_result_o),
+
+            // SRAM接口
+            .req(data_sram_req),
+            .wr(data_sram_wr),
+            .size(data_sram_size),
+            .wstrb(data_sram_wstrb),
+            .addr(data_sram_addr),
+            .wdata(data_sram_wdata),
+            .addr_ok(data_sram_addr_ok),
+            .data_ok(data_sram_data_ok),
+            .rdata(data_sram_rdata),
+
+            // from csr
+            // CSR寄存器输入
+            .csr_plv(csr_plv_out),
+            .csr_dmw0(csr_dmw0_out),
+            .csr_dmw1(csr_dmw1_out),
+            .csr_da(csr_da_out),
+            .csr_pg(csr_pg_out),
+            .csr_tlbidx(csr_tlbidx_out),
+            .csr_tlbehi(csr_tlbehi_out),
+            .csr_tlbelo0(csr_tlbelo0_out),
+            .csr_tlbelo1(csr_tlbelo1_out),
+            .csr_vppn(csr_vppn_out),
+            .csr_asid(csr_asid_out),
+            .ds_llbit(csr_llbit_out),
+            .lladdr(csr_lladdr_out),
+
+            // 地址转换接口
+            .data_addr_trans_en(exu_data_addr_trans_en),
+            .data_asid(exu_data_asid),
+            .data_vaddr(exu_data_vaddr),
+            .data_dmw0_en(exu_data_dmw0_en),
+            .data_dmw1_en(exu_data_dmw1_en),
+            .data_dmw0(exu_data_dmw0),
+            .data_dmw1(exu_data_dmw1),
+            .data_da(exu_data_da),
+            .data_pg(exu_data_pg),
+
+
+            .data_index(trans_data_index),
+            .data_tag(trans_data_tag),
+            .data_offset(trans_data_offset),
+            .data_tlb_found(trans_data_tlb_found),
+            .data_tlb_index(trans_data_tlb_index),
+            .data_tlb_v(trans_data_tlb_v),
+            .data_tlb_d(trans_data_tlb_d),
+            .data_tlb_mat(trans_data_tlb_mat),
+            .data_tlb_plv(trans_data_tlb_plv),
 
             // 数据总线
-            .bus_exu_to_mem_data(exu_bus_exu_to_mem_data),
-            .inst_data_i(exu_inst_data_o),
-            .inst_data_o(mem_inst_data_o),
-            .bus_mem_to_wbu_data(mem_bus_mem_to_wbu_data),
-            .data_sram_rdata(exu_rdata_o),
+            .es_to_ms_data_i(exu_bus_exu_to_mem_data),
+            .es_inst_data_i(exu_inst_data_o),
+            .ms_inst_data_o(mem_inst_data_o),
+            .ms_to_ws_data_o(mem_bus_mem_to_wbu_data),
+
             .bus_mem_bypass_data(mem_bus_mem_bypass_data),
 
             // 控制信号
@@ -828,44 +964,90 @@ module mycpu_top
             .waite_ready_o(mem_waite_ready_o),
 
             // TLB指令总线
-            .tlb_inst_bus(exu_tlb_inst_bus_o),
-            .tlb_inst_bus_o(mem_tlb_inst_bus_o),
+            .es_tlb_inst_bus_i(exu_tlb_inst_bus_o),
+            .ms_tlb_inst_bus_o(mem_tlb_inst_bus_o),
 
             // TLB搜索
             .tlbsrch_index(exu_tlbsrch_index),
             .tlbsrch_found(exu_tlbsrch_found),
-            .tlbsrch_index_o(mem_tlbsrch_index_o),
-            .tlbsrch_found_o(mem_tlbsrch_found_o),
+            .ms_tlbsrch_index_o(mem_tlbsrch_index_o),
+            .ms_tlbsrch_found_o(mem_tlbsrch_found_o),
 
             // TLB无效化
-            .invtlb_op_i(exu_invtlb_op_o),
-            .invtlb_asid_i(exu_invtlb_asid_o),
-            .invtlb_vpn_i(exu_invtlb_vpn_o),
-            .invtlb_op_o(mem_invtlb_op_o),
-            .invtlb_asid_o(mem_invtlb_asid_o),
-            .invtlb_vpn_o(mem_invtlb_vpn_o),
+            .es_invtlb_op_i(exu_invtlb_op_o),
+            .es_invtlb_asid_i(exu_invtlb_asid_o),
+            .es_invtlb_vpn_i(exu_invtlb_vpn_o),
+            .ms_invtlb_op_o(mem_invtlb_op_o),
+            .ms_invtlb_asid_o(mem_invtlb_asid_o),
+            .ms_invtlb_vpn_o(mem_invtlb_vpn_o),
 
             // CSR写控制
-            .timer_64              (csr_timer_64_out),
-            .csr_tid               (csr_tid_out),
-            .is_csr_wr_i(exu_is_csr_wr_o),
-            .is_csr_wr_o(mem_is_csr_wr_o),
+            .es_is_csr_wr_i(exu_is_csr_wr_o),
+            .ms_is_csr_wr_o(mem_is_csr_wr_o),
 
             // 重取指令
             .wbu_refetch_sign_i(wbu_is_refetch_sign),
-            .refetch_excp_i(exu_refetch_excp_o),
-            .refetch_excp_o(mem_refetch_excp_o),
-            .pc_pro_i(exu_pc_pro_o),
-            .pc_pro_o(mem_pc_pro_o),
+            .es_refetch_excp_i(exu_refetch_excp_o),
+            .ms_refetch_excp_o(mem_refetch_excp_o),
+            .es_pc_pro_i(exu_pc_pro_o),
+            .ms_pc_pro_o(mem_pc_pro_o),
             .wbu_refetch_flush(wbu_wbu_refetch_flush),
             .rd_csr_addr           (idu_rd_csr_addr),
             .rd_csr_data           (csr_rd_data),
+
+            // timer 64
+            .timer_64              (csr_timer_64_out),
+            .csr_tid               (csr_tid_out),
+
             .bus_csr_rd_wr_data_i(exu_bus_csr_rd_wr_data_o),
             .ll_sc(mem_ll_sc),
-            .paddr_i(exu_paddr),
-            .paddr_o(mem_paddr_o),
-            .ms_to_ds_valid(mem_ms_to_ds_valid)
+            .ms_paddr_o(ms_paddr_o),
+
+            .ms_to_ds_valid(mem_ms_to_ds_valid),
+
+            .csr_rstat_i(exu_csr_rstat_o),
+            .csr_rstat_o(mem_csr_rstat_o),
+            .csr_estat_data(mem_csr_estat_data),
+
+            .cnt_inst_diff(mem_cnt_inst_diff),
+            .timer_64_diff(mem_timer_64_diff),
+
+            .ld_diff(mem_ld_diff),
+            .paddr_diff(mem_paddr_diff),
+            .vaddr_diff(mem_vaddr_diff),
+
+            .st_diff(mem_st_diff),
+            .st_data_diff(mem_st_data_diff),
+
+            .after_br_invalid_i(exu_after_br_invalid_o),
+            .after_br_invalid_o(mem_after_br_invalid_o),
+
+            .inst_idle_i(exu_inst_idle_o),
+            .inst_idle_o(mem_inst_idle_o),
+            .idle_flush(wbu_idle_flush),
+
+            .bar_i(exu_bar_o),
+            .bar_o(mem_bar_o)
         );
+
+    wire wbu_cmt_tlbfill_en;
+    wire [4:0] wbu_cmt_rand_index;
+    wire wbu_eret_diff;
+    wire [5:0]wbu_ecode_diff;
+
+    wire [7:0]wbu_ld_diff;
+    wire [31:0] wbu_paddr_diff;
+    wire [31:0] wbu_vaddr_diff;
+
+    wire wbu_cnt_inst_diff_o;
+    wire [63:0] wbu_timer_64_diff_o;
+
+    wire [7:0]wbu_st_diff;
+    wire [31:0] wbu_st_data_diff;
+
+    wire ws_excp_diff;
+
+    wire wbu_ibar_flush;
 
     WBU #(TLBNUM) wbu(
             // 时钟和复位
@@ -877,8 +1059,8 @@ module mycpu_top
             .inst_data_i(mem_inst_data_o),
 
             // 异常处理
-            .ms_excp(mem_ms_excp_out),
-            .ms_excp_num(mem_ms_excp_num_out),
+            .ms_excp(ms_excp_o),
+            .ms_excp_num(ms_excp_num_o),
 
             // 寄存器文件写接口
             .rf_we(wbu_rf_we),
@@ -974,7 +1156,45 @@ module mycpu_top
             .ws_lladdr    (wbu_ws_lladdr),
             .ll_sc_i      (mem_ll_sc),
             .paddr_i      (mem_paddr_o),
-            .ws_to_ds_valid(wbu_ws_to_ds_valid)
+            .ws_to_ds_valid(wbu_ws_to_ds_valid),
+
+            .csr_rstat_i(mem_csr_rstat_o),
+            .csr_estat_data_i(mem_csr_estat_data),
+
+            .ws_valid_diff (ws_valid_diff) ,
+            .ws_csr_rstat_en_diff (csr_rstat_en_diff) ,
+            .ws_csr_data_diff   (csr_data_diff),
+            .cnt_inst_diff_i(mem_cnt_inst_diff),
+            .timer_64_diff_i(mem_timer_64_diff),
+
+            .ld_diff_i(mem_ld_diff),
+            .paddr_diff_i(mem_paddr_diff),
+            .vaddr_diff_i(mem_vaddr_diff),
+
+            .cmt_tlbfill_en(wbu_cmt_tlbfill_en),
+            .cmt_rand_index(wbu_cmt_rand_index),
+            .eret_diff(wbu_eret_diff),
+            .ecode_diff(wbu_ecode_diff),
+            .ld_diff(wbu_ld_diff),
+            .paddr_diff(wbu_paddr_diff),
+            .vaddr_diff(wbu_vaddr_diff),
+            .cnt_inst_diff_o(wbu_cnt_inst_diff_o),
+            .timer_64_diff_o(wbu_timer_64_diff_o),
+
+            .st_diff_i(mem_st_diff),
+            .st_data_diff_i(mem_st_data_diff),
+            .st_diff(wbu_st_diff),
+            .st_data_diff(wbu_st_data_diff),
+
+            .after_br_invalid_i(mem_after_br_invalid_o),
+            .ws_excp_diff(ws_excp_diff),
+
+            .inst_idle_i(mem_inst_idle_o),
+            .idle_flush(wbu_idle_flush),
+            .has_int(csr_has_int),
+
+            .bar_i(mem_bar_o),
+            .ibar_flush(wbu_ibar_flush)
         );
 
     csr #(TLBNUM)csr_o(
@@ -1039,33 +1259,34 @@ module mycpu_top
             .rand_index(csr_rand_index),
 
             // 差异比较信号
-            .csr_crmd_diff(csr_crmd_diff),
-            .csr_prmd_diff(csr_prmd_diff),
-            .csr_ecfg_diff(csr_ecfg_diff),
-            .csr_estat_diff(csr_estat_diff),
-            .csr_era_diff(csr_era_diff),
-            .csr_badv_diff(csr_badv_diff),
-            .csr_eentry_diff(csr_eentry_diff),
-            .csr_tlbidx_diff(csr_tlbidx_diff),
-            .csr_tlbehi_diff(csr_tlbehi_diff),
-            .csr_tlbelo0_diff(csr_tlbelo0_diff),
-            .csr_tlbelo1_diff(csr_tlbelo1_diff),
-            .csr_asid_diff(csr_asid_diff),
-            .csr_save0_diff(csr_save0_diff),
-            .csr_save1_diff(csr_save1_diff),
-            .csr_save2_diff(csr_save2_diff),
-            .csr_save3_diff(csr_save3_diff),
-            .csr_tid_diff(csr_tid_diff),
-            .csr_tcfg_diff(csr_tcfg_diff),
-            .csr_tval_diff(csr_tval_diff),
-            .csr_ticlr_diff(csr_ticlr_diff),
-            .csr_llbctl_diff(csr_llbctl_diff),
-            .csr_tlbrentry_diff(csr_tlbrentry_diff),
-            .csr_dmw0_diff(csr_dmw0_diff),
-            .csr_dmw1_diff(csr_dmw1_diff),
-            .csr_pgdl_diff(csr_pgdl_diff),
-            .csr_pgdh_diff(csr_pgdh_diff)
+            .csr_crmd_diff(csr_crmd_diff_0),
+            .csr_prmd_diff(csr_prmd_diff_0),
+            .csr_ecfg_diff(csr_ectl_diff_0),
+            .csr_estat_diff(csr_estat_diff_0),
+            .csr_era_diff(csr_era_diff_0),
+            .csr_badv_diff(csr_badv_diff_0),
+            .csr_eentry_diff(csr_eentry_diff_0),
+            .csr_tlbidx_diff(csr_tlbidx_diff_0),
+            .csr_tlbehi_diff(csr_tlbehi_diff_0),
+            .csr_tlbelo0_diff(csr_tlbelo0_diff_0),
+            .csr_tlbelo1_diff(csr_tlbelo1_diff_0),
+            .csr_asid_diff(csr_asid_diff_0),
+            .csr_save0_diff(csr_save0_diff_0),
+            .csr_save1_diff(csr_save1_diff_0),
+            .csr_save2_diff(csr_save2_diff_0),
+            .csr_save3_diff(csr_save3_diff_0),
+            .csr_tid_diff(csr_tid_diff_0),
+            .csr_tcfg_diff(csr_tcfg_diff_0),
+            .csr_tval_diff(csr_tval_diff_0),
+            .csr_ticlr_diff(csr_ticlr_diff_0),
+            .csr_llbctl_diff(csr_llbctl_diff_0),
+            .csr_tlbrentry_diff(csr_tlbrentry_diff_0),
+            .csr_dmw0_diff(csr_dmw0_diff_0),
+            .csr_dmw1_diff(csr_dmw1_diff_0),
+            .csr_pgdl_diff(csr_pgdl_diff_0),
+            .csr_pgdh_diff(csr_pgdh_diff_0)
         );
+
     addr_trans #(TLBNUM) addr_trans_o(
                    .clk(aclk),
 
@@ -1167,6 +1388,8 @@ module mycpu_top
               .wr_wstrb(icache_wr_wstrb),
               .wr_data(icache_wr_data),
               .wr_rdy(icache_wr_rdy)
+              //   .ibar_flush(wbu_ibar_flush),
+              //   .ibar_flushing(icache_ibar_flushing)
           );
     // 后期的工作，应该在 MEM 中发起内存访问
     // 因此d cache 的访问接口应该放在 MEM 中
@@ -1203,10 +1426,257 @@ module mycpu_top
     //           .wr_data(icache_wr_data),
     //           .wr_rdy(icache_wr_rdy)
     //       );
-    assign debug_wb_pc = wbu_pc;
-    assign debug_wb_rf_we = {4{wbu_rf_we}};
-    assign debug_wb_rf_wnum = wbu_rf_waddr;
-    assign debug_wb_rf_wdata = wbu_rf_wdata;
-    assign debug_wb_inst = wbu_inst_data_o;
+    assign debug0_wb_pc = wbu_pc;
+    assign debug0_wb_rf_wen = {4{wbu_rf_we}};
+    assign debug0_wb_rf_wnum = wbu_rf_waddr;
+    assign debug0_wb_rf_wdata = wbu_rf_wdata;
+    assign debug0_wb_inst = wbu_inst_data_o;
+
+    // `ifdef DIFFTEST_EN
+    // difftest
+    // from wb_stage
+    wire            ws_valid_diff       ;
+    wire            cnt_inst_diff       ;
+    wire    [63:0]  timer_64_diff       ;
+    wire    [ 7:0]  inst_ld_en_diff     ;
+    wire    [31:0]  ld_paddr_diff       ;
+    wire    [31:0]  ld_vaddr_diff       ;
+    wire    [ 7:0]  inst_st_en_diff     ;
+    wire    [31:0]  st_paddr_diff       ;
+    wire    [31:0]  st_vaddr_diff       ;
+    wire    [31:0]  st_data_diff        ;
+    wire            csr_rstat_en_diff   ;
+    wire    [31:0]  csr_data_diff       ;
+
+    wire inst_valid_diff = ws_valid_diff;
+    reg             cmt_valid           ;
+    reg             cmt_cnt_inst        ;
+    reg     [63:0]  cmt_timer_64        ;
+    reg     [ 7:0]  cmt_inst_ld_en      ;
+    reg     [31:0]  cmt_ld_paddr        ;
+    reg     [31:0]  cmt_ld_vaddr        ;
+    reg     [ 7:0]  cmt_inst_st_en      ;
+    reg     [31:0]  cmt_st_paddr        ;
+    reg     [31:0]  cmt_st_vaddr        ;
+    reg     [31:0]  cmt_st_data         ;
+    reg             cmt_csr_rstat_en    ;
+    reg     [31:0]  cmt_csr_data        ;
+
+    reg             cmt_wen             ;
+    reg     [ 7:0]  cmt_wdest           ;
+    reg     [31:0]  cmt_wdata           ;
+    reg     [31:0]  cmt_pc              ;
+    reg     [31:0]  cmt_inst            ;
+
+    reg             cmt_excp_flush      ;
+    reg             cmt_ertn            ;
+    reg     [5:0]   cmt_csr_ecode       ;
+    reg             cmt_tlbfill_en      ;
+    reg     [4:0]   cmt_rand_index      ;
+
+    // to difftest debug
+    reg             trap                ;
+    reg     [ 7:0]  trap_code           ;
+    reg     [63:0]  cycleCnt            ;
+    reg     [63:0]  instrCnt            ;
+
+    // from regfile
+    wire    [31:0]  regs[31:0]          ;
+
+    // from csr
+    wire    [31:0]  csr_crmd_diff_0     ;
+    wire    [31:0]  csr_prmd_diff_0     ;
+    wire    [31:0]  csr_ectl_diff_0     ;
+    wire    [31:0]  csr_estat_diff_0    ;
+    wire    [31:0]  csr_era_diff_0      ;
+    wire    [31:0]  csr_badv_diff_0     ;
+    wire	[31:0]  csr_eentry_diff_0   ;
+    wire 	[31:0]  csr_tlbidx_diff_0   ;
+    wire 	[31:0]  csr_tlbehi_diff_0   ;
+    wire 	[31:0]  csr_tlbelo0_diff_0  ;
+    wire 	[31:0]  csr_tlbelo1_diff_0  ;
+    wire 	[31:0]  csr_asid_diff_0     ;
+    wire 	[31:0]  csr_save0_diff_0    ;
+    wire 	[31:0]  csr_save1_diff_0    ;
+    wire 	[31:0]  csr_save2_diff_0    ;
+    wire 	[31:0]  csr_save3_diff_0    ;
+    wire 	[31:0]  csr_tid_diff_0      ;
+    wire 	[31:0]  csr_tcfg_diff_0     ;
+    wire 	[31:0]  csr_tval_diff_0     ;
+    wire 	[31:0]  csr_ticlr_diff_0    ;
+    wire 	[31:0]  csr_llbctl_diff_0   ;
+    wire 	[31:0]  csr_tlbrentry_diff_0;
+    wire 	[31:0]  csr_dmw0_diff_0     ;
+    wire 	[31:0]  csr_dmw1_diff_0     ;
+    wire 	[31:0]  csr_pgdl_diff_0     ;
+    wire 	[31:0]  csr_pgdh_diff_0     ;
+
+    always @(posedge aclk) begin
+        if (reset) begin
+            {cmt_valid, cmt_cnt_inst, cmt_timer_64, cmt_inst_ld_en, cmt_ld_paddr, cmt_ld_vaddr, cmt_inst_st_en, cmt_st_paddr, cmt_st_vaddr, cmt_st_data, cmt_csr_rstat_en, cmt_csr_data} <= 0;
+            {cmt_wen, cmt_wdest, cmt_wdata, cmt_pc, cmt_inst} <= 0;
+            {trap, trap_code, cycleCnt, instrCnt} <= 0;
+        end
+        else if (~trap) begin
+            cmt_valid       <= inst_valid_diff          ;
+            cmt_cnt_inst    <= wbu_cnt_inst_diff_o;
+            cmt_timer_64    <= wbu_timer_64_diff_o;
+            cmt_inst_ld_en  <= wbu_ld_diff          ;
+            cmt_ld_paddr    <= wbu_paddr_diff            ;
+            cmt_ld_vaddr    <= wbu_vaddr_diff            ;
+            cmt_inst_st_en  <= wbu_st_diff          ;
+            cmt_st_paddr    <= wbu_paddr_diff            ;
+            cmt_st_vaddr    <= wbu_vaddr_diff            ;
+            cmt_st_data     <= wbu_st_data_diff             ;
+            cmt_csr_rstat_en<= csr_rstat_en_diff        ;
+            cmt_csr_data    <= csr_data_diff            ;
+
+            cmt_wen     <=  debug0_wb_rf_wen            ;
+            cmt_wdest   <=  {3'd0, debug0_wb_rf_wnum}   ;
+            cmt_wdata   <=  debug0_wb_rf_wdata          ;
+            cmt_pc      <=  debug0_wb_pc                ;
+            cmt_inst    <=  debug0_wb_inst              ;
+
+            cmt_excp_flush  <= ws_excp_diff               ;
+            cmt_ertn        <= wbu_eret_diff               ;
+            cmt_csr_ecode   <= wbu_ecode_diff             ;
+            cmt_tlbfill_en  <= wbu_cmt_tlbfill_en               ;
+            cmt_rand_index  <= wbu_cmt_rand_index               ;
+
+            trap            <= 0                        ;
+            trap_code       <= regs[10][7:0]            ;
+            cycleCnt        <= cycleCnt + 1             ;
+            instrCnt        <= instrCnt + inst_valid_diff;
+        end
+    end
+
+    //     DifftestInstrCommit DifftestInstrCommit(
+    //                             .clock              (aclk           ),
+    //                             .coreid             (0              ),
+    //                             .index              (0              ),
+    //                             .valid              (cmt_valid      ),
+    //                             .pc                 (cmt_pc         ),
+    //                             .instr              (cmt_inst       ),
+    //                             .skip               (0              ),
+    //                             .is_TLBFILL         (cmt_tlbfill_en ),
+    //                             .TLBFILL_index      (cmt_rand_index ),
+    //                             .is_CNTinst         (cmt_cnt_inst   ),
+    //                             .timer_64_value     (cmt_timer_64   ),
+    //                             .wen                (cmt_wen        ),
+    //                             .wdest              (cmt_wdest      ),
+    //                             .wdata              (cmt_wdata      ),
+    //                             .csr_rstat          (cmt_csr_rstat_en),
+    //                             .csr_data           (cmt_csr_data   )
+    //                         );
+
+    //     DifftestExcpEvent DifftestExcpEvent(
+    //                           .clock              (aclk           ),
+    //                           .coreid             (0              ),
+    //                           .excp_valid         (cmt_excp_flush),
+    //                           .eret               (cmt_ertn       ),
+    //                           .intrNo             (csr_estat_diff_0[12:2]),
+    //                           .cause              (cmt_csr_ecode  ),
+    //                           .exceptionPC        (cmt_pc         ),
+    //                           .exceptionInst      (cmt_inst       )
+    //                       );
+
+    //     DifftestTrapEvent DifftestTrapEvent(
+    //                           .clock              (aclk           ),
+    //                           .coreid             (0              ),
+    //                           .valid              (0           ),
+    //                           .code               (trap_code      ),
+    //                           .pc                 (cmt_pc         ),
+    //                           .cycleCnt           (cycleCnt       ),
+    //                           .instrCnt           (instrCnt       )
+    //                       );
+
+    //     DifftestStoreEvent DifftestStoreEvent(
+    //                            .clock              (aclk           ),
+    //                            .coreid             (0              ),
+    //                            .index              (0              ),
+    //                            .valid              (cmt_inst_st_en ),
+    //                            .storePAddr         (cmt_st_paddr   ),
+    //                            .storeVAddr         (cmt_st_vaddr   ),
+    //                            .storeData          (cmt_st_data    )
+    //                        );
+
+    //     DifftestLoadEvent DifftestLoadEvent(
+    //                           .clock              (aclk           ),
+    //                           .coreid             (0              ),
+    //                           .index              (0              ),
+    //                           .valid              (cmt_inst_ld_en),
+    //                           .paddr              (cmt_ld_paddr   ),
+    //                           .vaddr              (cmt_ld_vaddr   )
+    //                       );
+
+    //     DifftestCSRRegState DifftestCSRRegState(
+    //                             .clock              (aclk               ),
+    //                             .coreid             (0                  ),
+    //                             .crmd               (csr_crmd_diff_0    ),
+    //                             .prmd               (csr_prmd_diff_0    ),
+    //                             .euen               (0                  ),
+    //                             .ecfg               (csr_ectl_diff_0    ),
+    //                             .estat              (csr_estat_diff_0   ),
+    //                             .era                (csr_era_diff_0     ),
+    //                             .badv               (csr_badv_diff_0    ),
+    //                             .eentry             (csr_eentry_diff_0  ),
+    //                             .tlbidx             (csr_tlbidx_diff_0  ),
+    //                             .tlbehi             (csr_tlbehi_diff_0  ),
+    //                             .tlbelo0            (csr_tlbelo0_diff_0 ),
+    //                             .tlbelo1            (csr_tlbelo1_diff_0 ),
+    //                             .asid               (csr_asid_diff_0    ),
+    //                             .pgdl               (csr_pgdl_diff_0    ),
+    //                             .pgdh               (csr_pgdh_diff_0    ),
+    //                             .save0              (csr_save0_diff_0   ),
+    //                             .save1              (csr_save1_diff_0   ),
+    //                             .save2              (csr_save2_diff_0   ),
+    //                             .save3              (csr_save3_diff_0   ),
+    //                             .tid                (csr_tid_diff_0     ),
+    //                             .tcfg               (csr_tcfg_diff_0    ),
+    //                             .tval               (csr_tval_diff_0    ),
+    //                             .ticlr              (csr_ticlr_diff_0   ),
+    //                             .llbctl             (csr_llbctl_diff_0  ),
+    //                             .tlbrentry          (csr_tlbrentry_diff_0),
+    //                             .dmw0               (csr_dmw0_diff_0    ),
+    //                             .dmw1               (csr_dmw1_diff_0    )
+    //                         );
+
+    //     DifftestGRegState DifftestGRegState(
+    //                           .clock              (aclk       ),
+    //                           .coreid             (0          ),
+    //                           .gpr_0              (0          ),
+    //                           .gpr_1              (regs[1]    ),
+    //                           .gpr_2              (regs[2]    ),
+    //                           .gpr_3              (regs[3]    ),
+    //                           .gpr_4              (regs[4]    ),
+    //                           .gpr_5              (regs[5]    ),
+    //                           .gpr_6              (regs[6]    ),
+    //                           .gpr_7              (regs[7]    ),
+    //                           .gpr_8              (regs[8]    ),
+    //                           .gpr_9              (regs[9]    ),
+    //                           .gpr_10             (regs[10]   ),
+    //                           .gpr_11             (regs[11]   ),
+    //                           .gpr_12             (regs[12]   ),
+    //                           .gpr_13             (regs[13]   ),
+    //                           .gpr_14             (regs[14]   ),
+    //                           .gpr_15             (regs[15]   ),
+    //                           .gpr_16             (regs[16]   ),
+    //                           .gpr_17             (regs[17]   ),
+    //                           .gpr_18             (regs[18]   ),
+    //                           .gpr_19             (regs[19]   ),
+    //                           .gpr_20             (regs[20]   ),
+    //                           .gpr_21             (regs[21]   ),
+    //                           .gpr_22             (regs[22]   ),
+    //                           .gpr_23             (regs[23]   ),
+    //                           .gpr_24             (regs[24]   ),
+    //                           .gpr_25             (regs[25]   ),
+    //                           .gpr_26             (regs[26]   ),
+    //                           .gpr_27             (regs[27]   ),
+    //                           .gpr_28             (regs[28]   ),
+    //                           .gpr_29             (regs[29]   ),
+    //                           .gpr_30             (regs[30]   ),
+    //                           .gpr_31             (regs[31]   )
+    //                       );
+    // `endif
 
 endmodule
