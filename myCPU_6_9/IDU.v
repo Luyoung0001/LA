@@ -81,7 +81,13 @@ module IDU (
 
         input wire flush_idle,
 
-        output wire [1:0] bar_o
+        output wire [1:0] bar_o,
+
+        // 数据前递
+        // 这里数据前递需要判断 MEM 阶段是否是访存操作以及 sc 操作
+        // 如果是，那么应该优先进行前递，而不是简单的 EXU > MEM > WBU
+        input wire [32:0] inst_ld_from_mem,
+        input wire [1:0]  inst_sc_from_mem
     );
 
     wire        pipeline_no_empty;
@@ -371,7 +377,6 @@ module IDU (
     wire [31:0] inst_nop_data = 32'b0000_0011_0100_0000_0000_0000_0000_0000; // nop : andi r0, r0,0
     reg [1:0] idu_state;
 
-    // 如果是跳转指令，那么总是计算完成
     assign caculate_done = caculate_done_1 && caculate_done_2;
 
     reg refetch_excp_i_r;
@@ -408,64 +413,68 @@ module IDU (
         end
     end
 
+    // 只有计算完成，这里才有效
     // assign state_valid = idu_state == 2'd1 && caculate_done && !(dbar_stall || ibar_stall);
     assign state_valid = idu_state == 2'd1 && caculate_done ;
     assign waite_ready_o = flush_idle ? 1'b0: (idu_state == 2'd0);
 
 
+    // load_use 数据前递
+    wire is_ld = inst_ld_from_mem[32];
+    wire [31:0] ld_result = inst_ld_from_mem[31:0];
+
+    // sc 数据前递
+    wire is_sc = inst_sc_from_mem[1];
+    wire sc_result = inst_sc_from_mem[0];
+
     reg [31:0] conflict_regaData;
     reg [31:0] conflict_regbData;
 
     // 当检测到冲突以后，就得阻塞
-    // pc 不能一致，如果一致没有等待的意义，等待是为了数据前递，无脑的等待只会拖慢速度
-    assign caculate_done_1 = exu_regWr &&
-       (rf_raddr1 == exu_regAddr) && rf_raddr1 != 5'd0 && idu_pc != exu_pc ? exu_over ? 1'b1 : 1'b0:
-           mem_regWr &&
-       (rf_raddr1 == mem_regAddr) && rf_raddr1 != 5'd0 && idu_pc != mem_pc ? mem_over ? 1'b1 : 1'b0:
-           wbu_regWr &&
-       (rf_raddr1 == wbu_regAddr) && rf_raddr1 != 5'd0 && idu_pc != wbu_pc ? wbu_over ? 1'b1 : 1'b0:
+
+    // pc 不能一致，如果一致没有前递意义
+
+    // 数据前递 匹配
+    wire exu_forward_match_1 = exu_regWr && (rf_raddr1 == exu_regAddr) && rf_raddr1 != 5'd0 && idu_pc != exu_pc;
+    wire mem_forward_match_1 = mem_regWr && (rf_raddr1 == mem_regAddr) && rf_raddr1 != 5'd0 && idu_pc != mem_pc;
+    wire wbu_forward_match_1 = wbu_regWr && (rf_raddr1 == wbu_regAddr) && rf_raddr1 != 5'd0 && idu_pc != wbu_pc;
+
+    wire exu_forward_match_2 = exu_regWr && (rf_raddr2 == exu_regAddr) && rf_raddr2 != 5'd0 && idu_pc != exu_pc;
+    wire mem_forward_match_2 = mem_regWr && (rf_raddr2 == mem_regAddr) && rf_raddr2 != 5'd0 && idu_pc != mem_pc;
+    wire wbu_forward_match_2 = wbu_regWr && (rf_raddr2 == wbu_regAddr) && rf_raddr2 != 5'd0 && idu_pc != wbu_pc;
+
+    // 优先的匹配：is_ld, is_sc
+    // idu_pc 必须仅仅比 mem_pc 多 4 才能构成 load_use
+    wire mem_forward_match_ld_use_1 = mem_regWr && (rf_raddr1 == mem_regAddr) && rf_raddr1 != 5'd0 && idu_pc == (mem_pc + 32'd4);
+    wire mem_forward_match_ld_use_2 = mem_regWr && (rf_raddr2 == mem_regAddr) && rf_raddr2 != 5'd0 && idu_pc == (mem_pc + 32'd4);
+
+    wire first_macth_1 = mem_forward_match_ld_use_1 && (is_ld || is_sc);
+    wire first_macth_2 = mem_forward_match_ld_use_2 && (is_ld || is_sc);
+    wire [31:0] first_match_result = ({32{is_ld}} & ld_result) | ({32{is_sc}} & {{31{1'b0}}, sc_result});
+
+    // 根据匹配与否进行 多路选择
+    assign conflict_regaData = first_macth_1 ? first_match_result :
+           exu_forward_match_1 ? exu_data :
+           mem_forward_match_1 ? mem_data :
+           wbu_forward_match_1 ? wbu_data : rf_rdata1;
+
+    assign conflict_regbData = first_macth_2 ? first_match_result :
+           exu_forward_match_2 ? exu_data :
+           mem_forward_match_2 ? mem_data :
+           wbu_forward_match_2 ? wbu_data : rf_rdata2;
+
+    // 这是计算完成的标志：当匹配成功的时候，必须等到其计算完成才能最终裁定 idu 是否彻底计算完成
+assign caculate_done_1 = first_macth_1 ? mem_over ? 1'b1 : 1'b0:
+       exu_forward_match_1 ? exu_over ? 1'b1 : 1'b0:
+       mem_forward_match_1 ? mem_over ? 1'b1 : 1'b0:
+       wbu_forward_match_1 ? wbu_over ? 1'b1 : 1'b0:
            1'b1;
 
-
-    assign caculate_done_2 = exu_regWr &&
-       (rf_raddr2 == exu_regAddr) && rf_raddr2 != 5'd0 && idu_pc != exu_pc ? exu_over ? 1'b1 : 1'b0:
-           mem_regWr &&
-       (rf_raddr2 == mem_regAddr) && rf_raddr2 != 5'd0 && idu_pc != mem_pc ? mem_over ? 1'b1 : 1'b0:
-           wbu_regWr &&
-       (rf_raddr2 == wbu_regAddr) && rf_raddr2 != 5'd0 && idu_pc != wbu_pc ? wbu_over ? 1'b1 : 1'b0:
+assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
+       exu_forward_match_2 ? exu_over ? 1'b1 : 1'b0:
+       mem_forward_match_2 ? mem_over ? 1'b1 : 1'b0:
+       wbu_forward_match_2 ? wbu_over ? 1'b1 : 1'b0:
            1'b1;
-
-    // 这里进行数据前递，只有计算完成，前递才有意义
-    always @(*) begin
-        if (exu_regWr && (rf_raddr1 == exu_regAddr) && rf_raddr1 != 5'd0 && state_valid) begin
-            conflict_regaData = exu_data;
-        end
-        else if (mem_regWr && (rf_raddr1 == mem_regAddr)&& rf_raddr1 != 5'd0 && state_valid) begin
-            conflict_regaData = mem_data;
-        end
-        else if (wbu_regWr && (rf_raddr1 == wbu_regAddr)&& rf_raddr1 != 5'd0 && state_valid) begin
-            conflict_regaData = wbu_data;
-        end
-        else begin
-            conflict_regaData = rf_rdata1;  // 默认值
-        end
-    end
-
-    always @(*) begin
-        if (exu_regWr && (rf_raddr2 == exu_regAddr) && rf_raddr2 != 5'd0 && state_valid) begin
-            conflict_regbData = exu_data;
-        end
-        else if (mem_regWr && (rf_raddr2 == mem_regAddr)&& rf_raddr2 != 5'd0 && state_valid) begin
-            conflict_regbData = mem_data;
-        end
-        else if (wbu_regWr && (rf_raddr2 == wbu_regAddr)&& rf_raddr2 != 5'd0 && state_valid) begin
-            conflict_regbData = wbu_data;
-        end
-        else begin
-            conflict_regbData = rf_rdata2;  // 默认值
-        end
-    end
-
 
 
     assign idu_inst = inst_sram_rdata_reg;
@@ -764,8 +773,9 @@ module IDU (
     assign rf_raddr1 = rj;
     assign rf_raddr2 = src_reg_is_rd ? rd :rk;
 
-    assign rj_value  = conflict_regaData;
-    assign rkd_value = conflict_regbData;
+    // 只有计算完成，才能进行数据前递
+    assign rj_value  = state_valid ? conflict_regaData : rf_rdata1;
+    assign rkd_value = state_valid ? conflict_regbData : rf_rdata2;
 
     wire rj_lt_rd;
     wire rj_ltu_rd;
@@ -793,7 +803,7 @@ module IDU (
                        || inst_bltu && rj_ltu_rd
                        || inst_bge  && rj_gt_rd
                        || inst_bgeu && rj_gtu_rd
-                      )  && !wire_fs_excp && !refetch_excp_i_r;
+                      )  && !wire_fs_excp && !refetch_excp_i_r; // 计算完成才能裁定，这里不裁定，最终由 preIFU 进行裁定
     assign br_target = (inst_beq || inst_bne || inst_bl || inst_b || inst_blt || inst_bltu || inst_bge || inst_bgeu) ? (idu_pc + br_offs) :
            /*inst_jirl*/  (rj_value + jirl_offs);
 
