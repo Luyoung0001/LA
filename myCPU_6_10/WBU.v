@@ -227,6 +227,9 @@ module WBU
     wire [4:0] wbu_regAddr;
     wire wbu_over;
 
+    // wire wbu_csr_we;
+    // wire [13:0] wbu_csr_idx;
+    // wire [31:0] wbu_csr_wdata;
 
     wire wire_gr_we;
     wire [4:0] wire_dest;
@@ -428,11 +431,18 @@ module WBU
     assign wbu_data = wire_final_result;
     assign wbu_regAddr = wire_dest;
 
+    // assign wbu_csr_we = csr_we;
+    // assign wbu_csr_idx = csr_addr;
+    // assign wbu_csr_wdata = csr_wdata;
+
     wire [31:0] wbu_pc = pc_pro_i_r;
     assign bus_wbu_bypass_data = {
                wbu_regWr,
                wbu_data,
                wbu_regAddr,
+               //    wbu_csr_we,
+               //    wbu_csr_idx,
+               //    wbu_csr_wdata,
                wbu_pc,
                wbu_over
            };
@@ -459,6 +469,7 @@ module WBU
     // exu_pis:12
     // exu_ppi:13
     // exu_pme:14
+
 
     // 检测异常
     assign {csr_ecode,
@@ -520,9 +531,13 @@ module WBU
                               wire_inst_tlbwr ||
                               wire_inst_tlbfill || wire_csr_we) && !refetch_excp_i_r;
 
+    // 如果是 ibar，只需要重 ibar 后面的指令重新取址就行了，否则都重新取址取本条指令，这里复用了 refecth 数据通路
+    // assign refetch_pc = wire_ibar ? pc_pro_i_r + 32'd4 : pc_pro_i_r;
+    // assign refetch_sign = refetch_excp_i_r || wire_ibar;
     assign refetch_pc = pc_pro_i_r;
     assign refetch_sign = refetch_excp_i_r;
     assign has_refetch_excp_o = refetch_excp_i_r;
+
 
     // 取消上游执行效果以及指令缓存
     assign refetch_flush = refetch_excp_i_r && ws_valid; // 天王老子来了都给我去重新执行

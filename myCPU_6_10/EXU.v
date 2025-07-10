@@ -115,6 +115,9 @@ module EXU
     wire [4:0] exu_regAddr;
     wire exu_over;
 
+    // wire exu_csr_we;
+    // wire [13:0] exu_csr_idx;
+    // wire [31:0] exu_csr_wdata;
 
     reg [226:0] ds_to_es_bus_data_r;
     reg [31:0] inst_data_i_r;
@@ -224,13 +227,21 @@ module EXU
     // 因此这里遇到寄存器读的指令，exu_regWr 无效
     assign exu_regWr = gr_we && !res_from_csr;
     assign exu_data = exu_result;
+    // assign exu_data = inst_ld_from_mem[32] ? inst_ld_from_mem[31:0] : exu_result;
     assign exu_regAddr = wire_in_dest;
+
+    // assign exu_csr_we = wire_csr_we;
+    // assign exu_csr_idx = wire_csr_idx;
+    // assign exu_csr_wdata = wire_csr_wdata;
 
     wire [31:0] exu_pc = pc_pro_i_r;
     assign bus_exu_bypass_data = {
                exu_regWr,
                exu_data,
                exu_regAddr,
+               //    exu_csr_we,
+               //    exu_csr_idx,
+               //    exu_csr_wdata,
                exu_pc,
                exu_over
            };
@@ -289,6 +300,7 @@ module EXU
     assign exu_result =
            op_div || op_divu ? div_result :
            op_mod || op_modu ? mod_result :
+        //    inst_sc_from_mem[1] ? {{31{1'b0}},inst_sc_from_mem[0]}: // 如果是 sc，就看能否成功执行
            mul_div_op[0] || mul_div_op[1] || mul_div_op[2] ? mul_result :
            wire_alu_op[0] ||
            wire_alu_op[1] ||
@@ -303,6 +315,9 @@ module EXU
            wire_alu_op[10] ||
            wire_alu_op[11] ? alu_result:
            alu_result;
+
+
+
 
     // 是否访存
     // 握手信号

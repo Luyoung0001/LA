@@ -233,6 +233,10 @@ module MEM
     wire [4:0] mem_regAddr;
     wire mem_over;
 
+    // wire mem_csr_we;
+    // wire [13:0] mem_csr_idx;
+    // wire [31:0] mem_csr_wdata;
+
 
     wire [31:0] wire_exu_result;
     wire wire_res_from_mem;
@@ -396,11 +400,18 @@ module MEM
     // 如果在执行 load 操作，将该信号传给 idu，如果 idu 发现load_use，可以直接从
     assign inst_ld = {ld_b || ld_bu || ld_h || ld_hu || ld_w || ll_w, final_result};
 
+    // assign mem_csr_we = wire_csr_we;
+    // assign mem_csr_idx = wire_csr_idx;
+    // assign mem_csr_wdata = csr_wdata;
+
     wire [31:0] mem_pc = es_pc_pro_i_r;
     assign bus_mem_bypass_data = {
                mem_regWr,
                mem_data,
                mem_regAddr,
+               //    mem_csr_we,
+               //    mem_csr_idx,
+               //    mem_csr_wdata,
                mem_pc,
                mem_over
            };

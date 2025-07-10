@@ -68,9 +68,9 @@ module IDU (
         output wire [82:0] bus_csr_rd_wr_data,
 
         //every stage valid sign
-        input wire es_to_ds_valid,
-        input wire ms_to_ds_valid,
-        input wire ws_to_ds_valid,
+        input                               es_to_ds_valid,
+        input                               ms_to_ds_valid,
+        input                               ws_to_ds_valid,
 
         // csr_rstat : 当提交指令为csrrd、csrwr、csrxchg，同时该指令对应的csr寄存器为estat寄存器时该位拉高
         output wire  csr_rstat,
@@ -145,18 +145,27 @@ module IDU (
     wire exu_regWr;
     wire [31:0] exu_data;
     wire [4:0] exu_regAddr;
+    // wire exu_csr_we;
+    // wire [13:0] exu_csr_idx;
+    // wire [31:0] exu_csr_wdata;
     wire [31:0] exu_pc;
     wire exu_over;
 
     wire mem_regWr;
     wire [31:0] mem_data;
     wire [4:0] mem_regAddr;
+    // wire mem_csr_we;
+    // wire [13:0] mem_csr_idx;
+    // wire [31:0] mem_csr_wdata;
     wire [31:0] mem_pc;
     wire mem_over;
 
     wire wbu_regWr;
     wire [31:0] wbu_data;
     wire [4:0] wbu_regAddr;
+    // wire wbu_csr_we;
+    // wire [13:0] wbu_csr_idx;
+    // wire [31:0] wbu_csr_wdata;
     wire [31:0] wbu_pc;
     wire wbu_over;
 
@@ -164,6 +173,9 @@ module IDU (
             exu_regWr,
             exu_data,
             exu_regAddr,
+            // exu_csr_we,
+            // exu_csr_idx,
+            // exu_csr_wdata,
             exu_pc,
             exu_over
         } = bus_exu_bypass_data;
@@ -171,6 +183,9 @@ module IDU (
             mem_regWr,
             mem_data,
             mem_regAddr,
+            // mem_csr_we,
+            // mem_csr_idx,
+            // mem_csr_wdata,
             mem_pc,
             mem_over
         } = bus_mem_bypass_data;
@@ -178,6 +193,9 @@ module IDU (
             wbu_regWr,
             wbu_data,
             wbu_regAddr,
+            // wbu_csr_we,
+            // wbu_csr_idx,
+            // wbu_csr_wdata,
             wbu_pc,
             wbu_over
         } = bus_wbu_bypass_data;
@@ -194,7 +212,7 @@ module IDU (
     wire        res_from_csr;
     wire        gr_we;
     wire [4:0]  dest;
-
+    // wire [31:0] pc;
     // csr
     wire [13:0] csr_idx;    // csr 索引
     wire [31:0] csr_data;
@@ -484,10 +502,12 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
     assign i14  = idu_inst[23:10];
     assign i20  = idu_inst[24:5];
     assign i16  = idu_inst[25:10];
-    assign i26  = {idu_inst[9:0], idu_inst[25:10]};
+    assign i26  = {idu_inst[9:
+                            0], idu_inst[25:
+                                         10]};
+
     // csr
     // 支持数据前递 tid
-
     assign csr_idx = inst_rdcntid_w ? 14'h40 : idu_inst[23:10];
 
     decoder_6_64 u_dec0(.in(op_31_26 ), .out(op_31_26_d ));
