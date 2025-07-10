@@ -13,9 +13,9 @@ module addr_trans
          input                  inst_dmw0_en         ,
          input                  inst_dmw1_en         ,
 
-         input  [31:0]          inst_dmw0             ,
-         input  [31:0]          inst_dmw1             ,
-         input                  inst_da               ,
+         input  [31:0]          inst_dmw0            ,
+         input  [31:0]          inst_dmw1            ,
+         input                  inst_da              ,
          input                  inst_pg,
 
          output [ 7:0]          inst_index           ,

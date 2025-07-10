@@ -22,15 +22,33 @@ module MEM
          input wire [31:0] es_rkd_value_i,
          input wire [31:0] es_alu_result_i,
          // ================访存单元================
-         output wire req, //
-         output wr,   // |we
-         output [1:0] size, // 新增
-         output [3:0] wstrb, // we
-         output wire [31:0] addr,
-         output [31:0] wdata,
-         input addr_ok, // 新增
-         input data_ok,
-         input [31:0] rdata,
+
+         //  output wire req, //
+         //  output wr,   // |we
+         //  output [1:0] size, // 新增
+         //  output [3:0] wstrb, // we
+         //  output wire [31:0] addr,
+         //  output [31:0] wdata,
+         //  input addr_ok, // 新增
+         //  input data_ok,
+         //  input [31:0] rdata,
+
+         // dcache
+         output wire dcache_valid,
+         output wire dcache_op,
+         output wire [19:0] dcache_tag,
+         output wire [7:0] dcache_index,
+         output wire [3:0] dcache_offset,
+         // 如果遇到 flush 信号, 则取消请求
+         // 这是因为 如果 mem 的 请求发出后，dcache 不会理会 flush
+         // dcache 持续处理请求，最终会返回 rdata。
+         // 但是这个 data 已经不是当前 MEM 所需要的了
+         output wire flush_sign_cancel,
+         output wire  [3:0]  dcache_wstrb,
+         output wire  [31:0] dcache_wdata,
+         input wire dcache_addr_ok,
+         input wire dcache_data_ok,
+         input wire [31:0] dcache_rdata,
 
 
          // from csr
@@ -170,6 +188,29 @@ module MEM
          input wire [1:0] bar_i,
          output wire [1:0] bar_o
      );
+
+    wire req; // en
+    wire wr;   // |we
+    wire [1:0] size; // 新增
+    wire [3:0] wstrb; // we
+    wire [31:0] addr; // 转换后的地址
+    wire [31:0] wdata;
+    wire addr_ok;
+    wire data_ok;
+    wire [31:0] rdata;
+
+    assign dcache_valid = req;
+    assign dcache_op = 1'b0; // read
+    assign dcache_tag = addr[31:12];
+    assign dcache_index = addr[11:4];
+    assign dcache_offset = addr[3:0];
+
+    assign dcache_wstrb = wstrb;
+    assign dcache_wdata = wdata;
+
+    assign addr_ok = dcache_addr_ok;
+    assign data_ok = dcache_data_ok;
+    assign rdata   = dcache_rdata;
 
     // 寄存器
     reg es_excp_i_r;
@@ -394,7 +435,7 @@ module MEM
 
     // 当前是否执行 ld 执行
     // 如果在执行 load 操作，将该信号传给 idu，如果 idu 发现load_use，可以直接从
-    assign inst_ld = {ld_b || ld_bu || ld_h || ld_hu || ld_w || ll_w, final_result};
+    assign inst_ld = {ld_b | ld_bu | ld_h | ld_hu | ld_w | ll_w, final_result};
 
     wire [31:0] mem_pc = es_pc_pro_i_r;
     assign bus_mem_bypass_data = {
@@ -468,8 +509,11 @@ module MEM
         end
         else if(mem_state == 2'd1) begin
             if(access_memo && !stop_signal) begin
-                if(waite_ready_i && addr_ok) begin
+                if(waite_ready_i && addr_ok && !data_ok) begin
                     mem_state <= 2'd2; // 等待
+                end
+                else if(waite_ready_i && addr_ok && data_ok) begin
+                    mem_state <= 2'd0;
                 end
             end
             else if(stop_signal) begin
@@ -486,6 +530,9 @@ module MEM
             end
         end
     end
+
+        // 取消取指令
+    assign flush_sign_cancel = flush_sign;
 
 
     // real data
@@ -556,19 +603,21 @@ module MEM
     assign wstrb = stop_signal ? 4'b0000 : // 异常
            st_b  ? st_b_we :
            st_h  ? st_h_we :
-           st_w | sc_do  ? st_w_we :
+           st_w || sc_do  ? st_w_we :
            4'b0000 ;
     // 写入
     assign wdata = st_b ? {4{es_rkd_value_i_r[7:0]}} :
            st_h ? {2{es_rkd_value_i_r[15:0]}} :
-           st_w | sc_do ? es_rkd_value_i_r : 32'b0;
+           st_w || sc_do ? es_rkd_value_i_r : 32'b0;
 
+
+
+    wire read_mem  = ld_b || ld_bu || ld_h || ld_hu || ld_w || ll_w;
+    wire write_mem = st_b || st_h || st_w || sc_do;
+
+    wire access_memo = read_mem || write_mem;
 
     assign req = stop_signal ? 1'b0 : mem_state == 2'd1 && access_memo && waite_ready_i && !addr_ok;
-
-    wire access_memo = ld_b || ld_bu || ld_h || ld_hu || ld_w ||
-         st_b || st_h || st_w || ll_w || sc_do;
-
 
     // for difftest
     wire [31:0] wdata_diff;
@@ -586,7 +635,6 @@ module MEM
 
     // 加上 tlb 之后，地址的意义发生了变化
     // 假设是 pg 映射模式，那么地址就得从 addr_trans 返回
-    // 这里将会考虑数据前递技术解决数据相关
     assign data_vaddr = wire_inst_tlbsrch ? {csr_vppn,13'd0} : es_alu_result_i_r;
     assign data_asid = csr_asid;
     assign data_dmw0 = csr_dmw0;
@@ -611,23 +659,23 @@ module MEM
     // 如果是 ld_h 或者 st_h，对齐到偶数地址
     // 如果是 ld_w 或者 st_w，对齐到4字节
     // 0x9
-    assign mem_excp_ale = (ld_h | ld_hu | st_h) && es_alu_result_i_r[0] ? 1'b1 :
-           (ld_w | st_w | sc_do) && (es_alu_result_i_r[1:0] != 2'b00) ? 1'b1 : 1'b0;
+    assign mem_excp_ale = (ld_h || ld_hu || st_h) && es_alu_result_i_r[0] ? 1'b1 :
+           (ld_w || st_w || sc_do) && (es_alu_result_i_r[1:0] != 2'b00) ? 1'b1 : 1'b0;
     assign excp_ale_num = mem_excp_ale ? 16'h0200 :16'b0;
     // 0x10
     assign mem_excp_tlbr = access_memo && !data_tlb_found && data_addr_trans_en;
     assign excp_tlbr_num = mem_excp_tlbr ? 16'h0400 : 16'b0;
     // 0x11
-    assign mem_excp_pil  = (ld_b | ld_bu | ld_h | ld_hu | ld_w | ll_w) && !data_tlb_v && data_addr_trans_en;
+    assign mem_excp_pil  = read_mem && !data_tlb_v && data_addr_trans_en;
     assign excp_pil_num = mem_excp_pil ? 16'h0800 : 16'b0;
     // 0x12
-    assign mem_excp_pis  = (st_b | st_h | st_w | sc_do) && !data_tlb_v && data_addr_trans_en;
+    assign mem_excp_pis  = write_mem && !data_tlb_v && data_addr_trans_en;
     assign excp_pis_num = mem_excp_pis ? 16'h1000 : 16'b0;
     // 0x13
     assign mem_excp_ppi  = access_memo && data_tlb_v && (csr_plv > data_tlb_plv) && data_addr_trans_en;
     assign excp_ppi_num = mem_excp_ppi ? 16'h2000 : 16'b0;
     // 0x14
-    assign mem_excp_pme  = (st_b | st_h | st_w | sc_do) && data_tlb_v && (csr_plv <= data_tlb_plv) && !data_tlb_d && data_addr_trans_en;
+    assign mem_excp_pme  = write_mem && data_tlb_v && (csr_plv <= data_tlb_plv) && !data_tlb_d && data_addr_trans_en;
     assign excp_pme_num = mem_excp_pme ? 16'h4000 : 16'b0;
 
 
@@ -640,9 +688,9 @@ module MEM
          excp_ppi_num | excp_pme_num;
 
     // 当前阶段的异常 += 上一阶段
-    wire ms_excp = wire_es_excp | mem_excp_ale |
-         mem_excp_tlbr | mem_excp_pil | mem_excp_pis |
-         mem_excp_ppi | mem_excp_pme;
+    wire ms_excp = wire_es_excp || mem_excp_ale ||
+         mem_excp_tlbr || mem_excp_pil || mem_excp_pis ||
+         mem_excp_ppi || mem_excp_pme;
 
     // 输出
     assign ms_excp_o = ms_excp;

@@ -61,8 +61,7 @@ module IFU (
         // input data_ok,
         // input [31:0] rdata,
 
-        //icache
-
+        // icache
         output wire icache_valid,
         output wire icache_op,
         output wire [19:0] icache_tag,
@@ -73,10 +72,8 @@ module IFU (
         // icache 持续处理请求，最终会返回 rdata。
         // 但是这个 data 已经不是当前 pc 所需要的了
         output wire flush_sign_cancel,
-
         output wire  [3:0]  icache_wstrb,
         output wire  [31:0] icache_wdata,
-
         input wire icache_addr_ok,
         input wire icache_data_ok,
         input wire [31:0] icache_rdata,
@@ -143,11 +140,9 @@ module IFU (
     wire pfs_excp;
     wire [15:0] fs_excp_num;
 
-
-
     // 异常
     // 0x0
-    assign pfs_excp_adef = (pc[0] || pc[1]) ;
+    assign pfs_excp_adef = (pc[0] | pc[1]);
     assign excp_adef_num = pfs_excp_adef ? 16'h0001 : 16'h0000;
     // 0x1
     assign fs_excp_tlbr = !inst_tlb_found && inst_addr_trans_en;
@@ -212,10 +207,10 @@ module IFU (
                 end
                 2'd1: begin
                     if(waite_ready_i && addr_ok && !data_ok) begin
-                        ifu_state <= 2'd2;
+                        ifu_state <= 2'd2; // 等待
                     end
                     else if(waite_ready_i && addr_ok && data_ok) begin
-                        ifu_state <= 2'd0;
+                        ifu_state <= 2'd0; 
                     end
                 end
                 2'd2: begin

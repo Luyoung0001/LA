@@ -746,12 +746,12 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
            inst_ll_w|
            inst_sc_w;
 
-    assign mem_we = inst_st_w | inst_st_b | inst_st_h | (inst_sc_w & llbit);
+    assign mem_we = inst_st_w || inst_st_b || inst_st_h || (inst_sc_w && llbit);
     assign dest = dst_is_r1 ? 5'd1 :
            dst_is_rj ? rj : rd;
 
     assign rf_raddr1 = rj;
-    assign rf_raddr2 = src_reg_is_rd ? rd :rk;
+    assign rf_raddr2 = src_reg_is_rd ? rd : rk;
 
     // 只有计算完成，才能进行数据前递
     assign rj_value  = state_valid ? conflict_regaData : rf_rdata1;
@@ -774,8 +774,8 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
     // 我的思路是，让下游每一个模块都计算完毕，这样
     // IDU 才会拿到完整的数据并顺利完成计算d
 
-    assign br_taken = (inst_beq  &&  rj_eq_rd
-                       || inst_bne  && !rj_eq_rd
+    assign br_taken = (inst_beq && rj_eq_rd
+                       || inst_bne && !rj_eq_rd
                        || inst_jirl
                        || inst_bl
                        || inst_b
@@ -924,7 +924,7 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
     assign idu_inst_o = inst_sram_rdata_reg;
     assign is_csr_wr = inst_csrwr |
            inst_csrxchg |
-           inst_tlbrd|
+           inst_tlbrd |
            inst_tlbsrch;
     assign refetch_excp_o = refetch_excp_i_r;
     assign pc_pro_o = idu_pc;

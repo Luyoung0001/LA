@@ -11,7 +11,7 @@ module cache(
         input wire  [3:0]  wstrb,
         input wire  [31:0] wdata,
 
-        // 所有的 cacop 暂不考虑
+        // cacop 暂不考虑
         output wire addr_ok,
         output wire data_ok,
         output wire [31:0] rdata,
@@ -23,17 +23,14 @@ module cache(
         input  wire rd_rdy,
         input  wire ret_valid,
         input  wire ret_last,
-        input  wire [31:0] ret_data, // axi 返回的数据，这个数据 refill 到 4 路表中
+        input  wire [31:0] ret_data, // axi 返回的数据，这个数据 refill 到 4-way 表中
 
         output reg          wr_req,
         output wire [2:0]   wr_type,
         output wire [31:0]  wr_addr,
         output wire [3:0]   wr_wstrb,
-        output wire [127:0] wr_data, // 可以直接发射一个 cache line 到 axi 的 buffer
+        output wire [127:0] wr_data, // 发射一个 cache line 到 axi 的 buffer
         input  wire         wr_rdy
-        // input  wire ibar_flush,
-
-        // output wire ibar_flushing
     );
     // IFU 发送请求，这里返回数据或者通过 AXI 和 SRAM 交互完后返回数据
 
@@ -48,13 +45,13 @@ module cache(
 
     reg [6:0] main_state;
 
-    wire main_state_is_idle    = main_state == main_idle   ;
-    wire main_state_is_lookup  = main_state == main_lookup ;
-    wire main_state_is_write_back    = main_state == main_write_back   ;
+    wire main_state_is_idle    = main_state == main_idle;
+    wire main_state_is_lookup  = main_state == main_lookup;
+    wire main_state_is_write_back    = main_state == main_write_back;
     wire main_state_is_replace = main_state == main_replace;
-    wire main_state_is_refill  = main_state == main_refill ;
-    wire main_state_is_write   = main_state == main_write  ;
-    wire main_state_is_retry   = main_state == main_retry  ;
+    wire main_state_is_refill  = main_state == main_refill;
+    wire main_state_is_write   = main_state == main_write;
+    wire main_state_is_retry   = main_state == main_retry;
 
     // Request Buffer
     reg         request_buffer_op;
@@ -175,6 +172,8 @@ module cache(
 
     // 否则，进入 main_replace
     assign rd_req = (main_state_is_replace || main_state_is_refill);
+
+    // for icache, rd_type always be b100, but for dcache, things will be different.
     assign rd_type = 3'b100; // 16B
     assign rd_addr = {request_buffer_tag, request_buffer_index, 4'b0}; // 16B 对齐
 
@@ -194,18 +193,13 @@ module cache(
     // hit_write data 的生成
     // 这里要考虑 tag、index、offset、wstrb
 
-    wire [31:
-          0] replaced_word = hit_line_data[request_buffer_offset[3:
-                                           2]*32+:
-                                           32];
-    wire [31:
-          0] final_word = {(request_buffer_wstrb[3] ? request_buffer_wdata[31:24] : replaced_word[31:24]),
-                           (request_buffer_wstrb[2] ? request_buffer_wdata[23:16] : replaced_word[23:16]),
-                           (request_buffer_wstrb[1] ? request_buffer_wdata[15: 8] : replaced_word[15: 8]),
-                           (request_buffer_wstrb[0] ? request_buffer_wdata[ 7: 0] : replaced_word[ 7: 0])};
+    wire [31:0] replaced_word = hit_line_data[request_buffer_offset[3:2]*32+:32];
+    wire [31:0] final_word = {(request_buffer_wstrb[3] ? request_buffer_wdata[31:24] : replaced_word[31:24]),
+                              (request_buffer_wstrb[2] ? request_buffer_wdata[23:16] : replaced_word[23:16]),
+                              (request_buffer_wstrb[1] ? request_buffer_wdata[15: 8] : replaced_word[15: 8]),
+                              (request_buffer_wstrb[0] ? request_buffer_wdata[ 7: 0] : replaced_word[ 7: 0])};
 
-    wire [127:
-          0] write_hit_data = {
+    wire [127:0] write_hit_data = {
              (request_buffer_offset == 4'hc) ? final_word : hit_line_data[127:96],
              (request_buffer_offset == 4'h8) ? final_word : hit_line_data[95:64],
              (request_buffer_offset == 4'h4) ? final_word : hit_line_data[63:32],
@@ -213,39 +207,8 @@ module cache(
          };
 
     integer i;
-    // reg [7:0] flush_idx;
-    // reg flushing;
-    // reg ibar_flashing;
-
-    // // assign ibar_flushing = ibar_flashing;
 
     always @(posedge clk) begin
-        //     // 清空 cache
-        //     if (!resetn) begin
-        //         flush_idx <= 0;
-        //         flushing <= 0;
-        //         ibar_flashing <= 1'b0;
-        //     end
-        //     if (ibar_flush) begin
-        //         flushing <= ibar_flush;
-        //         ibar_flashing <= 1'b1;
-        //     end
-        //     if (flushing) begin
-        //         cache_line_0[flush_idx][`V] <= 1'b0;
-        //         cache_line_1[flush_idx][`V] <= 1'b0;
-        //         cache_line_2[flush_idx][`V] <= 1'b0;
-        //         cache_line_3[flush_idx][`V] <= 1'b0;
-
-        //         if (flush_idx == 8'd255) begin
-        //             flushing <= 0;
-        //             ibar_flashing <= 1'b0;
-        //             flush_idx <= 8'd0;
-        //         end
-        //         else begin
-        //             flush_idx <= flush_idx + 1;
-        //         end
-        //     end
-
         // 如果重填完成，就可以就 refill_data 填到对应的 way 了
         if(refill_done) begin
             cache_line_0[request_buffer_index][`Data] <= replace_way[0] ? refill_data : cache_line_0[request_buffer_index][`Data];
@@ -323,9 +286,9 @@ module cache(
                     // 请求有效 且 无写后请求 冲突，就进入查询
                     main_state <= main_lookup;
 
-                    request_buffer_op         <= op   ;
+                    request_buffer_op         <= op;
                     request_buffer_tag        <= tag;
-                    request_buffer_index      <= index ;
+                    request_buffer_index      <= index;
                     request_buffer_offset     <= offset;
                     request_buffer_wstrb      <= wstrb;
                     request_buffer_wdata      <= wdata;
@@ -373,14 +336,12 @@ module cache(
                 // 取消 写请求，wr_data 为 128 位一次就可以写完带 axi 的 buffer
                 wr_req <= 1'b0;
             end
-
             main_refill: begin
                 if (ret_valid && ret_last) begin
                     // 如果传送完成，retry
                     main_state <= main_retry;
                     refill_done <= 1'b1;
                     main_refill_data_buffer[miss_buffer_ret_num] <= ret_data;
-
                 end
                 else begin
                     if (ret_valid) begin
@@ -408,5 +369,3 @@ module cache(
         endcase
     end
 endmodule
-
-

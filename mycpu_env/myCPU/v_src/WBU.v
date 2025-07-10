@@ -380,31 +380,31 @@ module WBU
     assign wbu_over = wbu_state == 2'd0;
 
     // 输出到 regfile
-    assign rf_we    = wire_gr_we & ws_valid & !ws_excp && !refetch_excp_i_r && !after_br_invalid_i_r;
+    assign rf_we    = wire_gr_we && ws_valid && !ws_excp && !refetch_excp_i_r && !after_br_invalid_i_r;
     assign rf_waddr = wire_dest;
     assign rf_wdata = wire_final_result;
     assign pc       = wire_pc;
 
     // 输出到 csr
-    assign csr_we = wire_csr_we & ws_valid & !ws_excp && !refetch_excp_i_r;
+    assign csr_we = wire_csr_we && ws_valid && !ws_excp && !refetch_excp_i_r;
     assign csr_addr = wire_csr_idx;
     assign csr_wdata = wire_csr_wdata;
 
     // tlb
     // tlbsrch
-    assign tlbsrch_en = wire_inst_tlbsrch & ws_valid & !ws_excp && !refetch_excp_i_r;
+    assign tlbsrch_en = wire_inst_tlbsrch && ws_valid && !ws_excp && !refetch_excp_i_r;
     assign tlbsrch_found_o = tlbsrch_found_r;
     assign tlbsrch_index_o = tlbsrch_index_r;
     // tlbrd
     assign to_trans_tlbidx_o = csr_tlbidx;
-    assign csr_tlbrd_en_o = wire_inst_tlbrd & ws_valid & !ws_excp && !refetch_excp_i_r;
+    assign csr_tlbrd_en_o = wire_inst_tlbrd && ws_valid && !ws_excp && !refetch_excp_i_r;
     assign csr_tlbehi_o = from_trans_tlbehi_in;
     assign csr_tlbelo0_o = from_trans_tlbelo0_in;
     assign csr_tlbelo1_o = from_trans_tlbelo1_in;
     assign csr_tlbidx_o = from_trans_tlbidx_in;
     assign csr_asid_o = from_trans_asid_in;
     // tlbwr tlbfill
-    assign tlbwr_en_o = wire_inst_tlbwr & ws_valid & !ws_excp && !refetch_excp_i_r;
+    assign tlbwr_en_o = wire_inst_tlbwr && ws_valid && !ws_excp && !refetch_excp_i_r;
     assign tlbwr_fill_tlbehi_o = csr_tlbehi;
     assign tlbwr_fill_tlbelo0_o = csr_tlbelo0;
     assign tlbwr_fill_tlbelo1_o = csr_tlbelo1;
@@ -412,16 +412,16 @@ module WBU
     assign tlbwr_fill_ecode_o = csr_ecode_i;
     assign tlbwr_fill_w_asid_o = csr_asid;
 
-    assign tlbfill_en_o = wire_inst_tlbfill & ws_valid & !ws_excp && !refetch_excp_i_r;
+    assign tlbfill_en_o = wire_inst_tlbfill && ws_valid && !ws_excp && !refetch_excp_i_r;
     assign rand_index_o = csr_rand_index;
     // invtlb
-    assign invtlb_en_o = wire_inst_invtlb & ws_valid & !ws_excp && !refetch_excp_i_r;
+    assign invtlb_en_o = wire_inst_invtlb && ws_valid && !ws_excp && !refetch_excp_i_r;
     assign invtlb_op_o = invtlb_op_i_r;
     assign invtlb_asid_o = invtlb_asid_i_r;
     assign invtlb_vpn_o = invtlb_vpn_i_r;
 
 
-    assign ertn_flush = wire_is_inst_ertn & ws_valid & !ws_excp && !refetch_excp_i_r;
+    assign ertn_flush = wire_is_inst_ertn && ws_valid && !ws_excp && !refetch_excp_i_r;
 
     // 解决数据相关
     assign wbu_regWr = rf_we;
@@ -437,7 +437,7 @@ module WBU
                wbu_over
            };
 
-    assign excp_flush = ws_excp & ws_valid && !refetch_excp_i_r;
+    assign excp_flush = ws_excp && ws_valid && !refetch_excp_i_r;
     assign flush_sign = excp_flush || ertn_flush || refetch_flush;
 
     assign is_ertn = wire_is_inst_ertn;
@@ -500,9 +500,9 @@ module WBU
                csr_era};
 
     //llbit
-    assign ws_llbit_set  = (ll_w | sc_w) & ws_valid & !ws_excp && !refetch_excp_i_r;
+    assign ws_llbit_set  = (ll_w || sc_w) && ws_valid && !ws_excp && !refetch_excp_i_r;
     assign ws_llbit      = ll_w;
-    assign ws_lladdr_set = ll_w && ws_valid & !ws_excp && !refetch_excp_i_r;
+    assign ws_lladdr_set = ll_w && ws_valid && !ws_excp && !refetch_excp_i_r;
     assign ws_lladdr     =  paddr_i_r[31:4];
 
 
@@ -537,7 +537,7 @@ module WBU
     assign ibar_flush = wire_ibar && ws_valid;
 
     // difftest
-    assign ws_valid_diff = ws_valid & !ws_excp && !refetch_excp_i_r && !after_br_invalid_i_r;
+    assign ws_valid_diff = ws_valid && !ws_excp && !refetch_excp_i_r && !after_br_invalid_i_r;
     assign ws_csr_rstat_en_diff = csr_rstat_i_r;
     assign ws_csr_data_diff     = csr_estat_data_i_r;
 

@@ -11,33 +11,6 @@ module Divider32 (
         output reg done      // 完成信号
     );
 
-    // // verilator 仿真
-    // always @(posedge clk) begin
-    //     if(reset) begin
-    //         busy <= 0;
-    //         done <= 0;
-    //     end
-    //     else
-    //         if (div) begin
-    //             busy <= 0;
-    //             done <= 1;
-    //             if (div_signed) begin
-    //                 q <= $signed(x) / $signed(y);
-    //                 r <= $signed(x) % $signed(y);
-    //             end
-    //             else begin
-    //                 q <= x / y;
-    //                 r <= x % y;
-    //             end
-    //         end
-    //         else begin
-    //             busy <= 0;
-    //             done <= 0;
-    //             q <= 0;
-    //             r <= 0;
-    //         end
-    // end
-
     // 内部寄存器
     reg [63:0] dividend_reg;
     reg [63:0] shifted_next;     // 组合逻辑下一状态
