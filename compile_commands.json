@@ -2,41 +2,6 @@
   {
     "arguments": [
       "/usr/bin/g++",
-      "-Os",
-      "-I.",
-      "-I/usr/local/share/verilator/include",
-      "-I/usr/local/share/verilator/include/vltstd",
-      "-DVM_COVERAGE=0",
-      "-DVM_SC=0",
-      "-DVM_TRACE=1",
-      "-DVM_TRACE_FST=1",
-      "-DVM_TRACE_VCD=0",
-      "-faligned-new",
-      "-fcf-protection=none",
-      "-Wno-bool-operation",
-      "-Wno-overloaded-virtual",
-      "-Wno-shadow",
-      "-Wno-sign-compare",
-      "-Wno-uninitialized",
-      "-Wno-unused-but-set-parameter",
-      "-Wno-unused-but-set-variable",
-      "-Wno-unused-parameter",
-      "-Wno-unused-variable",
-      "-I/home/luyoung/LA/Verilator/include",
-      "-I/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/include",
-      "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
-      "-c",
-      "-o",
-      "verilated.o",
-      "/usr/local/share/verilator/include/verilated.cpp"
-    ],
-    "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/usr/local/share/verilator/include/verilated.cpp",
-    "output": "/home/luyoung/LA/obj_dir/verilated.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/g++",
       "-I.",
       "-I/usr/local/share/verilator/include",
       "-I/usr/local/share/verilator/include/vltstd",
@@ -167,12 +132,12 @@
       "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
       "-c",
       "-o",
-      "verilated_fst_c.o",
-      "/usr/local/share/verilator/include/verilated_fst_c.cpp"
+      "verilated.o",
+      "/usr/local/share/verilator/include/verilated.cpp"
     ],
     "directory": "/home/luyoung/LA/obj_dir",
-    "file": "/usr/local/share/verilator/include/verilated_fst_c.cpp",
-    "output": "/home/luyoung/LA/obj_dir/verilated_fst_c.o"
+    "file": "/usr/local/share/verilator/include/verilated.cpp",
+    "output": "/home/luyoung/LA/obj_dir/verilated.o"
   },
   {
     "arguments": [
@@ -208,6 +173,41 @@
     "directory": "/home/luyoung/LA/obj_dir",
     "file": "/usr/local/share/verilator/include/verilated_dpi.cpp",
     "output": "/home/luyoung/LA/obj_dir/verilated_dpi.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-Os",
+      "-I.",
+      "-I/usr/local/share/verilator/include",
+      "-I/usr/local/share/verilator/include/vltstd",
+      "-DVM_COVERAGE=0",
+      "-DVM_SC=0",
+      "-DVM_TRACE=1",
+      "-DVM_TRACE_FST=1",
+      "-DVM_TRACE_VCD=0",
+      "-faligned-new",
+      "-fcf-protection=none",
+      "-Wno-bool-operation",
+      "-Wno-overloaded-virtual",
+      "-Wno-shadow",
+      "-Wno-sign-compare",
+      "-Wno-uninitialized",
+      "-Wno-unused-but-set-parameter",
+      "-Wno-unused-but-set-variable",
+      "-Wno-unused-parameter",
+      "-Wno-unused-variable",
+      "-I/home/luyoung/LA/Verilator/include",
+      "-I/home/luyoung/LA/mycpu_env/myCPU/DPIC_C/include",
+      "-I/home/luyoung/LA/mycpu_env/myCPU/memory/include",
+      "-c",
+      "-o",
+      "verilated_fst_c.o",
+      "/usr/local/share/verilator/include/verilated_fst_c.cpp"
+    ],
+    "directory": "/home/luyoung/LA/obj_dir",
+    "file": "/usr/local/share/verilator/include/verilated_fst_c.cpp",
+    "output": "/home/luyoung/LA/obj_dir/verilated_fst_c.o"
   },
   {
     "arguments": [

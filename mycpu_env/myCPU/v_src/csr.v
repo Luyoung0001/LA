@@ -314,6 +314,7 @@ module csr
 
     assign dmw0_out     = DMW0_wen ? csr_wdata : csr_dmw0;
     assign dmw1_out     = DMW1_wen ? csr_wdata : csr_dmw1;
+    
     assign datf_out     = csr_crmd[`DATF];
     assign datm_out     = csr_crmd[`DATM];
     assign ecode_out    = csr_estat[`ECODE];

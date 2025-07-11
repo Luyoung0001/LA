@@ -36,6 +36,7 @@ module MEM
          // dcache
          output wire dcache_valid,
          output wire dcache_op,
+         output wire [2:0] dcache_size,
          output wire [19:0] dcache_tag,
          output wire [7:0] dcache_index,
          output wire [3:0] dcache_offset,
@@ -50,8 +51,12 @@ module MEM
          input wire dcache_data_ok,
          input wire [31:0] dcache_rdata,
 
+         // dcache 额外的属性
+         output wire data_uncache_en,
 
          // from csr
+         input wire [1:0]  csr_datm,
+
          input wire [1:0]  csr_plv,
          input wire [31:0] csr_dmw0,
          input wire [31:0] csr_dmw1,
@@ -200,7 +205,8 @@ module MEM
     wire [31:0] rdata;
 
     assign dcache_valid = req;
-    assign dcache_op = 1'b0; // read
+    // assign dcache_op = 1'b0; // read
+    assign dcache_size = {1'b0,size};
     assign dcache_tag = addr[31:12];
     assign dcache_index = addr[11:4];
     assign dcache_offset = addr[3:0];
@@ -531,7 +537,7 @@ module MEM
         end
     end
 
-        // 取消取指令
+    // 取消取指令
     assign flush_sign_cancel = flush_sign;
 
 
@@ -617,6 +623,8 @@ module MEM
 
     wire access_memo = read_mem || write_mem;
 
+    assign dcache_op = write_mem;
+
     assign req = stop_signal ? 1'b0 : mem_state == 2'd1 && access_memo && waite_ready_i && !addr_ok;
 
     // for difftest
@@ -632,6 +640,9 @@ module MEM
            es_rkd_value_i_r;
 
     wire pg_mode;
+    wire da_mode;
+    //uncache judgement
+
 
     // 加上 tlb 之后，地址的意义发生了变化
     // 假设是 pg 映射模式，那么地址就得从 addr_trans 返回
@@ -641,11 +652,19 @@ module MEM
     assign data_dmw1 = csr_dmw1;
     assign data_da = csr_da;
     assign data_pg = csr_pg;
+
     assign pg_mode = csr_pg && !csr_da;
+    assign da_mode = csr_da && !csr_pg;
+
     assign data_dmw0_en = ((data_dmw0[`PLV0] && csr_plv == 2'd0) || (data_dmw0[`PLV3] && csr_plv == 2'd3)) && (es_alu_result_i_r[31:29] == data_dmw0[`VSEG]) && pg_mode;
     assign data_dmw1_en = ((data_dmw1[`PLV0] && csr_plv == 2'd0) || (data_dmw1[`PLV3] && csr_plv == 2'd3)) && (es_alu_result_i_r[31:29] == data_dmw1[`VSEG]) && pg_mode;
     assign data_addr_trans_en = pg_mode && !data_dmw0_en && !data_dmw1_en;
     assign addr = {data_tag, data_index, data_offset}; // 物理地址
+
+    assign data_uncache_en = (da_mode && (csr_datm == 2'b0))                 ||
+           (data_dmw0_en && (csr_dmw0[`DMW_MAT] == 2'b0))       ||
+           (data_dmw1_en && (csr_dmw1[`DMW_MAT] == 2'b0))       ||
+           (data_addr_trans_en && (data_tlb_mat == 2'b0));
 
 
     // for tlbsrch

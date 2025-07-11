@@ -64,6 +64,7 @@ module IFU (
         // icache
         output wire icache_valid,
         output wire icache_op,
+        output wire [2:0] icache_size,
         output wire [19:0] icache_tag,
         output wire [7:0] icache_index,
         output wire [3:0] icache_offset,
@@ -100,6 +101,7 @@ module IFU (
 
     assign icache_valid = req;
     assign icache_op = 1'b0; // read
+    assign icache_size = {1'b0,size};
     assign icache_tag = addr[31:12];
     assign icache_index = addr[11:4];
     assign icache_offset = addr[3:0];
@@ -210,7 +212,7 @@ module IFU (
                         ifu_state <= 2'd2; // 等待
                     end
                     else if(waite_ready_i && addr_ok && data_ok) begin
-                        ifu_state <= 2'd0; 
+                        ifu_state <= 2'd0;
                     end
                 end
                 2'd2: begin

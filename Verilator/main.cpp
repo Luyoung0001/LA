@@ -91,10 +91,10 @@ void step() {
 
     // 记录最新的 1000 个周期
     int start_time = 0;
-    if (temp_i <= 1000) {
+    if (temp_i <= 5000) {
         start_time = 0;
     } else {
-        start_time = temp_i - 1000;
+        start_time = temp_i - 5000;
     }
 
     if (i >= start_time) {
@@ -226,8 +226,7 @@ void print_info() {
 #ifdef EASY_MODE
     // uint32_t inst = top->rootp->verilator_top->debug_wb_inst;
     printf("-->CPU %d %08x %02x %08x\n", mycpu_trace_info.we,
-           mycpu_trace_info.pc, mycpu_trace_info.wnum,
-           mycpu_trace_info.value);
+           mycpu_trace_info.pc, mycpu_trace_info.wnum, mycpu_trace_info.value);
     printf("-->REF %d %08x %02x %08x\n\n\n", ref_struct.we, ref_struct.pc,
            ref_struct.wnum, ref_struct.value);
 #else
@@ -507,6 +506,7 @@ void cpu_exec(uint64_t n) {
             printf("\033[32mPassed all the tests!\033[0m\n");
             break;
         }
+        printf("i: %d\n", i);
 
         stepi();
         n--;
@@ -536,6 +536,8 @@ int main(int argc, char* argv[]) {
     top->trace(tfp, 99);
     tfp->open("wave.vcd");
     reset(1);
+    // cpu_exec(881181);
     cpu_exec(-1);
+    // cpu_exec(1000);
     return 0;
 }

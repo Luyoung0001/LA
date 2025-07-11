@@ -158,130 +158,131 @@ module axi_ram (
   end
 
   // 写通道状态机
-  wire [7:0] wstrb_1;  // 目标是扩展为 8 位
-  assign wstrb_1 = {4'b0, wstrb};  // 高 4 位填充 0，低 4 位为 wstrb
-  logic [3:0] state1;
+  // wire [7:0] wstrb_1;  // 目标是扩展为 8 位
+  // assign wstrb_1 = {4'b0, wstrb};  // 高 4 位填充 0，低 4 位为 wstrb
+  // logic [3:0] state1;
 
-  always_ff @(posedge clock or posedge reset) begin
-    if (reset) begin
-      // 初始化状态和信号
-      awready <= 1'b0;
-      wready  <= 1'b0;
-      bvalid  <= 1'b0;
-      bresp   <= 2'b00;
-      bid     <= 4'b0;  // 修复：初始化 bid
-      state1  <= 4'd0;
-    end else begin
-      case (state1)
-        4'd0: begin  // 等待 awvalid
-          awready <= 1'b0;
-          wready  <= 1'b0;
-          bvalid  <= 1'b0;
+  // always_ff @(posedge clock or posedge reset) begin
+  //   if (reset) begin
+  //     // 初始化状态和信号
+  //     awready <= 1'b0;
+  //     wready  <= 1'b0;
+  //     bvalid  <= 1'b0;
+  //     bresp   <= 2'b00;
+  //     bid     <= 4'b0;  // 修复：初始化 bid
+  //     state1  <= 4'd0;
+  //   end else begin
+  //     case (state1)
+  //       4'd0: begin  // 等待 awvalid
+  //         awready <= 1'b0;
+  //         wready  <= 1'b0;
+  //         bvalid  <= 1'b0;
 
-          if (awvalid) begin
-            awready <= 1'b1;
-            bid     <= awid;
-            state1  <= 4'd1;
-          end
-        end
+  //         if (awvalid) begin
+  //           awready <= 1'b1;
+  //           bid     <= awid;
+  //           state1  <= 4'd1;
+  //         end
+  //       end
 
-        4'd1: begin  // 等待 wvalid
-          awready <= 1'b0;
+  //       4'd1: begin  // 等待 wvalid
+  //         awready <= 1'b0;
 
-          if (wvalid) begin
-            data_ram_write(awaddr, wdata, wstrb_1);
-            wready <= 1'b1;
-            state1 <= 4'd2;
-          end
-        end
+  //         if (wvalid) begin
+  //           data_ram_write(awaddr, wdata, wstrb_1);
+  //           wready <= 1'b1;
+  //           state1 <= 4'd2;
+  //         end
+  //       end
 
-        4'd2: begin  // 写响应，发射信号并保持直到 bready
-          wready <= 1'b0;
-          bresp  <= 2'b00;  // 响应状态（OKAY）
-          bvalid <= 1'b1;  // 准备写响应
+  //       4'd2: begin  // 写响应，发射信号并保持直到 bready
+  //         wready <= 1'b0;
+  //         bresp  <= 2'b00;  // 响应状态（OKAY）
+  //         bvalid <= 1'b1;  // 准备写响应
 
-          if (bready) begin
-            bvalid <= 1'b0;
-            state1 <= 4'd0;
-          end
-        end
-        default: begin
-        end
-      endcase
-    end
-  end
+  //         if (bready) begin
+  //           bvalid <= 1'b0;
+  //           state1 <= 4'd0;
+  //         end
+  //       end
+  //       default: begin
+  //       end
+  //     endcase
+  //   end
+  // end
 
   // 写通道状态机
-  //   wire [7:0] wstrb_1;
-  //   assign wstrb_1 = {4'b0, wstrb};
+    wire [7:0] wstrb_1;
+    assign wstrb_1 = {4'b0, wstrb};
 
-  //   always_ff @(posedge clock or posedge reset) begin
-  //     if (reset) begin
-  //       awready        <= 1'b0;
-  //       wready         <= 1'b0;
-  //       bvalid         <= 1'b0;
-  //       bresp          <= 2'b00;
-  //       bid            <= 4'b0;
-  //       w_state        <= 4'd0;
-  //       w_beat_count   <= 8'd0;
-  //       w_total_beats  <= 8'd0;
-  //       w_current_addr <= 32'd0;
-  //       w_size         <= 3'd0;
-  //       w_burst_type   <= 2'd0;
-  //     end else begin
-  //       case (w_state)
-  //         4'd0: begin  // 等待 awvalid
-  //           awready <= 1'b0;
-  //           wready  <= 1'b0;
-  //           bvalid  <= 1'b0;
+    always_ff @(posedge clock or posedge reset) begin
+      if (reset) begin
+        awready        <= 1'b0;
+        wready         <= 1'b0;
+        bvalid         <= 1'b0;
+        bresp          <= 2'b00;
+        bid            <= 4'b0;
+        w_state        <= 4'd0;
+        w_beat_count   <= 8'd0;
+        w_total_beats  <= 8'd0;
+        w_current_addr <= 32'd0;
+        w_size         <= 3'd0;
+        w_burst_type   <= 2'd0;
+      end else begin
+        case (w_state)
+          4'd0: begin  // 等待 awvalid
+            awready <= 1'b0;
+            wready  <= 1'b0;
+            bvalid  <= 1'b0;
 
-  //           if (awvalid) begin
-  //             awready        <= 1'b1;
-  //             bid            <= awid;
-  //             w_total_beats  <= awlen + 1;
-  //             w_beat_count   <= 8'd0;
-  //             w_current_addr <= awaddr;
-  //             w_size         <= awsize;
-  //             w_burst_type   <= awburst;
-  //             w_state        <= 4'd1;
-  //           end
-  //         end
+            if (awvalid) begin
+              awready        <= 1'b1;
+              bid            <= awid;
+              w_total_beats  <= awlen + 1;
+              w_beat_count   <= 8'd0;
+              w_current_addr <= awaddr;
+              w_size         <= awsize;
+              w_burst_type   <= awburst;
+              w_state        <= 4'd1;
+            end
+          end
 
-  //         4'd1: begin  // 处理写数据
-  //           awready <= 1'b0;
-  //           wready  <= 1'b1;  // 准备接收写数据
-  //           if (wvalid) begin
-  //             // 执行写操作
-  //             data_ram_write(w_current_addr, wdata, wstrb_1);
+          4'd1: begin  // 处理写数据
+            awready <= 1'b0;
+            wready  <= 1'b1;  // 准备接收写数据
+            if (wvalid) begin
+              // 执行写操作
+              data_ram_write(w_current_addr, wdata, wstrb_1);
 
-  //             if (w_beat_count == (w_total_beats - 1)) begin
-  //               // 最后一个写节拍
-  //               w_state <= 4'd2;  // 转到写响应状态
-  //               wready  <= 1'b0;
-  //             end else begin
-  //               // 不是最后一个节拍，准备下一个
-  //               w_beat_count   <= w_beat_count + 1;
-  //               w_current_addr <= get_next_addr(w_current_addr, w_size, w_burst_type, w_beat_count);
-  //             end
-  //           end
-  //         end
+              if (w_beat_count == (w_total_beats - 1)) begin
+                // 最后一个写节拍
+                w_state <= 4'd2;  // 转到写响应状态
+                wready  <= 1'b0;
+                bvalid <= 1'b1;
+              end else begin
+                // 不是最后一个节拍，准备下一个
+                w_beat_count   <= w_beat_count + 1;
+                w_current_addr <= get_next_addr(w_current_addr, w_size, w_burst_type, w_beat_count);
+              end
+            end
+          end
 
-  //         4'd2: begin  // 写响应
-  //           wready <= 1'b0;
-  //           bresp  <= 2'b00;  // OKAY响应
-  //           bvalid <= 1'b1;
+          4'd2: begin  // 写响应
+            wready <= 1'b0;
+            bresp  <= 2'b00;  // OKAY响应
+            bvalid <= 1'b1;
 
-  //           if (bready) begin
-  //             bvalid  <= 1'b0;
-  //             w_state <= 4'd0;
-  //           end
-  //         end
+            if (bready) begin
+              bvalid  <= 1'b0;
+              w_state <= 4'd0;
+            end
+          end
 
-  //         default: begin
-  //         end
-  //       endcase
-  //     end
-  //   end
+          default: begin
+          end
+        endcase
+      end
+    end
 
 
 

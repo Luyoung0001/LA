@@ -3,8 +3,10 @@ module cache(
         input wire  resetn,
         // to from CPU
         input wire  flush_sign_cancel,
+        input wire  uncache_en,
         input wire  valid,  // 报表明请求有效
         input wire  op,     // 0: read, 1: write
+        input wire  [2:0]  size,
         input wire  [19:0] tag,
         input wire  [7:0]  index,
         input wire  [3:0]  offset,
@@ -26,7 +28,7 @@ module cache(
         input  wire [31:0] ret_data, // axi 返回的数据，这个数据 refill 到 4-way 表中
 
         output reg          wr_req,
-        output wire [2:0]   wr_type,
+        output wire [2:0]   wr_type, // 为了支持 uncache 访问
         output wire [31:0]  wr_addr,
         output wire [3:0]   wr_wstrb,
         output wire [127:0] wr_data, // 发射一个 cache line 到 axi 的 buffer
@@ -60,6 +62,8 @@ module cache(
     reg [ 3:0]  request_buffer_offset;
     reg [ 3:0]  request_buffer_wstrb;
     reg [31:0]  request_buffer_wdata;
+    reg         request_buffer_uncache_en;
+    reg [2:0]   request_buffer_size;
 
     // Miss Buffer
     reg  [1:0]  miss_buffer_ret_num;      // 已经从 AXI 返回了几个字
@@ -141,7 +145,8 @@ module cache(
     assign way_hit[2] = cache_line_2[request_buffer_index][`V] && cache_line_2[request_buffer_index][`Tag] == request_buffer_tag;
     assign way_hit[3] = cache_line_3[request_buffer_index][`V] && cache_line_3[request_buffer_index][`Tag] == request_buffer_tag;
 
-    assign cache_hit = |way_hit;
+    // 考虑到 uncache 访问，如果 uncache_en，那么不应该 hit，直接走 AXI 通道
+    assign cache_hit = (|way_hit) && !request_buffer_uncache_en;
 
     wire [127:
           0] hit_line_data;
@@ -154,10 +159,10 @@ module cache(
     // cache line 的读
     // 根据 index、offset、tag 就应该能立即读出数据
     assign addr_ok = main_state_is_lookup;
-    assign rdata = hit_line_data[request_buffer_offset[3:2]*32+:
-                                 32];
-
-    assign data_ok = (main_state_is_lookup && cache_hit) || (main_state_is_retry && cache_hit);
+    assign rdata = request_buffer_uncache_en ? ret_data : hit_line_data[request_buffer_offset[3:2]*32+:32];
+    // 如果 uncache 访存
+    wire uncache_data_ok = request_buffer_op ? main_state_is_write_back && wr_rdy : main_state_is_refill && ret_valid && ret_last;
+    assign data_ok = request_buffer_uncache_en ? uncache_data_ok : (main_state_is_lookup && cache_hit) || (main_state_is_retry && cache_hit);
 
     // 由于 read 占比高，因此优化优化 read
 
@@ -165,17 +170,31 @@ module cache(
     // 未命中就选一个 replace_way
     // 如果 repalce_way V 有效，或者D，就进入 main_write_back
 
-    assign wr_type  = 3'b100;     //replace cache line
-    assign wr_addr  = {replace_tag, request_buffer_index, 4'b0};
-    assign wr_wstrb = 4'hf;
-    assign wr_data  = replace_data;
+    // 这里仅仅考虑 cache 访问,
+    // 如果考虑到 uncache 访问, 那么wr_type 需要根据具体的请求来决定
+    // assign wr_type  = 3'b100;     //replace cache line
+    // assign wr_addr  = {replace_tag, request_buffer_index, 4'b0};
+    // assign wr_wstrb = 4'hf;
+    // assign wr_data  = replace_data;
+
+    assign wr_type  = request_buffer_uncache_en ? request_buffer_size : 3'b100;
+    assign wr_addr  = request_buffer_uncache_en ? {request_buffer_tag, request_buffer_index, request_buffer_offset} :
+           {replace_tag, request_buffer_index, 4'b0};
+    assign wr_wstrb = request_buffer_uncache_en ? request_buffer_wstrb : 4'hf;
+    assign wr_data  = request_buffer_uncache_en ? {96'b0, request_buffer_wdata} : replace_data;
+
+
 
     // 否则，进入 main_replace
     assign rd_req = (main_state_is_replace || main_state_is_refill);
 
     // for icache, rd_type always be b100, but for dcache, things will be different.
-    assign rd_type = 3'b100; // 16B
-    assign rd_addr = {request_buffer_tag, request_buffer_index, 4'b0}; // 16B 对齐
+    // assign rd_type = 3'b100; // 16B
+    // assign rd_addr = {request_buffer_tag, request_buffer_index, 4'b0}; // 16B 对齐
+    // for icache, rd_type always be b100, but for dcache, things will be different.
+    assign rd_type = request_buffer_uncache_en ? request_buffer_size : 3'b100;
+    assign rd_addr = request_buffer_uncache_en ? {request_buffer_tag, request_buffer_index, request_buffer_offset} : {request_buffer_tag, request_buffer_index, 4'b0};
+
 
     // 接着就可以回填了，main_refill
     // 这里要更新的数据有 tag、D、V、data 等等
@@ -208,9 +227,10 @@ module cache(
 
     integer i;
 
+    // 如果是 uncache，不更新 cache ，仅仅利用 axi_cache 读写通道就行
     always @(posedge clk) begin
         // 如果重填完成，就可以就 refill_data 填到对应的 way 了
-        if(refill_done) begin
+        if(refill_done && !request_buffer_uncache_en) begin
             cache_line_0[request_buffer_index][`Data] <= replace_way[0] ? refill_data : cache_line_0[request_buffer_index][`Data];
             cache_line_1[request_buffer_index][`Data] <= replace_way[1] ? refill_data : cache_line_1[request_buffer_index][`Data];
             cache_line_2[request_buffer_index][`Data] <= replace_way[2] ? refill_data : cache_line_2[request_buffer_index][`Data];
@@ -232,7 +252,7 @@ module cache(
             cache_line_3[request_buffer_index][`D]   <= replace_way[3] ? 1'b0 : cache_line_3[request_buffer_index][`D];
         end
         // 如果写命中， 只需要更新 data、D
-        if(main_state_is_write) begin
+        if(main_state_is_write && !request_buffer_uncache_en) begin
             cache_line_0[request_buffer_index][`Data] <= way_hit[0] ? write_hit_data : cache_line_0[request_buffer_index][`Data];
             cache_line_1[request_buffer_index][`Data] <= way_hit[1] ? write_hit_data : cache_line_1[request_buffer_index][`Data];
             cache_line_2[request_buffer_index][`Data] <= way_hit[2] ? write_hit_data : cache_line_2[request_buffer_index][`Data];
@@ -249,7 +269,6 @@ module cache(
 
     wire req_or_inst_valid;
     assign req_or_inst_valid = valid;
-
 
     // 初始化，暂时过仿真
     initial begin
@@ -273,6 +292,9 @@ module cache(
             request_buffer_offset     <=  4'b0;
             request_buffer_wstrb      <=  4'b0;
             request_buffer_wdata      <= 32'b0;
+
+            request_buffer_uncache_en  <= 1'b0;
+            request_buffer_size        <= 3'd0;
         end
         else if (flush_sign_cancel) begin
             // 请求取消
@@ -289,9 +311,13 @@ module cache(
                     request_buffer_op         <= op;
                     request_buffer_tag        <= tag;
                     request_buffer_index      <= index;
-                    request_buffer_offset     <= offset;
+                    request_buffer_offset     <= {offset[3:2],2'd0};
+                    // request_buffer_offset     <= offset;
                     request_buffer_wstrb      <= wstrb;
                     request_buffer_wdata      <= wdata;
+
+                    request_buffer_uncache_en  <= uncache_en;
+                    request_buffer_size        <= size;
                 end
             end
             main_lookup: begin
@@ -303,8 +329,17 @@ module cache(
                     main_state <= main_write;
                 end
                 else if(!cache_hit) begin
+                    // 如果这里是 uncache write, 应该 write/read through
+                    if (request_buffer_uncache_en && !request_buffer_op) begin
+                        // 复用 axi_cache 的读取通道
+                        main_state <= main_replace;
+                    end
+                    else if (request_buffer_uncache_en && request_buffer_op) begin
+                        // 复用 axi_cache 的写通道
+                        main_state <= main_write_back;
+                    end
                     // 如果没有命中，应该进行替换，但是替换前要判断 replace_d、replace_v 的状态
-                    if (replace_d && replace_v) begin
+                    else if (replace_d && replace_v) begin
                         // 如果被替换的 way 脏位有效且有效位有效，就进入 main_write_back 状态
                         main_state <= main_write_back;
                     end
@@ -325,10 +360,15 @@ module cache(
                     wr_req <= 1'b1;
                 end
             end
-
             main_replace: begin
+                // uncache 访问
+                // 取消写请求、状态机置到空闲
+                if (request_buffer_uncache_en && request_buffer_op) begin
+                    wr_req <= 1'b0;
+                    main_state <= main_idle;
+                end
                 // 回填 cache line 之前需要从 axi 获取 4 个字
-                if(rd_rdy) begin
+                else if(rd_rdy) begin
                     // 如果 axi 缓存准备好了数据，就可以进入 main_refill
                     main_state <= main_refill;
                     miss_buffer_ret_num <= 2'b0; // 开始计数
@@ -338,10 +378,17 @@ module cache(
             end
             main_refill: begin
                 if (ret_valid && ret_last) begin
-                    // 如果传送完成，retry
-                    main_state <= main_retry;
-                    refill_done <= 1'b1;
-                    main_refill_data_buffer[miss_buffer_ret_num] <= ret_data;
+                    // 如果是 uncache 的 read，就可以返回了
+                    if (request_buffer_uncache_en && !request_buffer_op) begin
+                        main_state <= main_idle;
+                    end
+
+                    else begin
+                        // 如果传送完成，retry
+                        main_state <= main_retry;
+                        refill_done <= 1'b1;
+                        main_refill_data_buffer[miss_buffer_ret_num] <= ret_data;
+                    end
                 end
                 else begin
                     if (ret_valid) begin

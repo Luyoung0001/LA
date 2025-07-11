@@ -840,15 +840,15 @@ module sram_like_to_axi_bridge(
         input   wire [127:0] icache_wr_data,
         output  wire         icache_wr_rdy,
 
-        input wire          data_sram_req,
-        input wire          data_sram_wr,
-        input wire [1:0]    data_sram_size,
-        input wire [3:0]    data_sram_wstrb,
-        input wire [31:0]   data_sram_addr,
-        input wire [31:0]   data_sram_wdata,
-        output  wire        data_sram_addr_ok,
-        output  wire        data_sram_data_ok,
-        output  wire [31:0] data_sram_rdata,
+        // input wire          data_sram_req,
+        // input wire          data_sram_wr,
+        // input wire [1:0]    data_sram_size,
+        // input wire [3:0]    data_sram_wstrb,
+        // input wire [31:0]   data_sram_addr,
+        // input wire [31:0]   data_sram_wdata,
+        // output  wire        data_sram_addr_ok,
+        // output  wire        data_sram_data_ok,
+        // output  wire [31:0] data_sram_rdata,
 
         // dcache
         input   wire        dcache_rd_req,
@@ -963,14 +963,20 @@ module sram_like_to_axi_bridge(
     wire [2:0] data_real_rd_size  = data_rd_cache_line ? 3'b10 : dcache_rd_type;
     wire [7:0] data_real_rd_len   = data_rd_cache_line ? 8'b11 : 8'b0;
 
+    // dcache write
+    wire data_wr_cache_line = dcache_wr_type == 3'b100;
+    wire [2:0] data_real_wr_size  = data_wr_cache_line ? 3'b10 : dcache_wr_type;
+    wire [7:0] data_real_wr_len   = data_wr_cache_line ? 8'b11 : 8'b0;
+
     // Read/write arbitration logic
     wire inst_read_request;
     wire data_read_request;
     wire data_write_request;
 
     assign inst_read_request = icache_rd_req;
-    assign data_read_request = data_sram_req && !data_sram_wr && !inst_read_request; // inst_fetch has the priority
-    assign data_write_request = data_sram_req && data_sram_wr;
+    // assign data_read_request = data_sram_req && !data_sram_wr && !inst_read_request; // inst_fetch has the priority
+    assign data_read_request = dcache_rd_req && !dcache_wr_req && !inst_read_request; // inst_fetch has the priority
+    assign data_write_request = dcache_wr_req; // 阻塞式访问，data_write 和 data_read 不会同时发生
 
     // Handshake signals
     reg inst_addr_accepted;
@@ -989,11 +995,11 @@ module sram_like_to_axi_bridge(
 
     // SRAM interface status signals
     // assign inst_sram_addr_ok = inst_addr_accepted;
-    assign data_sram_addr_ok = data_addr_accepted;
+    // assign data_sram_addr_ok = data_addr_accepted;
     // assign inst_sram_data_ok = inst_data_received;
-    assign data_sram_data_ok = data_data_received || data_write_done;
+    // assign data_sram_data_ok = data_data_received || data_write_done;
     // assign inst_sram_rdata = inst_read_data;
-    assign data_sram_rdata = data_read_data;
+    // assign data_sram_rdata = data_read_data;
 
 
     // ======================= icache =======================
@@ -1015,6 +1021,7 @@ module sram_like_to_axi_bridge(
 
     // =======================dcache =======================
     assign dcache_rd_rdy = data_state == IDLE;
+    assign dcache_wr_rdy = !(handling_inst_request || inst_read_request) && data_state == IDLE;
     assign dcache_ret_valid = rvalid && rid[0] == 1'b1;
     assign dcache_ret_last = rlast;
     assign dcache_ret_data = rdata;
@@ -1106,6 +1113,11 @@ module sram_like_to_axi_bridge(
     end
 
     // Main FSM for data requests
+    reg [127:0] write_buffer_data;
+    reg [ 2:0]  write_buffer_num;
+
+    wire write_buffer_last = write_buffer_num == 3'b1;
+
     always @(posedge clk) begin
         if (rst) begin
             data_state <= IDLE;
@@ -1130,6 +1142,9 @@ module sram_like_to_axi_bridge(
             data_beat_count <= 8'd0;
             data_total_beats <= 8'd0;
             data_burst_complete <= 1'b0;
+
+            write_buffer_data  <= 128'b0;
+            write_buffer_num   <= 3'b0;
         end
         else begin
             // Reset per-cycle signals
@@ -1150,7 +1165,7 @@ module sram_like_to_axi_bridge(
                             data_arsize <= data_real_rd_size;
                             data_arlen <= data_real_rd_len;
 
-                            data_total_beats <= data_total_beats + 1;
+                            data_total_beats <= data_real_rd_len + 1;
                             data_beat_count <= 8'd0;
                         end
                         else if (data_write_request) begin
@@ -1158,9 +1173,9 @@ module sram_like_to_axi_bridge(
                             handling_data_request <= 1'b1;
 
                             awvalid <= 1'b1;
-                            awaddr <= data_sram_addr;
-                            awsize <= convert_size(data_sram_size);
-                            awlen <= 8'b00000000; // Single transfer
+                            awaddr <= dcache_wr_addr;
+                            awsize <= data_real_wr_size;
+                            awlen <= data_real_wr_len;
                         end
                     end
                 end
@@ -1180,9 +1195,11 @@ module sram_like_to_axi_bridge(
                     end
                 end
                 READ_DATA: begin
+                    data_rready <= 1'b1;
                     if (rvalid && rid[0] == 1'b1) begin  // check if it's data read (rid[0] = 1)
                         data_data_received <= 1'b1;
                         // data_read_data <= rdata;
+                        data_beat_count <= data_beat_count + 1;
                         if (rlast || (data_beat_count == (data_total_beats - 1))) begin
                             data_rready <= 1'b0;
                             data_state <= IDLE;
@@ -1192,32 +1209,55 @@ module sram_like_to_axi_bridge(
                         end
                     end
                 end
+                // *************************************WRITE*************************************
                 WRITE_ADDR: begin
                     awvalid <= 1'b1;
-                    awaddr <= data_sram_addr;
-                    awsize <= convert_size(data_sram_size);
-                    awlen <= 8'b00000000; // Single transfer
+                    awaddr <= dcache_wr_addr;
+                    awsize <= data_real_wr_size;
+                    awlen <= data_real_wr_len;
 
                     if (awready) begin
                         awvalid <= 1'b0;
                         data_state <= WRITE_DATA;
                         data_addr_accepted <= 1'b1;
                         wvalid <= 1'b1;
-                        wdata <= data_sram_wdata;
-                        wstrb <= data_sram_wstrb;
-                        wlast <= 1'b1; // Single transfer
+                        wdata <= dcache_wr_data[31:0];  //from write 128 bit buffer
+                        wstrb <= dcache_wr_wstrb;
+
+                        write_buffer_data <= {32'b0, dcache_wr_data[127:32]};
+                        // if write cache line, we need to write 4 beats
+                        if (dcache_wr_type == 3'b100) begin
+                            write_buffer_num <= 3'b011;
+                        end
+                        // or just write 1 beat
+                        else begin
+                            write_buffer_num <= 3'b0;
+                            wlast <= 1'b1;
+                        end
+
                     end
                 end
-
                 WRITE_DATA: begin
                     if (wready) begin
-                        wvalid <= 1'b0;
-                        wlast <= 1'b0;
-                        data_state <= WRITE_RESP;
-                        bready <= 1'b1;
+                        if (wlast) begin
+                            data_state <= WRITE_RESP;
+                            wvalid <= 1'b0;
+                            wlast <= 1'b0;
+                            bready <= 1'b1;
+                        end
+                        else begin
+                            if (write_buffer_last) begin
+                                wlast <= 1'b1;
+                            end
+                            data_state <= WRITE_DATA;
+
+                            wdata   <= write_buffer_data[31:0];
+                            wvalid  <= 1'b1;
+                            write_buffer_data <= {32'b0, write_buffer_data[127:32]};
+                            write_buffer_num  <= write_buffer_num - 3'b1;
+                        end
                     end
                 end
-
                 WRITE_RESP: begin
                     if (bvalid) begin
                         bready <= 1'b0;

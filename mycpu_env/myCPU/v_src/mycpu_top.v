@@ -161,12 +161,21 @@ module core_top
     wire        data_sram_data_ok;
     wire [31:0] data_sram_rdata;
 
+    // icache
     wire        icache_rd_rdy;
     wire        icache_ret_valid;
     wire        icache_ret_last;
     wire [31:0] icache_ret_data;
 
     wire        icache_wr_rdy;
+
+    // dcache
+    wire        dcache_rd_rdy;
+    wire        dcache_ret_valid;
+    wire        dcache_ret_last;
+    wire [31:0] dcache_ret_data;
+
+    wire        dcache_wr_rdy;
 
 
     // AXI-XBar Bridge
@@ -202,15 +211,31 @@ module core_top
                                 .icache_wr_rdy(icache_wr_rdy),
 
                                 // Data SRAM interface
-                                .data_sram_req  (data_sram_req),
-                                .data_sram_wr   (data_sram_wr),
-                                .data_sram_size (data_sram_size),
-                                .data_sram_wstrb(data_sram_wstrb),
-                                .data_sram_addr (data_sram_addr),
-                                .data_sram_wdata(data_sram_wdata),
-                                .data_sram_addr_ok(data_sram_addr_ok),
-                                .data_sram_data_ok(data_sram_data_ok),
-                                .data_sram_rdata(data_sram_rdata),
+                                // .data_sram_req  (data_sram_req),
+                                // .data_sram_wr   (data_sram_wr),
+                                // .data_sram_size (data_sram_size),
+                                // .data_sram_wstrb(data_sram_wstrb),
+                                // .data_sram_addr (data_sram_addr),
+                                // .data_sram_wdata(data_sram_wdata),
+                                // .data_sram_addr_ok(data_sram_addr_ok),
+                                // .data_sram_data_ok(data_sram_data_ok),
+                                // .data_sram_rdata(data_sram_rdata),
+
+                                // dcache
+                                .dcache_rd_req(dcache_rd_req),
+                                .dcache_rd_type(dcache_rd_type),
+                                .dcache_rd_addr(dcache_rd_addr),
+                                .dcache_rd_rdy(dcache_rd_rdy),
+                                .dcache_ret_valid(dcache_ret_valid),
+                                .dcache_ret_last(dcache_ret_last),
+                                .dcache_ret_data(dcache_ret_data),
+
+                                .dcache_wr_req(dcache_wr_req),
+                                .dcache_wr_type(dcache_wr_type),
+                                .dcache_wr_addr(dcache_wr_addr),
+                                .dcache_wr_wstrb(dcache_wr_wstrb),
+                                .dcache_wr_data(dcache_wr_data),
+                                .dcache_wr_rdy(dcache_wr_rdy),
 
                                 // AXI Interface
                                 .arid           (arid),
@@ -283,6 +308,7 @@ module core_top
     // icache
     wire ifu_icache_valid;
     wire ifu_icache_op;
+    wire [2:0] ifu_icache_size;
     wire [19:0] ifu_icache_tag;
     wire [7:0] ifu_icache_index;
     wire [3:0] ifu_icache_offset;
@@ -290,8 +316,6 @@ module core_top
     wire [3:0] ifu_icache_wstrb;
     wire [31:0] ifu_icache_wdata;
     wire ifu_flush_sign_cancel;
-
-
 
     // IDU signals
     wire [33:0]  idu_bus_br_data;
@@ -383,7 +407,18 @@ module core_top
     wire [32:0] mem_inst_ld;
     wire [1:0] mem_inst_sc;
 
+    // dcache
+    wire mem_dcache_valid;
+    wire mem_dcache_op;
+    wire [2:0] mem_dcache_size;
+    wire [19:0] mem_dcache_tag;
+    wire [7:0] mem_dcache_index;
+    wire [3:0] mem_dcache_offset;
 
+    wire [3:0] mem_dcache_wstrb;
+    wire [31:0] mem_dcache_wdata;
+    wire mem_flush_sign_cancel;
+    wire mem_data_uncache_en;
 
 
     // WBU signals
@@ -535,8 +570,8 @@ module core_top
     wire icache_data_ok;
     wire [31:0] icache_rdata;
 
-    wire icache_rd_req;
-    wire [2:0] icache_rd_type;
+    wire        icache_rd_req;
+    wire [2:0]  icache_rd_type;
     wire [31:0] icache_rd_addr;
 
     wire        icache_wr_req;
@@ -544,6 +579,22 @@ module core_top
     wire [31:0] icache_wr_addr;
     wire [3:0]  icache_wr_wstrb;
     wire [127:0] icache_wr_data;
+
+
+    // dcache
+    wire dcache_addr_ok;
+    wire dcache_data_ok;
+    wire [31:0] dcache_rdata;
+
+    wire        dcache_rd_req;
+    wire [2:0]  dcache_rd_type;
+    wire [31:0] dcache_rd_addr;
+
+    wire        dcache_wr_req;
+    wire [2:0]  dcache_wr_type;
+    wire [31:0] dcache_wr_addr;
+    wire [3:0]  dcache_wr_wstrb;
+    wire [127:0] dcache_wr_data;
 
 
     // Module Instantiations
@@ -625,6 +676,7 @@ module core_top
 
             .icache_valid(ifu_icache_valid),
             .icache_op(ifu_icache_op),
+            .icache_size(ifu_icache_size),
             .icache_tag(ifu_icache_tag),
             .icache_index(ifu_icache_index),
             .icache_offset(ifu_icache_offset),
@@ -901,18 +953,35 @@ module core_top
             .es_alu_result_i(exu_alu_result_o),
 
             // SRAM接口
-            .req(data_sram_req),
-            .wr(data_sram_wr),
-            .size(data_sram_size),
-            .wstrb(data_sram_wstrb),
-            .addr(data_sram_addr),
-            .wdata(data_sram_wdata),
-            .addr_ok(data_sram_addr_ok),
-            .data_ok(data_sram_data_ok),
-            .rdata(data_sram_rdata),
+            // .req(data_sram_req),
+            // .wr(data_sram_wr),
+            // .size(data_sram_size),
+            // .wstrb(data_sram_wstrb),
+            // .addr(data_sram_addr),
+            // .wdata(data_sram_wdata),
+            // .addr_ok(data_sram_addr_ok),
+            // .data_ok(data_sram_data_ok),
+            // .rdata(data_sram_rdata),
+
+            .dcache_valid(mem_dcache_valid),
+            .dcache_op(mem_dcache_op),
+            .dcache_size(mem_dcache_size),
+            .dcache_tag(mem_dcache_tag),
+            .dcache_index(mem_dcache_index),
+            .dcache_offset(mem_dcache_offset),
+            .flush_sign_cancel(mem_flush_sign_cancel),
+
+            .dcache_wstrb(mem_dcache_wstrb),
+            .dcache_wdata(mem_dcache_wdata),
+
+            .dcache_addr_ok(dcache_addr_ok),
+            .dcache_data_ok(dcache_data_ok),
+            .dcache_rdata(dcache_rdata),
+
+            .data_uncache_en(mem_data_uncache_en),
 
             // from csr
-            // CSR寄存器输入
+            .csr_datm(csr_datm_out),
             .csr_plv(csr_plv_out),
             .csr_dmw0(csr_dmw0_out),
             .csr_dmw1(csr_dmw1_out),
@@ -1367,8 +1436,10 @@ module core_top
               .resetn(aresetn),
               // ifu
               .flush_sign_cancel(ifu_flush_sign_cancel),
+              .uncache_en(),
               .valid(ifu_icache_valid),
               .op(ifu_icache_op),
+              .size(ifu_icache_size),
               .tag(ifu_icache_tag),
               .index(ifu_icache_index),
               .offset(ifu_icache_offset),
@@ -1397,39 +1468,40 @@ module core_top
           );
     // 后期的工作，应该在 MEM 中发起内存访问
     // 因此d cache 的访问接口应该放在 MEM 中
-    // cache dcache(
-    //           .clk(aclk),
-    //           .resetn(aresetn),
-    //           // ifu
-    //           .flush_sign_cancel(ifu_flush_sign_cancel),
-    //           .valid(ifu_icache_valid),
-    //           .op(ifu_icache_op),
-    //           .tag(ifu_icache_tag),
-    //           .index(ifu_icache_index),
-    //           .offset(ifu_icache_offset),
-    //           .wstrb(ifu_icache_wstrb),
-    //           .wdata(ifu_icache_wdata),
+    cache dcache(
+              .clk(aclk),
+              .resetn(aresetn),
+              // ifu
+              .flush_sign_cancel(mem_flush_sign_cancel),
+              .uncache_en(mem_data_uncache_en),
+              .valid(mem_dcache_valid),
+              .op(mem_dcache_op),
+              .size(mem_dcache_size),
+              .tag(mem_dcache_tag),
+              .index(mem_dcache_index),
+              .offset(mem_dcache_offset),
+              .wstrb(mem_dcache_wstrb),
+              .wdata(mem_dcache_wdata),
 
-    //           .addr_ok(icache_addr_ok),
-    //           .data_ok(icache_data_ok),
-    //           .rdata(icache_rdata),
-    //           // axi
-    //           .rd_req(icache_rd_req),
-    //           .rd_type(icache_rd_type),
-    //           .rd_addr(icache_rd_addr),
-    //           .rd_rdy(icache_rd_rdy),
-    //           .ret_valid(icache_ret_valid),
-    //           .ret_last(icache_ret_last),
-    //           .ret_data(icache_ret_data),
+              .addr_ok(dcache_addr_ok),
+              .data_ok(dcache_data_ok),
+              .rdata(dcache_rdata),
+              // axi
+              .rd_req(dcache_rd_req),
+              .rd_type(dcache_rd_type),
+              .rd_addr(dcache_rd_addr),
+              .rd_rdy(dcache_rd_rdy),
+              .ret_valid(dcache_ret_valid),
+              .ret_last(dcache_ret_last),
+              .ret_data(dcache_ret_data),
 
-
-    //           .wr_req(icache_wr_req),
-    //           .wr_type(icache_wr_type),
-    //           .wr_addr(icache_wr_addr),
-    //           .wr_wstrb(icache_wr_wstrb),
-    //           .wr_data(icache_wr_data),
-    //           .wr_rdy(icache_wr_rdy)
-    //       );
+              .wr_req(dcache_wr_req),
+              .wr_type(dcache_wr_type),
+              .wr_addr(dcache_wr_addr),
+              .wr_wstrb(dcache_wr_wstrb),
+              .wr_data(dcache_wr_data),
+              .wr_rdy(dcache_wr_rdy)
+          );
     assign debug0_wb_pc = wbu_pc;
     assign debug0_wb_rf_wen = {4{wbu_rf_we}};
     assign debug0_wb_rf_wnum = wbu_rf_waddr;
