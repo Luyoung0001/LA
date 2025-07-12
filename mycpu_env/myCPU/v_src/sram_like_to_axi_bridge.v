@@ -964,8 +964,9 @@ module sram_like_to_axi_bridge(
     wire [7:0] data_real_rd_len   = data_rd_cache_line ? 8'b11 : 8'b0;
 
     // dcache write
-    wire data_wr_cache_line = dcache_wr_type == 3'b100;
-    wire [2:0] data_real_wr_size  = data_wr_cache_line ? 3'b10 : dcache_wr_type;
+    // 这里使用 buffer 中存储的数据
+    wire data_wr_cache_line = dcache_wr_type_buffer == 3'b100;
+    wire [2:0] data_real_wr_size  = data_wr_cache_line ? 3'b10 : dcache_wr_type_buffer;
     wire [7:0] data_real_wr_len   = data_wr_cache_line ? 8'b11 : 8'b0;
 
     // Read/write arbitration logic
@@ -1113,10 +1114,16 @@ module sram_like_to_axi_bridge(
     end
 
     // Main FSM for data requests
-    reg [127:0] write_buffer_data;
     reg [ 2:0]  write_buffer_num;
 
     wire write_buffer_last = write_buffer_num == 3'b1;
+
+    // 在 awready 有效之前，为了确保一些写信息不改变，这里引入 buffer
+    reg [2:0]  dcache_wr_type_buffer;
+    reg [31:0] dcache_wr_addr_buffer;
+    reg [3:0]  dcache_wr_wstrb_buffer;
+    reg [127:0] write_buffer_data;
+
 
     always @(posedge clk) begin
         if (rst) begin
@@ -1145,6 +1152,12 @@ module sram_like_to_axi_bridge(
 
             write_buffer_data  <= 128'b0;
             write_buffer_num   <= 3'b0;
+
+            dcache_wr_type_buffer <= 3'd0;
+            dcache_wr_addr_buffer <= 32'd0;
+            dcache_wr_wstrb_buffer <= 4'd0;
+
+
         end
         else begin
             // Reset per-cycle signals
@@ -1176,6 +1189,12 @@ module sram_like_to_axi_bridge(
                             awaddr <= dcache_wr_addr;
                             awsize <= data_real_wr_size;
                             awlen <= data_real_wr_len;
+
+                            // 缓存起来，防止下一个事务干扰
+                            write_buffer_data <= dcache_wr_data;
+                            dcache_wr_type_buffer <= dcache_wr_type;
+                            dcache_wr_addr_buffer <= dcache_wr_addr;
+                            dcache_wr_wstrb_buffer <= dcache_wr_wstrb;
                         end
                     end
                 end
@@ -1212,7 +1231,11 @@ module sram_like_to_axi_bridge(
                 // *************************************WRITE*************************************
                 WRITE_ADDR: begin
                     awvalid <= 1'b1;
-                    awaddr <= dcache_wr_addr;
+                    // awaddr <= dcache_wr_addr;
+                    // awsize <= data_real_wr_size;
+                    // awlen <= data_real_wr_len;
+
+                    awaddr <= dcache_wr_addr_buffer;
                     awsize <= data_real_wr_size;
                     awlen <= data_real_wr_len;
 
@@ -1221,10 +1244,11 @@ module sram_like_to_axi_bridge(
                         data_state <= WRITE_DATA;
                         data_addr_accepted <= 1'b1;
                         wvalid <= 1'b1;
-                        wdata <= dcache_wr_data[31:0];  //from write 128 bit buffer
-                        wstrb <= dcache_wr_wstrb;
+                        wdata <= write_buffer_data[31:0];  //from write 128 bit buffer
+                        // wstrb <= dcache_wr_wstrb;
+                        wstrb <= dcache_wr_wstrb_buffer;
 
-                        write_buffer_data <= {32'b0, dcache_wr_data[127:32]};
+                        write_buffer_data <= {32'b0, write_buffer_data[127:32]};
                         // if write cache line, we need to write 4 beats
                         if (dcache_wr_type == 3'b100) begin
                             write_buffer_num <= 3'b011;
@@ -1273,8 +1297,8 @@ module sram_like_to_axi_bridge(
         end
     end
 
-    assign  arvalid = inst_arvalid || data_arvalid;
-    assign  araddr = handling_inst_request ? inst_araddr : data_araddr;
+    assign arvalid = inst_arvalid || data_arvalid;
+    assign araddr = handling_inst_request ? inst_araddr : data_araddr;
     assign arid = handling_inst_request ? inst_arid : data_arid;
     assign arsize = handling_inst_request ? inst_arsize : data_arsize;
     assign arlen = handling_inst_request ? inst_arlen : data_arlen;

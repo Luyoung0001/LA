@@ -398,7 +398,7 @@ module cache(
                 end
             end
             main_retry: begin
-                // 肯定 cache_hit
+                // 此时已经经过了重填，肯定 cache_hit
                 if(!request_buffer_op && cache_hit) begin
                     main_state <= main_idle;
                 end
