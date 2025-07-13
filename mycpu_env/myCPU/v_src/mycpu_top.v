@@ -1102,7 +1102,8 @@ module core_top
             .idle_flush(wbu_idle_flush),
 
             .bar_i(exu_bar_o),
-            .bar_o(mem_bar_o)
+            .bar_o(mem_bar_o),
+            .disable_cache(1'b0)
         );
 
     wire wbu_cmt_tlbfill_en;

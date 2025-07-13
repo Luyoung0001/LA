@@ -191,7 +191,9 @@ module MEM
          input wire idle_flush,
 
          input wire [1:0] bar_i,
-         output wire [1:0] bar_o
+         output wire [1:0] bar_o,
+
+         input wire disable_cache //debug
      );
 
     wire req; // en
@@ -664,7 +666,7 @@ module MEM
     assign data_uncache_en = (da_mode && (csr_datm == 2'b0))                 ||
            (data_dmw0_en && (csr_dmw0[`DMW_MAT] == 2'b0))       ||
            (data_dmw1_en && (csr_dmw1[`DMW_MAT] == 2'b0))       ||
-           (data_addr_trans_en && (data_tlb_mat == 2'b0));
+           (data_addr_trans_en && (data_tlb_mat == 2'b0)) || disable_cache;
 
 
     // for tlbsrch

@@ -1250,7 +1250,7 @@ module sram_like_to_axi_bridge(
 
                         write_buffer_data <= {32'b0, write_buffer_data[127:32]};
                         // if write cache line, we need to write 4 beats
-                        if (dcache_wr_type == 3'b100) begin
+                        if (dcache_wr_type_buffer == 3'b100) begin
                             write_buffer_num <= 3'b011;
                         end
                         // or just write 1 beat
@@ -1290,7 +1290,6 @@ module sram_like_to_axi_bridge(
                         handling_data_request <= 1'b0;
                     end
                 end
-
                 default:
                     data_state <= IDLE;
             endcase

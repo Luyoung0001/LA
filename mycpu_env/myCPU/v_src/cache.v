@@ -159,7 +159,7 @@ module cache(
     // cache line 的读
     // 根据 index、offset、tag 就应该能立即读出数据
     assign addr_ok = main_state_is_lookup;
-    assign rdata = request_buffer_uncache_en ? ret_data : hit_line_data[request_buffer_offset[3:2]*32+:32];
+    assign rdata = request_buffer_uncache_en ? uncache_rdata_wire : hit_line_data[request_buffer_offset[3:2]*32+:32];
     // 如果 uncache 访存
     wire uncache_data_ok = request_buffer_op ? main_state_is_write_back && wr_rdy : main_state_is_refill && ret_valid && ret_last;
     assign data_ok = request_buffer_uncache_en ? uncache_data_ok : (main_state_is_lookup && cache_hit) || (main_state_is_retry && cache_hit);
@@ -186,7 +186,10 @@ module cache(
 
 
     // 否则，进入 main_replace
-    assign rd_req = (main_state_is_replace || main_state_is_refill);
+    // 如果是 uncache 访问，只有uncache read 的时候，才发送 rd_req 请求
+    assign rd_req = request_buffer_uncache_en ? !request_buffer_op && (main_state_is_replace || main_state_is_refill) : (main_state_is_replace || main_state_is_refill);
+
+
 
     // for icache, rd_type always be b100, but for dcache, things will be different.
     // assign rd_type = 3'b100; // 16B
@@ -219,10 +222,10 @@ module cache(
                               (request_buffer_wstrb[0] ? request_buffer_wdata[ 7: 0] : replaced_word[ 7: 0])};
 
     wire [127:0] write_hit_data = {
-             (request_buffer_offset == 4'hc) ? final_word : hit_line_data[127:96],
-             (request_buffer_offset == 4'h8) ? final_word : hit_line_data[95:64],
-             (request_buffer_offset == 4'h4) ? final_word : hit_line_data[63:32],
-             (request_buffer_offset == 4'h0) ? final_word : hit_line_data[31:0]
+             ({request_buffer_offset[3:2],2'b0} == 4'hc) ? final_word : hit_line_data[127:96],
+             ({request_buffer_offset[3:2],2'b0} == 4'h8) ? final_word : hit_line_data[95:64],
+             ({request_buffer_offset[3:2],2'b0} == 4'h4) ? final_word : hit_line_data[63:32],
+             ({request_buffer_offset[3:2],2'b0} == 4'h0) ? final_word : hit_line_data[31:0]
          };
 
     integer i;
@@ -269,6 +272,9 @@ module cache(
 
     wire req_or_inst_valid;
     assign req_or_inst_valid = valid;
+    // 这个 buffer 是为了将最后返回的数据锁存起来以防止 axi_rdata 对 mem_rdata 的干扰
+    reg [31:0]  uncache_data_buffer;
+    wire [31:0] uncache_rdata_wire = request_buffer_uncache_en && ret_valid && ret_last ? ret_data : uncache_data_buffer;
 
     // 初始化，暂时过仿真
     initial begin
@@ -311,8 +317,8 @@ module cache(
                     request_buffer_op         <= op;
                     request_buffer_tag        <= tag;
                     request_buffer_index      <= index;
-                    request_buffer_offset     <= {offset[3:2],2'd0};
-                    // request_buffer_offset     <= offset;
+                    // request_buffer_offset     <= {offset[3:2],2'd0};
+                    request_buffer_offset     <= offset;
                     request_buffer_wstrb      <= wstrb;
                     request_buffer_wdata      <= wdata;
 
@@ -381,6 +387,7 @@ module cache(
                     // 如果是 uncache 的 read，就可以返回了
                     if (request_buffer_uncache_en && !request_buffer_op) begin
                         main_state <= main_idle;
+                        uncache_data_buffer <= ret_data;
                     end
 
                     else begin

@@ -259,11 +259,6 @@ module verilator_top(
                 .bvalid         (wire_bvalid),
                 .bready         (wire_bready),
                 .bid            (wire_bid)
-
             );
-
-
-
-
 endmodule
 
