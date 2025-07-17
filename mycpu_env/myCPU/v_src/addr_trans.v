@@ -6,6 +6,7 @@ module addr_trans
      )
      (
          input                  clk                  ,
+         input                  rst                  ,
          //inst addr trans
          input                  inst_addr_trans_en   ,
          input  [ 9:0]          inst_asid            ,
@@ -161,6 +162,7 @@ module addr_trans
 
     tlb #(TLBNUM) blt_o(
              .clk            (clk            ),
+             .rst            (rst            ),
              // search port 0
              .s0_vppn        (s0_vppn        ),
              .s0_va_bit12    (s0_va_bit12    ),
@@ -237,6 +239,7 @@ module addr_trans
 
     assign data_pg_mode = !data_da && data_pg;
     assign data_da_mode = data_da && !data_pg;
+
     // 在映射地址翻译模式下, 地址翻译时将优先看其能否按照直接映射
     // 模式进行地址翻译, 无法进行后再通过页表映射模式进行翻译。
     assign inst_paddr = (inst_pg_mode && inst_dmw0_en) ? {inst_dmw0[`PSEG], inst_vaddr[28:0]} :

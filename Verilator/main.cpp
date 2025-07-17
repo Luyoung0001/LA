@@ -97,17 +97,17 @@ void step() {
         start_time = temp_i - 5000;
     }
 
-    if (i >= start_time) {
+    // if (i >= start_time) {
         tfp->dump(main_time);
         main_time++;
-    }
+    // }
     top->clk = 1;
     top->eval();
 
-    if (i >= start_time) {
+    // if (i >= start_time) {
         tfp->dump(main_time);
         main_time++;
-    }
+    // }
 }
 void reset(int n) {
     top->rst = 1;
@@ -537,7 +537,7 @@ int main(int argc, char* argv[]) {
     tfp->open("wave.vcd");
     reset(1);
     // cpu_exec(881181);
-    cpu_exec(-1);
+    cpu_exec(1500000);
     // cpu_exec(1000);
     return 0;
 }

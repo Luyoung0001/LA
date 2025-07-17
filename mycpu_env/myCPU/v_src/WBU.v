@@ -153,8 +153,13 @@ module WBU
 
          input wire [1:0] bar_i,
 
-         output wire ibar_flush // 通知 icache，无效掉所有
+         output wire ibar_flush, // 通知 icache，无效掉所有
+         // cacop
+         input wire icacop_op_en_i,
+         output wire icacop_flush
      );
+    reg icacop_op_en_i_r;
+
     reg [1:0] bar_i_r;
     reg inst_idle_i_r;
     reg after_br_invalid_i_r;
@@ -322,6 +327,7 @@ module WBU
             inst_idle_i_r <= 1'b0;
 
             bar_i_r <= 2'b0;
+            icacop_op_en_i_r <= 1'b0;
 
         end
         else if (wbu_state == 2'd0 && up_valid) begin
@@ -368,6 +374,7 @@ module WBU
             inst_idle_i_r <= inst_idle_i;
 
             bar_i_r <= bar_i;
+            icacop_op_en_i_r <= icacop_op_en_i;
         end
         else if(wbu_state == 2'd1 && !idle_flush) begin
             wbu_state <= 2'd0;
@@ -438,7 +445,7 @@ module WBU
            };
 
     assign excp_flush = ws_excp && ws_valid && !refetch_excp_i_r;
-    assign flush_sign = excp_flush || ertn_flush || refetch_flush;
+    assign flush_sign = excp_flush || ertn_flush || refetch_flush || icacop_flush;
 
     assign is_ertn = wire_is_inst_ertn;
     assign csr_era = wire_pc;
@@ -526,6 +533,8 @@ module WBU
 
     // 取消上游执行效果以及指令缓存
     assign refetch_flush = refetch_excp_i_r && ws_valid; // 天王老子来了都给我去重新执行
+
+    assign icacop_flush = icacop_op_en_i_r && ws_valid && !ws_excp && !refetch_excp_i_r;
 
     assign excp_tlbrefill_o = excp_tlbrefill;
 

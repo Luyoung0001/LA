@@ -16,7 +16,8 @@ module pre_IFU (
         // refetch
         input wire [31:0] refetch_pc_i,
         input wire refetch_sign_i,
-        input wire wbu_refetch_flush
+        input wire wbu_refetch_flush,
+        input wire icacop_flush_i
     );
 
     reg  [31:0] pc;
@@ -24,7 +25,10 @@ module pre_IFU (
     wire ertn_flush;
     wire flush_sign;
     assign {excp_flush, ertn_flush} = flush;
-    assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
+    assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush || icacop_flush_i;
+
+    wire [31:0] real_refetch_pc;
+    assign real_refetch_pc = icacop_flush_i ? refetch_pc_i + 32'd4 : refetch_pc_i;
 
     wire [31:0] seq_pc;
     wire [31:0] nextpc;
@@ -42,7 +46,7 @@ module pre_IFU (
 
     // 这里要注意优先级
     assign nextpc       =
-           refetch_sign_i ? refetch_pc_i :
+           refetch_sign_i || icacop_flush_i ? real_refetch_pc :
            wbu_excp_tlbrefill ? csr_tlbrentry :
            excp_flush ? csr_eentry:
            ertn_flush ? inst_flush_pc:
