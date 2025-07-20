@@ -87,11 +87,7 @@ module IDU (
         // 这里数据前递需要判断 MEM 阶段是否是访存操作以及 sc 操作
         // 如果是，那么应该优先进行前递，而不是简单的 EXU > MEM > WBU
         input wire [32:0] inst_ld_from_mem,
-        input wire [1:0]  inst_sc_from_mem,
-
-        // cacop
-        output wire es_cacop,
-        input wire icacop_flush_i
+        input wire [1:0]  inst_sc_from_mem
     );
 
     wire        pipeline_no_empty;
@@ -142,7 +138,7 @@ module IDU (
 
     wire caculate_done;
 
-    wire flush_sign = ertn_flush || excp_flush || wbu_refetch_flush || icacop_flush_i;
+    wire flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
 
     // 数据相关
 
@@ -313,7 +309,6 @@ module IDU (
     wire        inst_tlbfill;
     wire        inst_invtlb;
 
-
     wire        need_ui5;
     wire        need_si12;
     wire        need_si14;
@@ -326,14 +321,13 @@ module IDU (
     wire        inst_ll_w;
     wire        inst_sc_w;
 
-    wire inst_dbar;
-    wire inst_ibar;
+    wire        inst_dbar;
+    wire        inst_ibar;
 
-    wire inst_idle;
+    wire        inst_idle;
 
-    wire inst_cacop;
-
-    wire inst_valid_cacop;
+    wire        inst_cacop;
+    wire        inst_valid_cacop;
 
 
     wire br_taken;
@@ -417,6 +411,9 @@ module IDU (
     wire is_sc = inst_sc_from_mem[1];
     wire sc_result = inst_sc_from_mem[0];
 
+    wire [31:0] conflict_regaData;
+    wire [31:0] conflict_regbData;
+
     // 当检测到冲突以后，就得阻塞
 
     // pc 不能一致，如果一致没有前递意义
@@ -440,15 +437,15 @@ module IDU (
     wire [31:0] first_match_result = ({32{is_ld}} & ld_result) | ({32{is_sc}} & {{31{1'b0}}, sc_result});
 
     // 根据匹配与否进行 多路选择
-    wire [31:0] conflict_regaData = first_macth_1 ? first_match_result :
-         exu_forward_match_1 ? exu_data :
-         mem_forward_match_1 ? mem_data :
-         wbu_forward_match_1 ? wbu_data : rf_rdata1;
+    assign conflict_regaData = first_macth_1 ? first_match_result :
+           exu_forward_match_1 ? exu_data :
+           mem_forward_match_1 ? mem_data :
+           wbu_forward_match_1 ? wbu_data : rf_rdata1;
 
-    wire [31:0] conflict_regbData = first_macth_2 ? first_match_result :
-         exu_forward_match_2 ? exu_data :
-         mem_forward_match_2 ? mem_data :
-         wbu_forward_match_2 ? wbu_data : rf_rdata2;
+    assign conflict_regbData = first_macth_2 ? first_match_result :
+           exu_forward_match_2 ? exu_data :
+           mem_forward_match_2 ? mem_data :
+           wbu_forward_match_2 ? wbu_data : rf_rdata2;
 
     // 这是计算完成的标志：当匹配成功的时候，必须等到其计算完成才能最终裁定 idu 是否彻底计算完成
 assign caculate_done_1 = first_macth_1 ? mem_over ? 1'b1 : 1'b0:
@@ -581,15 +578,17 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
     assign inst_idle       = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h11];
 
     assign inst_cacop      = op_31_26_d[6'h01] & op_25_22_d[4'h8];
-    assign inst_valid_cacop = inst_cacop&&(dest[2:0]==3'b0||dest[2:0]==3'b1)&&(dest[4:3]==2'd0||dest[4:3]==2'd1||dest[4:3]==2'd2);
+    assign inst_valid_cacop = inst_cacop && (dest[2:0]==3'b0||dest[2:0]==3'b1)&&(dest[4:3]==2'd0||dest[4:3]==2'd1||dest[4:3]==2'd2);
 
+    // assign kernel_inst = inst_csrrd|
+    //        inst_csrwr|
+    //        inst_csrxchg;
 
     // 需要用到 alu 的指令
     assign alu_op[0] = inst_add_w | inst_addi_w | inst_ld_w | inst_st_w |
            | inst_jirl | inst_bl | inst_pcaddu12i | inst_ld_b | inst_ld_bu |
            inst_ld_h | inst_ld_hu | inst_st_b | inst_st_h | inst_ll_w |
-           inst_sc_w| inst_valid_cacop;
-
+           inst_sc_w;
 
     assign alu_op[1] = inst_sub_w;
     assign alu_op[2] = inst_slt | inst_slti;
@@ -616,7 +615,7 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
     assign need_ui5   =  inst_slli_w | inst_srli_w | inst_srai_w;
 
     assign need_si12  =  inst_addi_w | inst_ld_w | inst_st_w | inst_slti | inst_sltui | inst_ld_b | inst_ld_bu |
-           inst_ld_h | inst_ld_hu | inst_st_b | inst_st_h | inst_valid_cacop;
+           inst_ld_h | inst_ld_hu | inst_st_b | inst_st_h;
 
     assign need_si14  =  inst_ll_w | inst_sc_w; // 符号扩展 14
 
@@ -877,7 +876,6 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
          inst_tlbfill    |
          inst_invtlb     |
          inst_idle       |
-         inst_valid_cacop & (rd[4:3] != 2'b10)|
          inst_ertn ;
 
 
@@ -961,8 +959,4 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
 
     assign bar_o = {inst_dbar, inst_ibar};
 
-    assign es_cacop = inst_valid_cacop;
-
 endmodule
-
-

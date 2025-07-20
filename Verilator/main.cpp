@@ -98,15 +98,15 @@ void step() {
     }
 
     // if (i >= start_time) {
-        tfp->dump(main_time);
-        main_time++;
+    tfp->dump(main_time);
+    main_time++;
     // }
     top->clk = 1;
     top->eval();
 
     // if (i >= start_time) {
-        tfp->dump(main_time);
-        main_time++;
+    tfp->dump(main_time);
+    main_time++;
     // }
 }
 void reset(int n) {
@@ -348,6 +348,8 @@ void print_info() {
 #define CSR_PGDL_DIFF 0xbfffffff
 #define CSR_PGDH_DIFF 0x7fffffff
 
+int change_tag = 0;
+
 int difftest() {
 #ifdef EASY_MODE
     mycpu_trace_info.we = top->rootp->verilator_top->debug_wb_rf_wen == 15;
@@ -372,13 +374,21 @@ int difftest() {
     } else {
         // 读取 ref
         // 一直读到 ref 的 we 为 1
-        read_ref();
-        while (ref_struct.we == 0) {
+        if (change_tag == 0) {
             read_ref();
+            while (ref_struct.we == 0) {
+                read_ref();
+            }
         }
-        // 如果 PC 不一样，说明 mycpu 此时的指令没有比较的意义
+        // 如果 PC 不一样，说明 mycpu 此时的指令没有比较的意义,等待下一个 my_pc
+        // 来和 ref_pc 比较
         if (mycpu_trace_info.pc != ref_struct.pc) {
+            print_info();
+            change_tag = 1;
             return 1;
+        } else {
+            // 此时已经相同了
+            change_tag = 0;
         }
         // pc 应该每次都进行打印
         print_info();
@@ -499,7 +509,7 @@ void cpu_exec(uint64_t n) {
         uint32_t pc = top->rootp->verilator_top->debug_wb_pc;
         if (difftest() == 0) {
             printf("i:%d -->Error!\n", i);
-            break;
+            // break;
         }
         uint32_t stop_pc = 0x1c000100;
         if (pc == stop_pc) {
@@ -537,7 +547,7 @@ int main(int argc, char* argv[]) {
     tfp->open("wave.vcd");
     reset(1);
     // cpu_exec(881181);
-    cpu_exec(1500000);
+    cpu_exec(1200000);
     // cpu_exec(1000);
     return 0;
 }

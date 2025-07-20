@@ -40,6 +40,7 @@ module MEM
          output wire [19:0] dcache_tag,
          output wire [7:0] dcache_index,
          output wire [3:0] dcache_offset,
+
          // 如果遇到 flush 信号, 则取消请求
          // 这是因为 如果 mem 的 请求发出后，dcache 不会理会 flush
          // dcache 持续处理请求，最终会返回 rdata。
@@ -193,24 +194,7 @@ module MEM
          input wire [1:0] bar_i,
          output wire [1:0] bar_o,
 
-         input wire disable_cache, //debug
-
-         //cacop
-         input wire icache_busy,
-
-         input wire inst_addr_ok,
-         input wire inst_data_ok,
-
-         input wire dcache_busy,
-         output wire which_cache,
-
-         input wire cacop_i,
-         output wire icacop_op_en,
-         output wire dcacop_op_en,
-
-         output wire [1:0] cacop_op_mode,
-
-         input wire icacop_flush_i
+         input wire disable_cache //debug
      );
 
     wire req; // en
@@ -265,8 +249,6 @@ module MEM
     reg inst_idle_i_r;
     reg [1:0] bar_i_r;
 
-    reg cacop_i_r;
-
     wire excp_flush;
     wire ertn_flush;
     assign {excp_flush, ertn_flush} = flush;
@@ -293,7 +275,7 @@ module MEM
     wire [15:0] excp_pme_num;
 
     // 清空信号
-    wire flush_sign = ertn_flush || excp_flush || wbu_refetch_flush || icacop_flush_i;
+    wire flush_sign = ertn_flush || excp_flush || wbu_refetch_flush;
 
     // 数据相关
     wire mem_regWr;
@@ -473,11 +455,11 @@ module MEM
                mem_over
            };
 
-    reg [2:0] mem_state;
+    reg [1:0] mem_state;
 
     always @(posedge clk) begin
         if (rst || flush_sign) begin
-            mem_state <= 3'd0;
+            mem_state <= 2'd0;
 
             es_excp_i_r <= 1'b0;
             es_excp_num_i_r <= 16'd0;
@@ -504,11 +486,9 @@ module MEM
             after_br_invalid_i_r <= 1'b0;
             inst_idle_i_r <= 1'b0;
             bar_i_r <= 2'b0;
-
-            cacop_i_r <= 1'b0;
         end
-        else if (mem_state == 3'd0 && up_valid) begin
-            mem_state <= 3'd1;
+        else if (mem_state == 2'd0 && up_valid) begin
+            mem_state <= 2'd1;
 
             es_excp_i_r <= es_excp_i;
             es_excp_num_i_r <= es_excp_num_i;
@@ -535,65 +515,29 @@ module MEM
             after_br_invalid_i_r <= after_br_invalid_i;
             inst_idle_i_r <= inst_idle_i;
             bar_i_r <= bar_i;
-
-            cacop_i_r <= cacop_i;
         end
-        else if(mem_state == 3'd1) begin
-            // 如果是 cacop 操作
-            if(cacop_i_r && !stop_signal) begin
-                // 操作 icache的话维护状态机
-                // 进入新的状态
-                if(icacop_op_en) begin
-                    mem_state <= 3'd3;
-                end
-                else if(dcacop_op_en) begin
-                    mem_state <= 3'd4;
-                end
-            end
-            else if((access_memo) && !stop_signal) begin
+        else if(mem_state == 2'd1) begin
+            if(access_memo && !stop_signal) begin
                 if(waite_ready_i && addr_ok && !data_ok) begin
-                    mem_state <= 3'd2; // 等待
+                    mem_state <= 2'd2; // 等待
                 end
                 else if(waite_ready_i && addr_ok && data_ok) begin
-                    mem_state <= 3'd0;
+                    mem_state <= 2'd0;
                 end
             end
             else if(stop_signal) begin
-                mem_state <= waite_ready_i ? 3'd0 : 3'd1;
+                mem_state <= waite_ready_i ? 2'd0 : 2'd1;
             end
             else begin
                 // 否则处理完成
-                mem_state <= waite_ready_i ? 3'd0 : 3'd1;
+                mem_state <= waite_ready_i ? 2'd0 : 2'd1;
             end
         end
-        else if (mem_state == 3'd2) begin
+        else if (mem_state == 2'd2) begin
             if(data_ok) begin
-                mem_state <= 3'd0;// 处理完成
+                mem_state <= 2'd0;// 处理完成
             end
         end
-        else if (mem_state == 3'd3) begin
-            if(inst_addr_ok && !inst_data_ok) begin
-                mem_state <= 3'd5; // 等待 ok
-            end
-            else if (inst_addr_ok && inst_data_ok) begin
-                mem_state <= 3'd0; // 处理完成
-            end
-        end
-        else if (mem_state == 3'd4) begin
-            // 操作 dcache 的话，维护状态机
-            if(addr_ok && !data_ok) begin
-                mem_state <= 3'd2; // 等待 ok
-            end
-            else if (addr_ok && data_ok) begin
-                mem_state <= 3'd0; // 处理完成
-            end
-        end
-        else if (mem_state == 3'd5) begin
-            if(inst_data_ok) begin
-                mem_state <= 3'd0;// 处理完成
-            end
-        end
-
     end
 
     // 取消取指令
@@ -644,14 +588,14 @@ module MEM
 
     assign rdata_final = flush_sign ? 32'd0 : real_data;
 
-    assign state_valid = (access_memo || cacop_i_r) && !stop_signal ? data_ok :
-           mem_state == 'd1 && stop_signal ? 1'd1:
-           mem_state == 3'd1;
+    assign state_valid = access_memo && !stop_signal ? data_ok :
+           mem_state == 2'd1 && stop_signal ? 1'd1:
+           mem_state == 2'd1;
 
 
-    assign waite_ready_o = idle_flush ? 1'b0: (mem_state == 3'd0);
+    assign waite_ready_o = idle_flush ? 1'b0: (mem_state == 2'd0);
     // 这里的 over 可以提前结束:
-    assign mem_over = mem_state == 3'd0;
+    assign mem_over = mem_state == 2'd0;
 
     // ================访存单元================
     wire stop_signal = es_excp_i_r || mem_excp || flush_sign || wbu_in_is_ertn || es_refetch_excp_i_r;
@@ -675,6 +619,8 @@ module MEM
            st_h ? {2{es_rkd_value_i_r[15:0]}} :
            st_w || sc_do ? es_rkd_value_i_r : 32'b0;
 
+
+
     wire read_mem  = ld_b || ld_bu || ld_h || ld_hu || ld_w || ll_w;
     wire write_mem = st_b || st_h || st_w || sc_do;
 
@@ -682,9 +628,7 @@ module MEM
 
     assign dcache_op = write_mem;
 
-    // 这里发信号给 icache、dcache 都发送，因此得等待 icache、dcache 都空闲，再请求
-    wire cache_busy = icache_busy || dcache_busy;
-    assign req = stop_signal ? 1'b0 : mem_state == 3'd1 && access_memo && waite_ready_i && !addr_ok;
+    assign req = stop_signal ? 1'b0 : mem_state == 2'd1 && access_memo && waite_ready_i && !addr_ok;
 
     // for difftest
     wire [31:0] wdata_diff;
@@ -702,7 +646,7 @@ module MEM
     wire da_mode;
     //uncache judgement
 
-    wire cacop_op_mode_di;
+
     // 加上 tlb 之后，地址的意义发生了变化
     // 假设是 pg 映射模式，那么地址就得从 addr_trans 返回
     assign data_vaddr = wire_inst_tlbsrch ? {csr_vppn,13'd0} : es_alu_result_i_r;
@@ -717,15 +661,10 @@ module MEM
 
     assign data_dmw0_en = ((data_dmw0[`PLV0] && csr_plv == 2'd0) || (data_dmw0[`PLV3] && csr_plv == 2'd3)) && (es_alu_result_i_r[31:29] == data_dmw0[`VSEG]) && pg_mode;
     assign data_dmw1_en = ((data_dmw1[`PLV0] && csr_plv == 2'd0) || (data_dmw1[`PLV3] && csr_plv == 2'd3)) && (es_alu_result_i_r[31:29] == data_dmw1[`VSEG]) && pg_mode;
-    assign data_addr_trans_en = pg_mode && !data_dmw0_en && !data_dmw1_en && !cacop_op_mode_di;
+    assign data_addr_trans_en = pg_mode && !data_dmw0_en && !data_dmw1_en;
+    assign addr = {data_tag, data_index, data_offset}; // 物理地址
 
-    // assign addr = {data_tag, data_index, data_offset}; // 物理地址
-    // cacop_mode == 2'b01 || cacop_mode == 2'b01 时，表示直接索引
-    // cacop_mode == 2'b10 时，表示查询索引
-    // 这里无需再次处理，地址翻译单元已经处理好了
-    assign addr = {data_tag, data_index, data_offset};
-
-    assign data_uncache_en = (da_mode && (csr_datm == 2'b0))    ||
+    assign data_uncache_en = (da_mode && (csr_datm == 2'b0))                 ||
            (data_dmw0_en && (csr_dmw0[`DMW_MAT] == 2'b0))       ||
            (data_dmw1_en && (csr_dmw1[`DMW_MAT] == 2'b0))       ||
            (data_addr_trans_en && (data_tlb_mat == 2'b0)) || disable_cache;
@@ -745,12 +684,11 @@ module MEM
     assign mem_excp_ale = (ld_h || ld_hu || st_h) && es_alu_result_i_r[0] ? 1'b1 :
            (ld_w || st_w || sc_do) && (es_alu_result_i_r[1:0] != 2'b00) ? 1'b1 : 1'b0;
     assign excp_ale_num = mem_excp_ale ? 16'h0200 :16'b0;
-    // cacop 可能引起相关的异常
     // 0x10
-    assign mem_excp_tlbr = (access_memo || (cacop_i_r && cacop_op_mode == 2'd2)) && !data_tlb_found && data_addr_trans_en;
+    assign mem_excp_tlbr = access_memo && !data_tlb_found && data_addr_trans_en;
     assign excp_tlbr_num = mem_excp_tlbr ? 16'h0400 : 16'b0;
     // 0x11
-    assign mem_excp_pil  = (read_mem || (cacop_i_r && cacop_op_mode == 2'd2)) && !data_tlb_v && data_addr_trans_en;
+    assign mem_excp_pil  = read_mem && !data_tlb_v && data_addr_trans_en;
     assign excp_pil_num = mem_excp_pil ? 16'h0800 : 16'b0;
     // 0x12
     assign mem_excp_pis  = write_mem && !data_tlb_v && data_addr_trans_en;
@@ -801,23 +739,7 @@ module MEM
     assign csr_estat_data = (csr_rstat_i_r == 1'b1) ? csr_data : 32'b0; // 信号最好具体化，尽管写一个 final_result 没错，但是这里延迟会更低
     assign ms_paddr_o = {data_tag, es_alu_result_i_r[11:0]};
 
-    wire [4:0] cacop_op;
-    wire icacop_inst;
-    wire dcacop_inst;
 
-    assign cacop_op         = wire_dest;
-    assign cacop_op_mode    = cacop_op[4:3]; // 0,1,2
-
-    assign icacop_inst      = cacop_i_r && (cacop_op[2:0] == 3'b0);
-    assign dcacop_inst      = cacop_i_r && (cacop_op[2:0] == 3'b1);
-
-    // 只有当她们都不 busy 的时候，才可以发起 cacop 操作
-    assign icacop_op_en     = icacop_inst  && !icache_busy && mem_state == 3'd1;
-    assign dcacop_op_en     = dcacop_inst  && !dcache_busy && mem_state == 3'd1;
-
-    // cacop_op_mode为 0 或者 1 时，表示直接索引
-    assign cacop_op_mode_di = cacop_i_r && ((cacop_op_mode == 2'b0) || (cacop_op_mode == 2'b1));
-    assign which_cache = dcacop_inst;
 
     assign cnt_inst_diff = wire_inst_rdcntid_w || wire_inst_rdcntvh_w || wire_inst_rdcntvl_w;
     assign timer_64_diff = timer_64_set;
@@ -835,10 +757,4 @@ module MEM
 
     assign bar_o = bar_i_r;
     assign inst_sc = {sc_w, sc_do};
-
-
-
-
-
-
 endmodule

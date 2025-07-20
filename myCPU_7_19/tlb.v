@@ -4,10 +4,9 @@ module tlb
      )
      (
          input  wire         clk,
-         input  wire         rst,
 
          // Search port 0
-         input  wire [18:0] s0_vppn,
+         input  wire [18:0]  s0_vppn,
          input  wire        s0_va_bit12,  // for odd page
          input  wire [9:0]  s0_asid,
          output wire        s0_found,
@@ -145,28 +144,8 @@ module tlb
     assign s1_plv   = s1_odd_page_buffer[match1_en] ? tlb_plv1[match1_en] : tlb_plv0[match1_en];
 
     // Write port logic
-    integer j;
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            for (j = 0; j < TLBNUM; j = j + 1) begin
-                tlb_e[j] <= 1'b0;
-                tlb_vppn[j] <= 19'b0;
-                tlb_asid[j] <= 10'b0;
-                tlb_g[j] <= 1'b0;
-                tlb_ps[j] <= 6'b0;
-                tlb_ppn0[j] <= 20'b0;
-                tlb_plv0[j] <= 2'b0;
-                tlb_mat0[j] <= 2'b0;
-                tlb_d0[j] <= 1'b0;
-                tlb_v0[j] <= 1'b0;
-                tlb_ppn1[j] <= 20'b0;
-                tlb_plv1[j] <= 2'b0;
-                tlb_mat1[j] <= 2'b0;
-                tlb_d1[j] <= 1'b0;
-                tlb_v1[j] <= 1'b0;
-            end
-        end
-        else if (we) begin
+    always @(posedge clk) begin
+        if (we) begin
             tlb_vppn[w_index] <= w_vppn;
             tlb_asid[w_index] <= w_asid;
             tlb_g[w_index]   <= w_g;

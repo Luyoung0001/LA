@@ -965,7 +965,7 @@ module sram_like_to_axi_bridge(
 
     // dcache write
     // 这里使用 buffer 中存储的数据
-    wire data_wr_cache_line = dcache_wr_type_buffer == 3'b100;
+    wire data_wr_cache_line = dcache_wr_type == 3'b100;
     wire [2:0] data_real_wr_size  = data_wr_cache_line ? 3'b10 : dcache_wr_type_buffer;
     wire [7:0] data_real_wr_len   = data_wr_cache_line ? 8'b11 : 8'b0;
 
