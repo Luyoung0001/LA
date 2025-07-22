@@ -17,6 +17,7 @@ module pre_IFU (
         input wire [31:0] refetch_pc_i,
         input wire refetch_sign_i,
         input wire wbu_refetch_flush,
+
         input wire icacop_flush_i
     );
 
@@ -27,8 +28,7 @@ module pre_IFU (
     assign {excp_flush, ertn_flush} = flush;
     assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush || icacop_flush_i;
 
-    wire [31:0] real_refetch_pc;
-    assign real_refetch_pc = icacop_flush_i ? refetch_pc_i + 32'd4 : refetch_pc_i;
+    wire [31:0] real_refetch_pc = icacop_flush_i ? refetch_pc_i + 32'd4 : refetch_pc_i;
 
     wire [31:0] seq_pc;
     wire [31:0] nextpc;

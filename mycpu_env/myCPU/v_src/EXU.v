@@ -85,16 +85,12 @@ module EXU
          input wire [1:0] bar_i,
          output wire [1:0] bar_o,
 
-         //  input wire [32:0] inst_ld_from_mem,
-         //  input wire [1:0]  inst_sc_from_mem // 仅仅是为了数据前递
-
          // cacop，执行动作就应该放在 MEM 阶段
          input  wire cacop_i,
          output wire cacop_o,
 
          input wire icacop_flush_i
      );
-
     reg cacop_i_r;
 
     reg [1:0] bar_i_r;
@@ -353,6 +349,7 @@ module EXU
             bar_i_r <= 2'b0;
 
             cacop_i_r <= 1'b0;
+
         end
         else if (exu_state == 2'd0 && up_valid) begin
             ds_to_es_bus_data_r <= bus_ds_to_es_data;
@@ -384,6 +381,7 @@ module EXU
             bar_i_r <= bar_i;
 
             cacop_i_r <= cacop_i;
+
         end
         // 这里要处理，进入处理阶段
         else if(exu_state == 2'd1) begin
@@ -450,6 +448,7 @@ module EXU
     assign out_mem_op = mem_op_reg;
 
     assign bar_o = bar_i;
+
     assign cacop_o = cacop_i_r;
 
 endmodule

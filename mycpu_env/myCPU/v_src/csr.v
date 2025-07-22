@@ -302,19 +302,22 @@ module csr
            {2{crmd_wen  }} & csr_wdata[`PLV]   |
            {2{!excp_flush && !ertn_flush && !crmd_wen}} & csr_crmd[`PLV];
 
-    assign pg_out = excp_tlbrefill ? 1'b0:
+
+    wire no_forward   = !excp_tlbrefill && !(eret_tlbrefill_excp && ertn_flush) && !crmd_wen;
+
+    assign pg_out      = excp_tlbrefill ? 1'b0:
            (eret_tlbrefill_excp && ertn_flush)? 1'b1:
            crmd_wen ? csr_wdata[`PG]:
-           csr_crmd[`PG];
+           no_forward     & csr_crmd[`PG];
 
     assign da_out       = excp_tlbrefill ? 1'b1:
            (eret_tlbrefill_excp && ertn_flush) ? 1'b0:
            crmd_wen ? csr_wdata[`DA]:
-           csr_crmd[`DA];
+           no_forward     & csr_crmd[`DA];
 
     assign dmw0_out     = DMW0_wen ? csr_wdata : csr_dmw0;
     assign dmw1_out     = DMW1_wen ? csr_wdata : csr_dmw1;
-    
+
     assign datf_out     = csr_crmd[`DATF];
     assign datm_out     = csr_crmd[`DATM];
     assign ecode_out    = csr_estat[`ECODE];

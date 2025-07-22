@@ -6,8 +6,6 @@ module core_top
          input  wire        aclk,
          input  wire        aresetn,
          input  wire [ 7:0] intrpt,
-
-         // AXI Interface
          // Read request channel
          output wire [ 3:0] arid,
          output wire [31:0] araddr,
@@ -64,73 +62,13 @@ module core_top
          output wire [31:0] debug0_wb_pc,
          output wire [ 3:0] debug0_wb_rf_wen,
          output wire [ 4:0] debug0_wb_rf_wnum,
-         output wire [31:0] debug0_wb_rf_wdata
-
-         //  output wire [31:0] debug0_wb_inst
-         //  output wire        debug_wb_is_csr_wr_o,
-         //  output wire        debug_has_refetch_excp_o,
-
-         //  // CSR diff outputs
-         //  output [31:0] csr_crmd_diff,
-         //  output [31:0] csr_prmd_diff,
-         //  output [31:0] csr_ecfg_diff,
-         //  output [31:0] csr_estat_diff,
-         //  output [31:0] csr_era_diff,
-         //  output [31:0] csr_badv_diff,
-         //  output [31:0] csr_eentry_diff,
-         //  output [31:0] csr_tlbidx_diff,
-         //  output [31:0] csr_tlbehi_diff,
-         //  output [31:0] csr_tlbelo0_diff,
-         //  output [31:0] csr_tlbelo1_diff,
-         //  output [31:0] csr_asid_diff,
-         //  output [31:0] csr_save0_diff,
-         //  output [31:0] csr_save1_diff,
-         //  output [31:0] csr_save2_diff,
-         //  output [31:0] csr_save3_diff,
-         //  output [31:0] csr_tid_diff,
-         //  output [31:0] csr_tcfg_diff,
-         //  output [31:0] csr_tval_diff,
-         //  output [31:0] csr_ticlr_diff,
-         //  output [31:0] csr_llbctl_diff,
-         //  output [31:0] csr_tlbrentry_diff,
-         //  output [31:0] csr_dmw0_diff,
-         //  output [31:0] csr_dmw1_diff,
-         //  output [31:0] csr_pgdl_diff,
-         //  output [31:0] csr_pgdh_diff
+         output wire [31:0] debug0_wb_rf_wdata,
+         output wire [31:0] debug0_wb_inst
      );
 
     // from regfile
-    wire [31:0] debug0_wb_inst;
     wire        debug_wb_is_csr_wr_o;
     wire        debug_has_refetch_excp_o;
-
-    // CSR diff outputs
-    // wire [31:0] csr_crmd_diff;
-    // wire [31:0] csr_prmd_diff;
-    // wire [31:0] csr_ecfg_diff;
-    // wire [31:0] csr_estat_diff;
-    // wire [31:0] csr_era_diff;
-    // wire [31:0] csr_badv_diff;
-    // wire [31:0] csr_eentry_diff;
-    // wire [31:0] csr_tlbidx_diff;
-    // wire [31:0] csr_tlbehi_diff;
-    // wire [31:0] csr_tlbelo0_diff;
-    // wire [31:0] csr_tlbelo1_diff;
-    // wire [31:0] csr_asid_diff;
-    // wire [31:0] csr_save0_diff;
-    // wire [31:0] csr_save1_diff;
-    // wire [31:0] csr_save2_diff;
-    // wire [31:0] csr_save3_diff;
-    // wire [31:0] csr_tid_diff;
-    // wire [31:0] csr_tcfg_diff;
-    // wire [31:0] csr_tval_diff;
-    // wire [31:0] csr_ticlr_diff;
-    // wire [31:0] csr_llbctl_diff;
-    // wire [31:0] csr_tlbrentry_diff;
-    // wire [31:0] csr_dmw0_diff;
-    // wire [31:0] csr_dmw1_diff;
-    // wire [31:0] csr_pgdl_diff;
-    // wire [31:0] csr_pgdh_diff;
 
     // Internal signals
     // wire [7:0] intrpt;
@@ -177,22 +115,11 @@ module core_top
 
     wire        dcache_wr_rdy;
 
+
     // AXI-XBar Bridge
     sram_like_to_axi_bridge o (
                                 .clk            (aclk),
-                                .rst            (reset),
-
-                                // Instruction SRAM interface
-                                // .inst_sram_req  (inst_sram_req),
-                                // .inst_sram_wr   (inst_sram_wr),
-                                // .inst_sram_size (inst_sram_size),
-                                // .inst_sram_wstrb(inst_sram_wstrb),
-                                // .inst_sram_addr (inst_sram_addr),
-                                // .inst_sram_wdata(inst_sram_wdata),
-                                // .inst_sram_addr_ok(inst_sram_addr_ok),
-                                // .inst_sram_data_ok(inst_sram_data_ok),
-                                // .inst_sram_rdata(inst_sram_rdata),
-
+                                .reset            (reset),
                                 // icache
                                 .icache_rd_req(icache_rd_req),
                                 .icache_rd_type(icache_rd_type),
@@ -201,24 +128,6 @@ module core_top
                                 .icache_ret_valid(icache_ret_valid),
                                 .icache_ret_last(icache_ret_last),
                                 .icache_ret_data(icache_ret_data),
-
-                                .icache_wr_req(icache_wr_req),
-                                .icache_wr_type(icache_wr_type),
-                                .icache_wr_addr(icache_wr_addr),
-                                .icache_wr_wstrb(icache_wr_wstrb),
-                                .icache_wr_data(icache_wr_data),
-                                .icache_wr_rdy(icache_wr_rdy),
-
-                                // Data SRAM interface
-                                // .data_sram_req  (data_sram_req),
-                                // .data_sram_wr   (data_sram_wr),
-                                // .data_sram_size (data_sram_size),
-                                // .data_sram_wstrb(data_sram_wstrb),
-                                // .data_sram_addr (data_sram_addr),
-                                // .data_sram_wdata(data_sram_wdata),
-                                // .data_sram_addr_ok(data_sram_addr_ok),
-                                // .data_sram_data_ok(data_sram_data_ok),
-                                // .data_sram_rdata(data_sram_rdata),
 
                                 // dcache
                                 .dcache_rd_req(dcache_rd_req),
@@ -435,6 +344,7 @@ module core_top
     wire [31:0] wbu_refetch_pc;
     wire        wbu_refetch_sign;
     wire        wbu_wbu_refetch_flush;
+    wire        wbu_icacop_flush;
 
     // WBU TLB signals
     wire                      wbu_tlbsrch_en;
@@ -471,7 +381,6 @@ module core_top
     wire wbu_ws_to_ds_valid;
 
     wire wbu_idle_flush;
-    wire wbu_icacop_flush;
 
     // Register file signals
     wire [31:0] rf_rdata1;
@@ -580,6 +489,8 @@ module core_top
     wire [3:0]  icache_wr_wstrb;
     wire [127:0] icache_wr_data;
 
+    wire icacop_addr_ok;
+    wire icacop_data_ok;
     wire icache_busy;
 
 
@@ -597,6 +508,9 @@ module core_top
     wire [31:0] dcache_wr_addr;
     wire [3:0]  dcache_wr_wstrb;
     wire [127:0] dcache_wr_data;
+
+    wire dcacop_addr_ok;
+    wire dcacop_data_ok;
     wire dcache_busy;
 
 
@@ -618,7 +532,8 @@ module core_top
                 .refetch_pc_i      (wbu_refetch_pc),
                 .refetch_sign_i    (wbu_refetch_sign),
                 .wbu_refetch_flush (wbu_wbu_refetch_flush),
-                .icacop_flush_i     (wbu_icacop_flush)
+
+                .icacop_flush_i(wbu_icacop_flush)
             );
 
     // IFU
@@ -638,7 +553,7 @@ module core_top
             .inst_uncache_en   (ifu_inst_uncache_en),
 
             // From CSR
-            .csr_datm          (csr_datm_out),
+            .csr_datf          (csr_datf_out),
             .csr_plv           (csr_plv_out),
             .csr_dmw0          (csr_dmw0_out),
             .csr_dmw1          (csr_dmw1_out),
@@ -670,27 +585,11 @@ module core_top
             .inst_tlb_mat      (trans_inst_tlb_mat),
             .inst_tlb_plv      (trans_inst_tlb_plv),
 
-            // SRAM-like interface
-            // .req               (inst_sram_req),
-            // .wr                (inst_sram_wr),
-            // .size              (inst_sram_size),
-            // .wstrb             (inst_sram_wstrb),
-            // .addr              (inst_sram_addr),
-            // .wdata             (inst_sram_wdata),
-            // .addr_ok           (inst_sram_addr_ok),
-            // .data_ok           (inst_sram_data_ok),
-            // .rdata             (inst_sram_rdata),
-
             .icache_valid(ifu_icache_valid),
-            .icache_op(ifu_icache_op),
-            .icache_size(ifu_icache_size),
             .icache_tag(ifu_icache_tag),
             .icache_index(ifu_icache_index),
             .icache_offset(ifu_icache_offset),
             .flush_sign_cancel(ifu_flush_sign_cancel),
-
-            .icache_wstrb(ifu_icache_wstrb),
-            .icache_wdata(ifu_icache_wdata),
 
             .icache_addr_ok(icache_addr_ok),
             .icache_data_ok(icache_data_ok),
@@ -704,7 +603,7 @@ module core_top
             .idle_flush(wbu_idle_flush),
 
             .disable_cache(1'b0),
-            .icacop_flush_i (wbu_icacop_flush)
+            .icacop_flush_i(wbu_icacop_flush)
         );
 
     // Register File
@@ -728,8 +627,7 @@ module core_top
     wire idu_after_br_invalid;
     wire idu_inst_idle_o;
     wire [1:0] idu_bar_o;
-
-    wire idu_es_cacop;
+    wire idu_cacop_o;
     // IDU
     IDU idu(
             .clk                   (aclk),
@@ -808,8 +706,8 @@ module core_top
             .inst_ld_from_mem(mem_inst_ld),
             .inst_sc_from_mem(mem_inst_sc),
 
-            .es_cacop(idu_es_cacop),
-            .icacop_flush_i (wbu_icacop_flush)
+            .cacop_o(idu_cacop_o),
+            .icacop_flush_i(wbu_icacop_flush)
         );
 
 
@@ -827,7 +725,6 @@ module core_top
     wire [1:0] exu_bar_o;
     wire [31:0] exu_alu_result_o;
     wire [31:0] exu_wire_in_rkd_value_o;
-
     wire exu_cacop_o;
 
 
@@ -913,11 +810,10 @@ module core_top
 
             .bar_i(idu_bar_o),
             .bar_o(exu_bar_o),
-            // .inst_ld_from_mem(mem_inst_ld),
-            // .inst_sc_from_mem(mem_inst_sc)
-            .cacop_i(idu_es_cacop),
+
+            .cacop_i(idu_cacop_o),
             .cacop_o(exu_cacop_o),
-            .icacop_flush_i (wbu_icacop_flush)
+            .icacop_flush_i(wbu_icacop_flush)
         );
 
     wire mem_csr_rstat_o;
@@ -953,11 +849,10 @@ module core_top
     wire [31:0] ms_pc_pro_o;
 
     wire [31:0] ms_paddr_o;
-
     wire mem_icacop_op_en;
     wire mem_dcacop_op_en;
     wire [1:0] mem_cacop_op_mode;
-    wire mem_which_cache;
+    wire mem_icacop_o;
 
     MEM #(TLBNUM) mem(
             // 时钟和复位
@@ -978,16 +873,6 @@ module core_top
             .es_alu_result_i(exu_alu_result_o),
 
             // SRAM接口
-            // .req(data_sram_req),
-            // .wr(data_sram_wr),
-            // .size(data_sram_size),
-            // .wstrb(data_sram_wstrb),
-            // .addr(data_sram_addr),
-            // .wdata(data_sram_wdata),
-            // .addr_ok(data_sram_addr_ok),
-            // .data_ok(data_sram_data_ok),
-            // .rdata(data_sram_rdata),
-
             .dcache_valid(mem_dcache_valid),
             .dcache_op(mem_dcache_op),
             .dcache_size(mem_dcache_size),
@@ -1068,8 +953,6 @@ module core_top
             .ms_tlb_inst_bus_o(mem_tlb_inst_bus_o),
 
             // TLB搜索
-            .tlbsrch_index(exu_tlbsrch_index),
-            .tlbsrch_found(exu_tlbsrch_found),
             .ms_tlbsrch_index_o(mem_tlbsrch_index_o),
             .ms_tlbsrch_found_o(mem_tlbsrch_found_o),
 
@@ -1129,21 +1012,24 @@ module core_top
             .bar_i(exu_bar_o),
             .bar_o(mem_bar_o),
             .disable_cache(1'b0),
-
-            .icache_busy(icache_busy),
-            .inst_addr_ok(icache_addr_ok),
-            .inst_data_ok(icache_data_ok),
-
-
-            .dcache_busy(dcache_busy),
-            .which_cache(mem_which_cache),
-
+            // cacop
             .cacop_i(exu_cacop_o),
+            .icacop_flush_i(wbu_icacop_flush),
+            // icache
             .icacop_op_en(mem_icacop_op_en),
+            .icache_busy(icache_busy),
+            .icacop_addr_ok(icacop_addr_ok),
+            .icacop_data_ok(icacop_data_ok),
+            // dcache
             .dcacop_op_en(mem_dcacop_op_en),
-            .cacop_op_mode(mem_cacop_op_mode),
+            .dcache_busy(dcache_busy),
+            .dcacop_addr_ok(dcacop_addr_ok),
+            .dcacop_data_ok(dcacop_data_ok),
 
-            .icacop_flush_i (wbu_icacop_flush)
+            .cacop_op_mode(mem_cacop_op_mode),
+            // 生成 icacop_flush
+            .icacop_o(mem_icacop_o)
+
         );
 
     wire wbu_cmt_tlbfill_en;
@@ -1164,7 +1050,6 @@ module core_top
     wire ws_excp_diff;
 
     wire wbu_ibar_flush;
-
 
     WBU #(TLBNUM) wbu(
             // 时钟和复位
@@ -1313,9 +1198,9 @@ module core_top
             .bar_i(mem_bar_o),
             .ibar_flush(wbu_ibar_flush),
 
-            .icacop_op_en_i(mem_icacop_op_en),
+            .icacop_op_en_i(mem_icacop_o),
+            .icacop_flush(wbu_icacop_flush)
 
-            .icacop_flush (wbu_icacop_flush)
         );
 
     csr #(TLBNUM)csr_o(
@@ -1411,6 +1296,7 @@ module core_top
     addr_trans #(TLBNUM) addr_trans_o(
                    .clk(aclk),
                    .rst(reset),
+
                    // 指令地址转换
                    .inst_addr_trans_en(ifu_inst_addr_trans_en),
                    .inst_asid(ifu_inst_asid),
@@ -1477,105 +1363,91 @@ module core_top
                    .invtlb_vpn(wbu_invtlb_vpn_o)
                );
 
-    cache icache(
-              .clk(aclk),
-              .resetn(aresetn),
-              // ifu
-              .flush_sign_cancel(ifu_flush_sign_cancel),
-              .uncache_en(ifu_inst_uncache_en),
+    icache icache(
+               .clk(aclk),
+               .resetn(aresetn),
+               // ifu
+               .flush_sign_cancel(ifu_flush_sign_cancel),
+               .uncache_en(ifu_inst_uncache_en),
+               .valid(ifu_icache_valid),
 
+               .tag(ifu_icache_tag),
+               .index(ifu_icache_index),
+               .offset(ifu_icache_offset),
 
-              .valid(ifu_icache_valid),
-              .op(ifu_icache_op),
-              .size(ifu_icache_size),
-              .tag(ifu_icache_tag),
-              .index(ifu_icache_index),
-              .offset(ifu_icache_offset),
-              .wstrb(ifu_icache_wstrb),
-              .wdata(ifu_icache_wdata),
+               .cacop_op_addr_tag(mem_dcache_tag),
+               .cacop_op_addr_index(mem_dcache_index),
+               .cacop_op_addr_offset(mem_dcache_offset),
+               .cacop_en(mem_icacop_op_en),
+               .cacop_mode(mem_cacop_op_mode),
 
-              // cacop
-              .cacop_op_addr_index(mem_dcache_index),
-              .cacop_op_addr_tag(mem_dcache_tag),
-              .cacop_op_addr_offset(mem_dcache_offset),
+               .cacop_addr_ok(icacop_addr_ok),
+               .cacop_data_ok(icacop_data_ok),
+               .busy(icache_busy),
 
-              .which_cache(mem_which_cache),
-              .cache_busy(icache_busy),
-              .cacop_en(mem_icacop_op_en),
-              .cacop_mode(mem_cacop_op_mode),
-
-              .addr_ok(icache_addr_ok),
-              .data_ok(icache_data_ok),
-              .rdata(icache_rdata),
-              // axi
-              .rd_req(icache_rd_req),
-              .rd_type(icache_rd_type),
-              .rd_addr(icache_rd_addr),
-              .rd_rdy(icache_rd_rdy),
-              .ret_valid(icache_ret_valid),
-              .ret_last(icache_ret_last),
-              .ret_data(icache_ret_data),
-
-
-              .wr_req(icache_wr_req),
-              .wr_type(icache_wr_type),
-              .wr_addr(icache_wr_addr),
-              .wr_wstrb(icache_wr_wstrb),
-              .wr_data(icache_wr_data),
-              .wr_rdy(icache_wr_rdy)
-          );
+               .addr_ok(icache_addr_ok),
+               .data_ok(icache_data_ok),
+               .rdata(icache_rdata),
+               // axi
+               .rd_req(icache_rd_req),
+               .rd_type(icache_rd_type),
+               .rd_addr(icache_rd_addr),
+               .rd_rdy(icache_rd_rdy),
+               .ret_valid(icache_ret_valid),
+               .ret_last(icache_ret_last),
+               .ret_data(icache_ret_data)
+           );
     // 后期的工作，应该在 MEM 中发起内存访问
     // 因此d cache 的访问接口应该放在 MEM 中
-    cache dcache(
-              .clk(aclk),
-              .resetn(aresetn),
-              // ifu
-              .flush_sign_cancel(mem_flush_sign_cancel),
-              .uncache_en(mem_data_uncache_en),
+    dcache dcache(
+               .clk(aclk),
+               .resetn(aresetn),
+               // ifu
+               .flush_sign_cancel(mem_flush_sign_cancel),
+               .uncache_en(mem_data_uncache_en),
+               .valid(mem_dcache_valid),
+               .op(mem_dcache_op),
+               .size(mem_dcache_size),
 
+               .tag(mem_dcache_tag),
+               .index(mem_dcache_index),
+               .offset(mem_dcache_offset),
 
-              .valid(mem_dcache_valid),
-              .op(mem_dcache_op),
-              .size(mem_dcache_size),
-              .tag(mem_dcache_tag),
-              .index(mem_dcache_index),
-              .offset(mem_dcache_offset),
-              .wstrb(mem_dcache_wstrb),
-              .wdata(mem_dcache_wdata),
-              // cacop
-              .cacop_op_addr_index(mem_dcache_index),
-              .cacop_op_addr_tag(mem_dcache_tag),
-              .cacop_op_addr_offset(mem_dcache_offset),
+               .wstrb(mem_dcache_wstrb),
+               .wdata(mem_dcache_wdata),
 
-              .which_cache(mem_which_cache),
-              .cache_busy(dcache_busy),
-              .cacop_en(mem_dcacop_op_en),
-              .cacop_mode(mem_cacop_op_mode),
+               .cacop_en(mem_dcacop_op_en),
+               .cacop_mode(mem_cacop_op_mode),
 
-              .addr_ok(dcache_addr_ok),
-              .data_ok(dcache_data_ok),
-              .rdata(dcache_rdata),
-              // axi
-              .rd_req(dcache_rd_req),
-              .rd_type(dcache_rd_type),
-              .rd_addr(dcache_rd_addr),
-              .rd_rdy(dcache_rd_rdy),
-              .ret_valid(dcache_ret_valid),
-              .ret_last(dcache_ret_last),
-              .ret_data(dcache_ret_data),
+               .cacop_addr_ok(dcacop_addr_ok),
+               .cacop_data_ok(dcacop_data_ok),
+               .busy(dcache_busy),
 
-              .wr_req(dcache_wr_req),
-              .wr_type(dcache_wr_type),
-              .wr_addr(dcache_wr_addr),
-              .wr_wstrb(dcache_wr_wstrb),
-              .wr_data(dcache_wr_data),
-              .wr_rdy(dcache_wr_rdy)
-          );
+               .addr_ok(dcache_addr_ok),
+               .data_ok(dcache_data_ok),
+               .rdata(dcache_rdata),
+               // axi
+               .rd_req(dcache_rd_req),
+               .rd_type(dcache_rd_type),
+               .rd_addr(dcache_rd_addr),
+               .rd_rdy(dcache_rd_rdy),
+               .ret_valid(dcache_ret_valid),
+               .ret_last(dcache_ret_last),
+               .ret_data(dcache_ret_data),
+
+               .wr_req(dcache_wr_req),
+               .wr_type(dcache_wr_type),
+               .wr_addr(dcache_wr_addr),
+               .wr_wstrb(dcache_wr_wstrb),
+               .wr_data(dcache_wr_data),
+               .wr_rdy(dcache_wr_rdy)
+           );
     assign debug0_wb_pc = wbu_pc;
     assign debug0_wb_rf_wen = {4{wbu_rf_we}};
     assign debug0_wb_rf_wnum = wbu_rf_waddr;
     assign debug0_wb_rf_wdata = wbu_rf_wdata;
     assign debug0_wb_inst = wbu_inst_data_o;
+
 
     // `ifdef DIFFTEST_EN
     //     // difftest
@@ -1823,5 +1695,6 @@ module core_top
     //                           .gpr_31             (regs[31]   )
     //                       );
     // `endif
+
 
 endmodule

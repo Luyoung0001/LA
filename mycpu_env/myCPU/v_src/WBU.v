@@ -154,6 +154,7 @@ module WBU
          input wire [1:0] bar_i,
 
          output wire ibar_flush, // 通知 icache，无效掉所有
+
          // cacop
          input wire icacop_op_en_i,
          output wire icacop_flush
@@ -374,6 +375,8 @@ module WBU
             inst_idle_i_r <= inst_idle_i;
 
             bar_i_r <= bar_i;
+
+
             icacop_op_en_i_r <= icacop_op_en_i;
         end
         else if(wbu_state == 2'd1 && !idle_flush) begin
@@ -533,7 +536,6 @@ module WBU
 
     // 取消上游执行效果以及指令缓存
     assign refetch_flush = refetch_excp_i_r && ws_valid; // 天王老子来了都给我去重新执行
-
     assign icacop_flush = icacop_op_en_i_r && ws_valid && !ws_excp && !refetch_excp_i_r;
 
     assign excp_tlbrefill_o = excp_tlbrefill;

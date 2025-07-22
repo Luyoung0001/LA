@@ -876,6 +876,7 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
          inst_tlbfill    |
          inst_invtlb     |
          inst_idle       |
+         inst_valid_cacop & (rd[4:3] != 2'b10)|
          inst_ertn ;
 
 
