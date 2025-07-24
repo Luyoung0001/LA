@@ -21,8 +21,6 @@ module dcache(
         output wire cacop_data_ok,
         output wire busy,
 
-
-
         output wire addr_ok,
         output wire data_ok,
         output wire [31:0] rdata,
@@ -87,19 +85,14 @@ module dcache(
     // Miss Buffer
     reg  [1:0]  miss_buffer_ret_num;      // 已经从 AXI 返回了几个字
 
-    // Write Buffer
-    reg [ 7:0]  write_buffer_index;
-    reg [ 3:0]  write_buffer_wstrb;
-    reg [31:0]  write_buffer_wdata;
-    reg [ 1:0]  write_buffer_way;
-    reg [ 3:0]  write_buffer_offset;
-
     // 这里的 cache 为 4_way
     // V D Tag Data------> 1'bx  1'bx  20'bx  128'bx
     reg [149:0] cache_line_0[255:0]/*debug*/;
     reg [149:0] cache_line_1[255:0];
     // reg [149:0] cache_line_2[255:0];
     // reg [149:0] cache_line_3[255:0];
+
+
 
     reg [31:0] main_refill_data_buffer [3:0];
 
@@ -125,11 +118,12 @@ module dcache(
     // 确定 cacop_mode0 的信息
     // cacop_mode0_way 是 VA[1:0];
     // cache_line 是 index[7:0]，因此需要将 index[7:2] 作为 cache_line 的索引
-    wire [1:0] cacop_mode0_1_way = request_buffer_offset[0] == 1'b0 ? 2'b01 :
-         request_buffer_offset[0] == 1'b1 ? 2'b10 :
-         //  request_buffer_offset[1:0] == 2'd2 ? 4'b0100 :
-         //  request_buffer_offset[1:0] == 2'd3 ? 4'b1000 :
-         2'b00;
+    wire [1:0] cacop_mode0_1_way;
+    assign cacop_mode0_1_way = request_buffer_offset[0] == 1'b0 ? 2'b01 :
+           request_buffer_offset[0] == 1'b1 ? 2'b10 :
+           //  request_buffer_offset[1:0] == 2'd2 ? 4'b0100 :
+           //  request_buffer_offset[1:0] == 2'd3 ? 4'b1000 :
+           2'b00;
 
     assign replace_way =
            cacop_op_mode1 ? cacop_mode0_1_way :
@@ -180,18 +174,20 @@ module dcache(
     // 考虑到 uncache 访问，如果 uncache_en，那么不应该 hit，直接走 AXI 通道
     assign cache_hit = (|way_hit) && !request_buffer_uncache_en;
 
-    wire [127:0] hit_line_data = way_hit[0] ? cache_line_0[request_buffer_index][`Data] :
-         way_hit[1] ? cache_line_1[request_buffer_index][`Data] :
-         //  way_hit[2] ? cache_line_2[request_buffer_index][`Data] :
-         //  way_hit[3] ? cache_line_3[request_buffer_index][`Data] :
-         128'd0;
+    wire [127:0] hit_line_data;
+    assign hit_line_data = way_hit[0] ? cache_line_0[request_buffer_index][`Data] :
+           way_hit[1] ? cache_line_1[request_buffer_index][`Data] :
+           //  way_hit[2] ? cache_line_2[request_buffer_index][`Data] :
+           //  way_hit[3] ? cache_line_3[request_buffer_index][`Data] :
+           128'd0;
 
     // cache line 的读
     // 根据 index、offset、tag 就应该能立即读出数据
     assign addr_ok = main_state_is_lookup;
     assign rdata = request_buffer_uncache_en ? uncache_rdata_wire : hit_line_data[request_buffer_offset[3:2]*32+:32];
     // 如果 uncache 访存
-    wire uncache_data_ok = request_buffer_op ? main_state_is_write_back && wr_rdy : main_state_is_refill && ret_valid && ret_last;
+    wire uncache_data_ok;
+    assign uncache_data_ok = request_buffer_op ? main_state_is_write_back && wr_rdy : main_state_is_refill && ret_valid && ret_last;
     assign data_ok = request_buffer_uncache_en ? uncache_data_ok && !flush_sign_cancel : (main_state_is_lookup || main_state_is_retry) && cache_hit && !flush_sign_cancel;
 
     // 由于 read 占比高，因此优化优化 read
@@ -228,18 +224,21 @@ module dcache(
     // hit_write data 的生成
     // 这里要考虑 tag、index、offset、wstrb
 
-    wire [31:0] replaced_word = hit_line_data[request_buffer_offset[3:2]*32+:32];
-    wire [31:0] final_word = {(request_buffer_wstrb[3] ? request_buffer_wdata[31:24] : replaced_word[31:24]),
-                              (request_buffer_wstrb[2] ? request_buffer_wdata[23:16] : replaced_word[23:16]),
-                              (request_buffer_wstrb[1] ? request_buffer_wdata[15: 8] : replaced_word[15: 8]),
-                              (request_buffer_wstrb[0] ? request_buffer_wdata[ 7: 0] : replaced_word[ 7: 0])};
+    wire [31:0] replaced_word;
+    assign replaced_word = hit_line_data[request_buffer_offset[3:2]*32+:32];
+    wire [31:0] final_word;
+    assign final_word = {(request_buffer_wstrb[3] ? request_buffer_wdata[31:24] : replaced_word[31:24]),
+                         (request_buffer_wstrb[2] ? request_buffer_wdata[23:16] : replaced_word[23:16]),
+                         (request_buffer_wstrb[1] ? request_buffer_wdata[15: 8] : replaced_word[15: 8]),
+                         (request_buffer_wstrb[0] ? request_buffer_wdata[ 7: 0] : replaced_word[ 7: 0])};
 
-    wire [127:0] write_hit_data = {
-             ({request_buffer_offset[3:2],2'b0} == 4'hc) ? final_word : hit_line_data[127:96],
-             ({request_buffer_offset[3:2],2'b0} == 4'h8) ? final_word : hit_line_data[95:64],
-             ({request_buffer_offset[3:2],2'b0} == 4'h4) ? final_word : hit_line_data[63:32],
-             ({request_buffer_offset[3:2],2'b0} == 4'h0) ? final_word : hit_line_data[31:0]
-         };
+    wire [127:0] write_hit_data;
+    assign write_hit_data = {
+               ({request_buffer_offset[3:2],2'b0} == 4'hc) ? final_word : hit_line_data[127:96],
+               ({request_buffer_offset[3:2],2'b0} == 4'h8) ? final_word : hit_line_data[95:64],
+               ({request_buffer_offset[3:2],2'b0} == 4'h4) ? final_word : hit_line_data[63:32],
+               ({request_buffer_offset[3:2],2'b0} == 4'h0) ? final_word : hit_line_data[31:0]
+           };
 
 
 
@@ -334,23 +333,12 @@ module dcache(
     assign req_or_inst_valid = valid || cacop_en;
     // 这个 buffer 是为了将最后返回的数据锁存起来以防止 axi_rdata 对 mem_rdata 的干扰
     reg [31:0]  uncache_data_buffer;
-    wire [31:0] uncache_rdata_wire = request_buffer_uncache_en && ret_valid && ret_last ? ret_data : uncache_data_buffer;
+    wire [31:0] uncache_rdata_wire;
+    assign uncache_rdata_wire = request_buffer_uncache_en && ret_valid && ret_last ? ret_data : uncache_data_buffer;
 
 
     // cancle 信号到来时的状态
     reg [8:0] when_cancel_state;
-
-    genvar j;
-    generate
-        for (j = 0; j < 256; j = j + 1) begin
-            always @(posedge clk) begin
-                if(!resetn) begin
-                    cache_line_0[j] <= 150'd0;
-                    cache_line_1[j] <= 150'd0;
-                end
-            end
-        end
-    endgenerate
 
     always @(posedge clk) begin
         if(!resetn) begin
@@ -361,16 +349,20 @@ module dcache(
             request_buffer_offset     <=  4'b0;
             request_buffer_wstrb      <=  4'b0;
             request_buffer_wdata      <= 32'b0;
-
             request_buffer_uncache_en  <= 1'b0;
             request_buffer_size        <= 3'd0;
-
-            when_cancel_state         <= 9'b0;
-
             request_buffer_cacop_en    <= 1'b0;
             request_buffer_cacop_mode  <= 2'b0;
-        end
 
+            miss_buffer_ret_num        <= 2'd0;
+            main_refill_data_buffer[0] <= 32'd0;
+            main_refill_data_buffer[1] <= 32'd0;
+            main_refill_data_buffer[2] <= 32'd0;
+            main_refill_data_buffer[3] <= 32'd0;
+            refill_done                <= 1'd0;
+            uncache_data_buffer        <= 32'd0;
+            when_cancel_state          <= 9'd0;
+        end
         else if (flush_sign_cancel) begin
             // 请求取消
             when_cancel_state         <= main_state;
@@ -405,8 +397,9 @@ module dcache(
                 end
                 else if (cacop_op_mode1) begin
                     // dcache Index Invalidate / Invalidate and Writeback
-                    main_state <= main_write_back;
+                    main_state <= replace_v ? main_write_back : main_idle;
                 end
+
                 else if (cache_hit) begin
                     // 如果是 cacop_mode_2，切命中，这时候直接返回 idle，同时对命中的 cache_line 进行写会和无效化
                     if (cacop_op_mode2) begin

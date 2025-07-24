@@ -81,8 +81,6 @@ module IDU (
 
         input wire flush_idle,
 
-        output wire [1:0] bar_o,
-
         // 数据前递
         // 这里数据前递需要判断 MEM 阶段是否是访存操作以及 sc 操作
         // 如果是，那么应该优先进行前递，而不是简单的 EXU > MEM > WBU
@@ -142,7 +140,8 @@ module IDU (
 
     wire caculate_done;
 
-    wire flush_sign = ertn_flush || excp_flush || wbu_refetch_flush || icacop_flush_i;
+    wire flush_sign;
+    assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush || icacop_flush_i;
 
     // 数据相关
 
@@ -201,9 +200,9 @@ module IDU (
 
     // csr
     wire [13:0] csr_idx;    // csr 索引
-    wire [31:0] csr_data;
+    wire [31:0] csr_data = 32'd0;
     wire [31:0] csr_mask;
-    wire [31:0] csr_wdata;  // 给 csr 中写的数据
+    wire [31:0] csr_wdata = 32'd0;  // 给 csr 中写的数据
     wire is_inst_ertn;
     wire csr_we;
 
@@ -333,6 +332,10 @@ module IDU (
     wire        inst_cacop;
     wire        inst_valid_cacop;
 
+    // 指令合法，但是暂时没有执行意义
+    wire        inst_nop;
+    wire        inst_preld;
+
 
     wire br_taken;
     wire [31:0] br_target;
@@ -379,6 +382,7 @@ module IDU (
             fs_excp_r <= 1'b0;
 
             refetch_excp_i_r <= 1'b0;
+            after_br_invalid_r <= 1'b0;
         end
         // idle
         else if (idu_state == 2'd0 && up_valid) begin
@@ -387,8 +391,8 @@ module IDU (
             pc_reg <= br_taken ? pc_reg : in_pc;
             // 如果当前是跳转，那么下一条指令置 NOP
             inst_sram_rdata_reg <= br_taken ? inst_nop_data : in_rdata;
-            fs_excp_num_r <= fs_excp_num;
-            fs_excp_r <= fs_excp;
+            fs_excp_num_r <= br_taken ? 16'd0: fs_excp_num;
+            fs_excp_r <= br_taken ? 1'b0 : fs_excp;
             idu_state <= 2'd1;
             refetch_excp_i_r <= wbu_refetch_sign_i | refetch_excp_i; // 记录是否需要重取
         end
@@ -402,8 +406,7 @@ module IDU (
     end
 
     // 只有计算完成，这里才有效
-    // assign state_valid = idu_state == 2'd1 && caculate_done && !(dbar_stall || ibar_stall);
-    assign state_valid = idu_state == 2'd1 && caculate_done ;
+    assign state_valid = idu_state == 2'd1 && caculate_done && !(dbar_stall || ibar_stall);
     assign waite_ready_o = flush_idle ? 1'b0: (idu_state == 2'd0);
 
 
@@ -582,7 +585,11 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
     assign inst_idle       = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h11];
 
     assign inst_cacop      = op_31_26_d[6'h01] & op_25_22_d[4'h8];
-    assign inst_valid_cacop = inst_cacop && (dest[2:0]==3'b0||dest[2:0]==3'b1)&&(dest[4:3]==2'd0||dest[4:3]==2'd1||dest[4:3]==2'd2);
+    assign inst_valid_cacop = inst_cacop && (dest[2:0]==3'b0 || dest[2:0]==3'b1) && (dest[4:3]==2'd0 || dest[4:3]==2'd1 || dest[4:3]==2'd2);
+    assign inst_nop = inst_cacop && ((dest[2:0]!=3'b0 && dest[2:0] != 3'b1) || (dest[4:3]==2'd3));
+
+    assign inst_preld      = op_31_26_d[6'h0a] & op_25_22_d[4'hb];
+
 
 
     // 需要用到 alu 的指令
@@ -629,7 +636,7 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
 
     assign imm = src2_is_4 ? 32'h4:
            need_ui12 ? {20'b0, i12[11:0]}: // 12位零扩展立即数
-           need_si14 ? {{16{i14[13]}}, i14[13:0],2'b00}: // 左移 2 位有符号扩展
+           need_si14 ? {{16{i14[13]}}, i14,2'b00}: // 左移 2 位有符号扩展
            need_si20 ? {i20[19:0], 12'b0}:
            {{20{i12[11]}}, i12[11:0]};     // 12位符号扩展立即数
 
@@ -679,7 +686,9 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
            inst_ld_w   |
 
            inst_ll_w   |
-           inst_sc_w;
+           inst_sc_w   |
+           inst_valid_cacop
+           ;
 
     assign out_mem_op = {inst_sc_w, inst_ll_w, inst_ld_w, inst_ld_hu, inst_ld_h, inst_ld_bu, inst_ld_b, inst_st_w, inst_st_h, inst_st_b};
 
@@ -859,6 +868,8 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
            inst_ibar       |
            inst_idle       |
            inst_valid_cacop|
+           inst_nop        |
+           inst_preld      |
            (inst_invtlb && (rd == 5'd0 ||
                             rd == 5'd1 ||
                             rd == 5'd2 ||
@@ -949,6 +960,7 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
 
     //ibar dbar
     assign pipeline_no_empty = es_to_ds_valid || ms_to_ds_valid || ws_to_ds_valid;
+
     assign dbar_stall = inst_dbar && pipeline_no_empty;
     assign ibar_stall = inst_ibar && pipeline_no_empty;
 
@@ -958,7 +970,6 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
 
     assign inst_idle_o = inst_idle;
 
-    assign bar_o = {inst_dbar, inst_ibar};
     assign cacop_o = inst_valid_cacop;
 
 endmodule

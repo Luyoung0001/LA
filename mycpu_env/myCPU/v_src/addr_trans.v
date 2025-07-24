@@ -68,7 +68,9 @@ module addr_trans
          input                  invtlb_valid         ,
          input  [ 4:0]          invtlb_op            ,
          input  [ 9:0]          invtlb_asid          ,
-         input  [18:0]          invtlb_vpn
+         input  [18:0]          invtlb_vpn           ,
+
+         input                  cacop_op_mode_di_i
 
      );
 
@@ -123,6 +125,7 @@ module addr_trans
 
     wire        inst_pg_mode;
     wire        inst_da_mode;
+
     wire        data_pg_mode;
     wire        data_da_mode;
 
@@ -160,7 +163,7 @@ module addr_trans
     assign tlbidx_out   = {!r_e, 1'b0, r_ps, 24'b0}; //note do not write index
     assign asid_out     = r_asid;
 
-    tlb #(TLBNUM) blt_o(
+    tlb #(TLBNUM) btl_o(
              .clk            (clk            ),
              .rst            (rst            ),
              // search port 0
@@ -243,14 +246,14 @@ module addr_trans
     // 在映射地址翻译模式下, 地址翻译时将优先看其能否按照直接映射
     // 模式进行地址翻译, 无法进行后再通过页表映射模式进行翻译。
     assign inst_paddr = (inst_pg_mode && inst_dmw0_en) ? {inst_dmw0[`PSEG], inst_vaddr[28:0]} :
-           (inst_pg_mode && inst_dmw1_en) ? {inst_dmw1[`PSEG], inst_vaddr[28:0]} : inst_vaddr;
+                        (inst_pg_mode && inst_dmw1_en) ? {inst_dmw1[`PSEG], inst_vaddr[28:0]} : inst_vaddr;
 
     assign inst_offset = inst_vaddr[3:0];
     assign inst_index  = inst_vaddr[11:4];
     assign inst_tag    = inst_addr_trans_en ? ((s0_ps == 6'd12) ? s0_ppn : {s0_ppn[19:10], inst_paddr[21:12]}) : inst_paddr[31:12];
 
-    assign data_paddr = (data_pg_mode && data_dmw0_en ) ? {data_dmw0[`PSEG], data_vaddr[28:0]} :
-           (data_pg_mode && data_dmw1_en ) ? {data_dmw1[`PSEG], data_vaddr[28:0]} : data_vaddr;
+    assign data_paddr = (data_pg_mode && data_dmw0_en && !cacop_op_mode_di_i) ? {data_dmw0[`PSEG], data_vaddr[28:0]} :
+                        (data_pg_mode && data_dmw1_en && !cacop_op_mode_di_i) ? {data_dmw1[`PSEG], data_vaddr[28:0]} : data_vaddr;
 
     assign data_offset = data_vaddr[3:0];
     assign data_index  = data_vaddr[11:4];

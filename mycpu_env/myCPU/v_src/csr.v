@@ -1,7 +1,7 @@
 `include "csr.h"
 module csr
     #(
-         parameter TLBNUM = 16
+         parameter TLBNUM = 32
      )
      (
          input wire clk,
@@ -553,16 +553,16 @@ module csr
         if (rst) begin
             csr_tlbidx[23: 5] <= 19'b0;
             csr_tlbidx[30]    <= 1'b0;
-            csr_tlbidx[4:0]<= 5'd0;
+            csr_tlbidx[4:0]   <= 5'd0;
         end
         else if (tlbidx_wen) begin
-            csr_tlbidx[4:0] <= csr_wdata[4:0];
+            csr_tlbidx[4:0]    <= csr_wdata[4:0];
             csr_tlbidx[`PS]    <= csr_wdata[`PS];
             csr_tlbidx[`NE]    <= csr_wdata[`NE];
         end
         else if (tlbsrch_en) begin
             if (tlbsrch_found) begin
-                csr_tlbidx[$clog2(TLBNUM)-1:0] <= tlbsrch_index;
+                csr_tlbidx[4:0] <= tlbsrch_index;
                 csr_tlbidx[`NE]    <= 1'b0;
             end
             else begin

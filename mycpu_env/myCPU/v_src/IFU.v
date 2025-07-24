@@ -177,6 +177,7 @@ module IFU (
         if(rst || flush_sign ) begin
             ifu_state <= 2'b0;
             refetch_excp_i_r <= 1'b0;
+            pc <= 32'd0;
         end
         // 空闲且上游数据有效则 取出上游数据
         else begin

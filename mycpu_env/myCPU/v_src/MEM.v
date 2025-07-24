@@ -179,9 +179,6 @@ module MEM
          output wire inst_idle_o,
          input wire idle_flush,
 
-         input wire [1:0] bar_i,
-         output wire [1:0] bar_o,
-
          input wire disable_cache, //debug
 
          // cacop
@@ -201,7 +198,8 @@ module MEM
 
          output wire [1:0] cacop_op_mode,
          // 生成 icacop_flush
-         output icacop_o
+         output icacop_o,
+         output cacop_op_mode_di
      );
 
     reg cacop_i_r;
@@ -256,7 +254,6 @@ module MEM
     reg csr_rstat_i_r;
     reg after_br_invalid_i_r;
     reg inst_idle_i_r;
-    reg [1:0] bar_i_r;
 
     wire excp_flush;
     wire ertn_flush;
@@ -284,7 +281,8 @@ module MEM
     wire [15:0] excp_pme_num;
 
     // 清空信号
-    wire flush_sign = ertn_flush || excp_flush || wbu_refetch_flush || icacop_flush_i;
+    wire flush_sign;
+    assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush || icacop_flush_i;
 
     // 数据相关
     wire mem_regWr;
@@ -384,8 +382,9 @@ module MEM
            ({33{wire_inst_rdcntid_w}} & {1'b1, csr_tid});
 
     // 从 csr 独读出的值有两种情况
-    wire [31:0] csr_data = rdcnt_en ? rdcnt_result :
-         wire_res_from_csr ? rd_csr_data : 32'd0;
+    wire [31:0] csr_data;
+    assign csr_data = rdcnt_en ? rdcnt_result :
+           wire_res_from_csr ? rd_csr_data : 32'd0;
 
     // 从 csr 中读取数据
     // 其中，如果是读计数器寄存器，则直接返回计数器的值
@@ -399,7 +398,8 @@ module MEM
     end
 
     assign rd_csr_addr = wire_rd_csr_addr;
-    wire [31:0] csr_wdata = wire_csrkd_value & wire_csr_mask | (csr_data & ~wire_csr_mask);
+    wire [31:0] csr_wdata;
+    assign csr_wdata = wire_csrkd_value & wire_csr_mask | (csr_data & ~wire_csr_mask);
 
     assign final_result = wire_res_from_mem ? rdata_final :
            wire_res_from_csr ? csr_data :
@@ -455,7 +455,8 @@ module MEM
     // 如果在执行 load 操作，将该信号传给 idu，如果 idu 发现load_use，可以直接从
     assign inst_ld = {ld_b | ld_bu | ld_h | ld_hu | ld_w | ll_w, final_result};
 
-    wire [31:0] mem_pc = es_pc_pro_i_r;
+    wire [31:0] mem_pc;
+    assign mem_pc  = es_pc_pro_i_r;
     assign bus_mem_bypass_data = {
                mem_regWr,
                mem_data,
@@ -494,7 +495,6 @@ module MEM
             csr_rstat_i_r <= 1'b0;
             after_br_invalid_i_r <= 1'b0;
             inst_idle_i_r <= 1'b0;
-            bar_i_r <= 2'b0;
 
             cacop_i_r <= 1'b0;
         end
@@ -525,7 +525,6 @@ module MEM
             csr_rstat_i_r <= csr_rstat_i;
             after_br_invalid_i_r <= after_br_invalid_i;
             inst_idle_i_r <= inst_idle_i;
-            bar_i_r <= bar_i;
 
             cacop_i_r <= cacop_i;
         end
@@ -541,7 +540,7 @@ module MEM
                     mem_state <= 3'd4;
                 end
             end
-            else if((access_memo) && !stop_signal) begin
+            else if(access_memo && !stop_signal) begin
                 if(waite_ready_i && addr_ok && !data_ok) begin
                     mem_state <= 3'd2; // 等待
                 end
@@ -581,6 +580,9 @@ module MEM
                 mem_state <= 3'd0; // 处理完成
             end
         end
+        else begin
+             mem_state <= 3'd0; // 处理完成
+        end
     end
 
     // 取消取指令
@@ -604,7 +606,8 @@ module MEM
     wire [31:0] real_data;
     wire [31:0] rdata_final;
     // wire [31:0] paddr = {data_tag, wire_error_va[11:0]};
-    wire [31:0] paddr = {data_tag, es_alu_result_i_r[11:0]};
+    wire [31:0] paddr;
+    assign paddr = {data_tag, es_alu_result_i_r[11:0]};
 
     assign real_data =
            (data_offset[1:0] == 2'b00) ? (
@@ -634,17 +637,16 @@ module MEM
     assign state_valid = access_memo && !stop_signal ? data_ok :
            mem_state == 3'd1 && stop_signal ? 1'd1:
            cacop_i_r && stop_signal ? 1'd1:
-           cacop_i_r ? icacop_addr_ok && icacop_data_ok || data_ok:
+           cacop_i_r ? icacop_addr_ok && icacop_data_ok || dcacop_data_ok:
            mem_state == 3'd1;
-
-
 
     assign waite_ready_o = idle_flush ? 1'b0: (mem_state == 3'd0);
     // 这里的 over 可以提前结束:
     assign mem_over = mem_state == 3'd0;
 
     // ================访存单元================
-    wire stop_signal = es_excp_i_r || mem_excp || flush_sign || wbu_in_is_ertn || es_refetch_excp_i_r;
+    wire stop_signal;
+    assign stop_signal = es_excp_i_r || mem_excp || flush_sign || wbu_in_is_ertn || es_refetch_excp_i_r;
 
     // sc 是否执行，如果执行了，就往 rd 中写 1
     wire sc_do;
@@ -664,8 +666,6 @@ module MEM
     assign wdata = st_b ? {4{es_rkd_value_i_r[7:0]}} :
            st_h ? {2{es_rkd_value_i_r[15:0]}} :
            st_w || sc_do ? es_rkd_value_i_r : 32'b0;
-
-
 
     wire read_mem  = ld_b || ld_bu || ld_h || ld_hu || ld_w || ll_w;
     wire write_mem = st_b || st_h || st_w || sc_do;
@@ -691,7 +691,6 @@ module MEM
     wire pg_mode;
     wire da_mode;
 
-    wire cacop_op_mode_di;
     // 加上 tlb 之后，地址的意义发生了变化
     // 假设是 pg 映射模式，那么地址就得从 addr_trans 返回
     assign data_vaddr = wire_inst_tlbsrch ? {csr_vppn,13'd0} : es_alu_result_i_r;
@@ -714,11 +713,8 @@ module MEM
     assign data_uncache_en = (da_mode && (csr_datm == 2'b0))    ||
            (data_dmw0_en && (csr_dmw0[`DMW_MAT] == 2'b0))       ||
            (data_dmw1_en && (csr_dmw1[`DMW_MAT] == 2'b0))       ||
-           (data_addr_trans_en && (data_tlb_mat == 2'b0)) ||
+           (data_addr_trans_en && (data_tlb_mat == 2'b0))       ||
            disable_cache;
-
-
-
 
 
     // for tlbsrch
@@ -733,15 +729,17 @@ module MEM
     // 如果是 ld_w 或者 st_w，对齐到4字节
     // 0x9
     assign mem_excp_ale = (ld_h || ld_hu || st_h) && es_alu_result_i_r[0] ? 1'b1 :
-           (ld_w || st_w || sc_do) && (es_alu_result_i_r[1:0] != 2'b00) ? 1'b1 : 1'b0;
+           (ld_w || st_w || ll_w || sc_do) && (es_alu_result_i_r[1:0] != 2'b00) ? 1'b1 : 1'b0;
     assign excp_ale_num = mem_excp_ale ? 16'h0200 :16'b0;
+
+    wire cacop_excp = cacop_i_r && cacop_op_mode == 2'd2;
 
     // cacop 可能引起相关的异常
     // 0x10
-    assign mem_excp_tlbr = (access_memo || (cacop_i_r && cacop_op_mode == 2'd2)) && !data_tlb_found && data_addr_trans_en;
+    assign mem_excp_tlbr = (access_memo || cacop_excp) && !data_tlb_found && data_addr_trans_en;
     assign excp_tlbr_num = mem_excp_tlbr ? 16'h0400 : 16'b0;
     // 0x11
-    assign mem_excp_pil  = (read_mem || (cacop_i_r && cacop_op_mode == 2'd2)) && !data_tlb_v && data_addr_trans_en;
+    assign mem_excp_pil  = (read_mem || cacop_excp) && !data_tlb_v && data_addr_trans_en;
     assign excp_pil_num = mem_excp_pil ? 16'h0800 : 16'b0;
     // 0x12
     assign mem_excp_pis  = write_mem && !data_tlb_v && data_addr_trans_en;
@@ -754,16 +752,21 @@ module MEM
     assign excp_pme_num = mem_excp_pme ? 16'h4000 : 16'b0;
 
 
-    wire [15:0] wire_es_excp_num = es_excp_num_i_r;
-    wire wire_es_excp = es_excp_i_r;
+    wire [15:0] wire_es_excp_num;
+    wire wire_es_excp;
+    wire [15:0] ms_excp_num;
+    wire ms_excp;
+    assign wire_es_excp_num = es_excp_num_i_r;
+    assign wire_es_excp = es_excp_i_r;
 
     // 当前阶段的异常 += 上一阶段
-    wire [15:0] ms_excp_num = wire_es_excp_num | excp_ale_num |
-         excp_tlbr_num | excp_pil_num | excp_pis_num |
-         excp_ppi_num | excp_pme_num;
+
+    assign ms_excp_num = wire_es_excp_num | excp_ale_num |
+           excp_tlbr_num | excp_pil_num | excp_pis_num |
+           excp_ppi_num | excp_pme_num;
 
     // 当前阶段的异常 += 上一阶段
-    wire ms_excp = wire_es_excp || mem_excp_ale ||
+    assign ms_excp = wire_es_excp || mem_excp_ale ||
          mem_excp_tlbr || mem_excp_pil || mem_excp_pis ||
          mem_excp_ppi || mem_excp_pme;
 
@@ -791,8 +794,6 @@ module MEM
     assign csr_rstat_o = csr_rstat_i_r;
     assign csr_estat_data = (csr_rstat_i_r == 1'b1) ? csr_data : 32'b0; // 信号最好具体化，尽管写一个 final_result 没错，但是这里延迟会更低
     assign ms_paddr_o = {data_tag, es_alu_result_i_r[11:0]};
-
-
 
     // cacop_mode == 2'b01 || cacop_mode == 2'b01 时，表示直接索引
     // cacop_mode == 2'b10                        时，表示查询索引
@@ -828,7 +829,6 @@ module MEM
 
     assign inst_idle_o = inst_idle_i_r;
 
-    assign bar_o = bar_i_r;
     assign inst_sc = {sc_w, sc_do};
     assign icacop_o = icacop_inst;
 endmodule

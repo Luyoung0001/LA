@@ -97,12 +97,14 @@ module icache(
     // 确定 cacop_mode0 的信息
     // cacop_mode0_way 是 VA[1:0];
     // cache_line 是 index[7:0]，因此需要将 index[7:2] 作为 cache_line 的索引
-    wire [3:0] cacop_mode0_1_way = request_buffer_offset[1:0] == 2'd0 ? 4'b0001 :
-         request_buffer_offset[1:0] == 2'd1 ? 4'b0010 :
-         request_buffer_offset[1:0] == 2'd2 ? 4'b0100 :
-         request_buffer_offset[1:0] == 2'd3 ? 4'b1000 : 4'b0000;
+    wire [3:0] cacop_mode0_1_way;
+    assign cacop_mode0_1_way = request_buffer_offset[1:0] == 2'd0 ? 4'b0001 :
+           request_buffer_offset[1:0] == 2'd1 ? 4'b0010 :
+           request_buffer_offset[1:0] == 2'd2 ? 4'b0100 :
+           request_buffer_offset[1:0] == 2'd3 ? 4'b1000 : 4'b0000;
 
-    wire [7:0] cacop_mode0_1_index = request_buffer_index;
+    wire [7:0] cacop_mode0_1_index;
+    assign cacop_mode0_1_index = request_buffer_index;
     // 如果是 cacop
     assign replace_way =
            cacop_op_mode1 ? cacop_mode0_1_way :
@@ -137,17 +139,19 @@ module icache(
     // 考虑到 uncache 访问，如果 uncache_en，那么不应该 hit，直接走 AXI 通道
     assign cache_hit = (|way_hit) && (!request_buffer_uncache_en);
 
-    wire [127:0] hit_line_data = way_hit[0] ? cache_line_0[request_buffer_index][`Data] :
-         way_hit[1] ? cache_line_1[request_buffer_index][`Data] :
-         way_hit[2] ? cache_line_2[request_buffer_index][`Data] :
-         way_hit[3] ? cache_line_3[request_buffer_index][`Data] : 128'd0;
+    wire [127:0] hit_line_data;
+    assign hit_line_data = way_hit[0] ? cache_line_0[request_buffer_index][`Data] :
+           way_hit[1] ? cache_line_1[request_buffer_index][`Data] :
+           way_hit[2] ? cache_line_2[request_buffer_index][`Data] :
+           way_hit[3] ? cache_line_3[request_buffer_index][`Data] : 128'd0;
 
     // cache line 的读
     // 根据 index、offset、tag 就应该能立即读出数据
 
     // 这个 buffer 是为了将最后返回的数据锁存起来以防止 axi_rdata 对数据的干扰
     reg [31:0]  uncache_data_buffer;
-    wire [31:0] uncache_rdata_wire = request_buffer_uncache_en && ret_valid && ret_last ? ret_data : uncache_data_buffer;
+    wire [31:0] uncache_rdata_wire;
+    assign uncache_rdata_wire = request_buffer_uncache_en && ret_valid && ret_last ? ret_data : uncache_data_buffer;
 
     assign addr_ok = main_state_is_lookup;
     assign rdata = request_buffer_uncache_en ? uncache_rdata_wire : hit_line_data[request_buffer_offset[3:2]*32+:32];
@@ -251,25 +255,17 @@ module icache(
         end
     end
 
-    wire [ 3:0]  real_offset = cacop_en ? cacop_op_addr_offset : offset;
-    wire [19:0]  real_tag    = cacop_en ? cacop_op_addr_tag : tag;
-    wire [ 7:0]  real_index  = cacop_en ? cacop_op_addr_index : index;
+    wire [ 3:0]  real_offset;
+    wire [19:0]  real_tag;
+    wire [ 7:0]  real_index;
+    wire req_or_inst_valid;
+    assign real_offset = cacop_en ? cacop_op_addr_offset : offset;
+    assign real_tag    = cacop_en ? cacop_op_addr_tag : tag;
+    assign real_index  = cacop_en ? cacop_op_addr_index : index;
     // 状态机
-    wire req_or_inst_valid = valid || cacop_en;
+    assign req_or_inst_valid = valid || cacop_en;
 
-    genvar j;
-    generate
-        for (j = 0; j < 256; j = j + 1) begin
-            always @(posedge clk) begin
-                if(!resetn) begin
-                    cache_line_0[j] <= 150'd0;
-                    cache_line_1[j] <= 150'd0;
-                    cache_line_2[j] <= 150'd0;
-                    cache_line_3[j] <= 150'd0;
-                end
-            end
-        end
-    endgenerate
+
     // cancle 信号到来时的状态
     reg [6:0] when_cancel_state;
 
@@ -280,12 +276,20 @@ module icache(
             request_buffer_tag        <= 20'b0;
             request_buffer_offset     <=  4'b0;
             request_buffer_uncache_en <= 1'b0;
-            when_cancel_state         <= 7'b0;
-
             request_buffer_cacop_en    <= 1'b0;
             request_buffer_cacop_mode  <= 2'b0;
-        end
+            miss_buffer_ret_num <= 2'd0;
 
+            main_refill_data_buffer[0] <= 32'd0;
+            main_refill_data_buffer[1] <= 32'd0;
+            main_refill_data_buffer[2] <= 32'd0;
+            main_refill_data_buffer[3] <= 32'd0;
+
+            refill_done               <= 1'b0;
+            uncache_data_buffer       <= 32'd0;
+            when_cancel_state         <= 7'b0;
+
+        end
         // 请求取消，进入请求取消状态
         else if (flush_sign_cancel) begin
             // 请求取消
@@ -309,11 +313,8 @@ module icache(
                     end
                 end
                 main_lookup: begin
-                    if (cacop_op_mode0 || cacop_op_mode1) begin
+                    if (cacop_op_mode0 || cacop_op_mode1 || cacop_op_mode2 || cache_hit) begin
                         // invalid || icache Index Invalidate / just invalidate
-                        main_state <= main_idle;
-                    end
-                    else if (cache_hit) begin
                         main_state <= main_idle;
                     end
                     else if(!cache_hit) begin

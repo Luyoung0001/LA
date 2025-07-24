@@ -42,6 +42,7 @@ module WBU
          input wire [$clog2(TLBNUM)-1:0]  csr_rand_index,
          input wire [9:0]  csr_asid,
          input wire [5:0] csr_ecode_i,
+         
          // tlbsrch
          output  wire                          tlbsrch_en,
          input   wire [$clog2(TLBNUM)-1:0]     tlbsrch_index,
@@ -151,17 +152,15 @@ module WBU
          output wire idle_flush,
          input wire has_int, // 有了 has_int 立即解冻
 
-         input wire [1:0] bar_i,
-
-         output wire ibar_flush, // 通知 icache，无效掉所有
-
          // cacop
          input wire icacop_op_en_i,
-         output wire icacop_flush
+         output wire icacop_flush,
+
+         input wire uncache_en_i
      );
+    reg uncache_en_i_r;
     reg icacop_op_en_i_r;
 
-    reg [1:0] bar_i_r;
     reg inst_idle_i_r;
     reg after_br_invalid_i_r;
     reg csr_rstat_i_r;
@@ -192,9 +191,6 @@ module WBU
     wire ertn_flush;
     assign flush = {excp_flush, ertn_flush};
 
-    wire wire_ibar;
-    wire wire_dbar;
-    assign {wire_dbar, wire_ibar} = bar_i_r;
 
     // to_csr
     wire csr_we;
@@ -327,8 +323,9 @@ module WBU
 
             inst_idle_i_r <= 1'b0;
 
-            bar_i_r <= 2'b0;
+
             icacop_op_en_i_r <= 1'b0;
+            uncache_en_i_r <= 1'b0;
 
         end
         else if (wbu_state == 2'd0 && up_valid) begin
@@ -374,10 +371,10 @@ module WBU
             after_br_invalid_i_r <= after_br_invalid_i;
             inst_idle_i_r <= inst_idle_i;
 
-            bar_i_r <= bar_i;
-
 
             icacop_op_en_i_r <= icacop_op_en_i;
+
+            uncache_en_i_r <= uncache_en_i;
         end
         else if(wbu_state == 2'd1 && !idle_flush) begin
             wbu_state <= 2'd0;
@@ -511,8 +508,8 @@ module WBU
 
     //llbit
     assign ws_llbit_set  = (ll_w || sc_w) && ws_valid && !ws_excp && !refetch_excp_i_r;
-    assign ws_llbit      = ll_w;
-    assign ws_lladdr_set = ll_w && ws_valid && !ws_excp && !refetch_excp_i_r;
+    assign ws_llbit      = ll_w && !uncache_en_i_r;
+    assign ws_lladdr_set = ll_w && !uncache_en_i_r && ws_valid && !ws_excp && !refetch_excp_i_r;
     assign ws_lladdr     =  paddr_i_r[31:4];
 
 
@@ -544,8 +541,6 @@ module WBU
 
     // 如果当前指令idle 到来的时候，has_int 有效，那么就不会有 idle_flush, 可认为 idle失效？
     assign idle_flush = inst_idle_i_r && !has_int;
-
-    assign ibar_flush = wire_ibar && ws_valid;
 
     // difftest
     assign ws_valid_diff = ws_valid && !ws_excp && !refetch_excp_i_r && !after_br_invalid_i_r;

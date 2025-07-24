@@ -82,8 +82,6 @@ module EXU
 
          input wire idle_flush,
 
-         input wire [1:0] bar_i,
-         output wire [1:0] bar_o,
 
          // cacop，执行动作就应该放在 MEM 阶段
          input  wire cacop_i,
@@ -93,7 +91,6 @@ module EXU
      );
     reg cacop_i_r;
 
-    reg [1:0] bar_i_r;
 
     reg inst_idle_i_r;
     reg csr_rstat_i_r;
@@ -170,10 +167,12 @@ module EXU
     assign exu_excp = es_excp | mem_excp; // 收集下游的信号，向上传递
     assign exu_is_ertn = wire_is_inst_ertn | mem_in_is_ertn;
 
-    wire flush_sign = ertn_flush || excp_flush || wbu_refetch_flush || icacop_flush_i;
+    wire flush_sign;
+    assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush || icacop_flush_i;
 
     // 遇见这些信号不能产生任何执行效果
-    wire stop_signal = es_excp || mem_excp || flush_sign || mem_in_is_ertn || refetch_excp_i_r;
+    wire stop_signal;
+    assign stop_signal = es_excp || mem_excp || flush_sign || mem_in_is_ertn || refetch_excp_i_r;
 
     assign {
             mul_div_op,
@@ -346,7 +345,6 @@ module EXU
             after_br_invalid_i_r <= 1'b0;
             inst_idle_i_r <= 1'b0;
 
-            bar_i_r <= 2'b0;
 
             cacop_i_r <= 1'b0;
 
@@ -377,8 +375,6 @@ module EXU
 
             after_br_invalid_i_r <= after_br_invalid_i;
             inst_idle_i_r <= inst_idle_i;
-
-            bar_i_r <= bar_i;
 
             cacop_i_r <= cacop_i;
 
@@ -447,7 +443,6 @@ module EXU
 
     assign out_mem_op = mem_op_reg;
 
-    assign bar_o = bar_i;
 
     assign cacop_o = cacop_i_r;
 
