@@ -382,6 +382,7 @@ module csr
             csr_estat[12]    <= 1'b0;   // 核间中断，暂不考虑
             csr_estat[15:13] <= 3'b0;   // 保留域
             csr_estat[31]    <= 1'b0;   // 保留域
+            // csr_estat <= 32'd0;
 
             timer_en <= 1'b0;
         end

@@ -97,17 +97,17 @@ void step() {
         start_time = temp_i - 5000;
     }
 
-    // if (i >= start_time) {
-    tfp->dump(main_time);
-    main_time++;
-    // }
+    if (i >= start_time) {
+        tfp->dump(main_time);
+        main_time++;
+    }
     top->clk = 1;
     top->eval();
 
-    // if (i >= start_time) {
-    tfp->dump(main_time);
-    main_time++;
-    // }
+    if (i >= start_time) {
+        tfp->dump(main_time);
+        main_time++;
+    }
 }
 void reset(int n) {
     top->rst = 1;
@@ -348,8 +348,6 @@ void print_info() {
 #define CSR_PGDL_DIFF 0xbfffffff
 #define CSR_PGDH_DIFF 0x7fffffff
 
-int change_tag = 0;
-
 int difftest() {
 #ifdef EASY_MODE
     mycpu_trace_info.we = top->rootp->verilator_top->debug_wb_rf_wen == 15;
@@ -361,7 +359,6 @@ int difftest() {
     if (last_op.pc == mycpu_trace_info.pc) {
         return 1;
     }
-
     // 保存最新的状态
     last_op.wnum = mycpu_trace_info.wnum;
     last_op.pc = mycpu_trace_info.pc;
@@ -374,21 +371,13 @@ int difftest() {
     } else {
         // 读取 ref
         // 一直读到 ref 的 we 为 1
-        if (change_tag == 0) {
+        read_ref();
+        while (ref_struct.we == 0) {
             read_ref();
-            while (ref_struct.we == 0) {
-                read_ref();
-            }
         }
-        // 如果 PC 不一样，说明 mycpu 此时的指令没有比较的意义,等待下一个 my_pc
-        // 来和 ref_pc 比较
+        // 如果 PC 不一样，说明 mycpu 此时的指令没有比较的意义
         if (mycpu_trace_info.pc != ref_struct.pc) {
-            print_info();
-            change_tag = 1;
             return 1;
-        } else {
-            // 此时已经相同了
-            change_tag = 0;
         }
         // pc 应该每次都进行打印
         print_info();
@@ -509,15 +498,14 @@ void cpu_exec(uint64_t n) {
         uint32_t pc = top->rootp->verilator_top->debug_wb_pc;
         if (difftest() == 0) {
             printf("i:%d -->Error!\n", i);
-            // break;
+            break;
         }
         uint32_t stop_pc = 0x1c000100;
         if (pc == stop_pc) {
             printf("\033[32mPassed all the tests!\033[0m\n");
             break;
         }
-        printf("i: %d\n", i);
-
+        // printf("i: %d\n", i);
         stepi();
         n--;
     }
@@ -546,8 +534,6 @@ int main(int argc, char* argv[]) {
     top->trace(tfp, 99);
     tfp->open("wave.vcd");
     reset(1);
-    // cpu_exec(881181);
-    cpu_exec(1200000);
-    // cpu_exec(1000);
+    cpu_exec(-1);
     return 0;
 }

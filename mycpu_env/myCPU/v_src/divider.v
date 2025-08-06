@@ -5,7 +5,7 @@ module divider(
         input div_signed,
         input [31:0] x, y,
         output [31:0] s, r,
-        output complete
+        output  complete
     );
 
     wire busy;

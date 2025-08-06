@@ -9,13 +9,11 @@ module IFU (
         output wire fs_excp_out,
         output wire [15:0] fs_excp_num_out,
 
-        input wire [1:0] flush,
-
         // 握手信号
-        input up_valid,
-        output state_valid,
-        input waite_ready_i,
-        output waite_ready_o,
+        input preifu_to_ifu_valid,
+        output ifu_allowin,
+        input idu_allowin,
+        output ifu_to_idu_valid,
 
         // dcache 额外的属性
         output wire inst_uncache_en,
@@ -73,16 +71,14 @@ module IFU (
         output [31:0] rdata_o, // 发送到下游的指令
 
         // from WBU
-        input wire wbu_refetch_sign_i,
-        output wire refetch_excp_o,
-        input wire wbu_refetch_flush,
-
-        input wire idle_flush,
+        input wire idle_stall,
 
         // debug
         input wire disable_cache,
 
-        input wire icacop_flush_i
+        input wire flush_sign,
+
+        input wire br_flush
     );
 
     wire req; // en
@@ -103,17 +99,8 @@ module IFU (
     assign data_ok = icache_data_ok;
     assign rdata   = icache_rdata;
 
-
-    // IFU 阶段有效信号
-    wire fs_ready_go;
-
     reg  [31:0] pc;
-    wire excp_flush;
-    wire ertn_flush;
-    wire flush_sign;
 
-    assign {excp_flush, ertn_flush} = flush;
-    assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush || icacop_flush_i;
 
     // 异常
     // 取址地址错移异常
@@ -157,6 +144,7 @@ module IFU (
     // 输出
     assign fs_excp_out = pfs_excp;
     assign fs_excp_num_out = fs_excp_num;
+
     // 这里应该设置一个握手机制：参考的是 ysyx 中的 B1 总线，也是我之前实现过的一个模块
     // 具体的，分为两个状态：idle <---> waite_ready
     // 1、一开始处于空闲状态 idle，===> valid = 0；
@@ -169,51 +157,102 @@ module IFU (
     // 1:   process
     // 2:   waite_ready
 
+    // 改进：由于我本人写了两个版本的状态机
+    // 第一个状态机控制得很好，路基很清晰且容易理解，但是 ipc 太低，无法做到连续收发，
+    // 严重限制了吞吐量
+    // 第二个状态机逻辑也很清晰，能做到连续收发，性能瓶颈由状态机变成了访存，但是有一个问题很难解决
+    // 那就是状态机可能会死锁，而且由于可能发射重复的指令，导致 后端重复执行，解决方法是弄一个过滤器，
+    // 这也是死锁的来源。各种情况都会造成死锁，基本上就是遇到一个解决一个，这样是不可靠的。
+    // 可能 AXI 延迟一下，就死锁了。目前还没有找到好的解决方案，于是我觉得重新写一个状态机，主要参考 OpenLA500 的设计
 
-    reg [1:0] ifu_state;
-    reg refetch_excp_i_r;
+    // 我仔细研究了 OpenLA500 模块之间的握手机制，它基于以下 两个 问题构建：
+    // 问题1：什么时机可以接收数据
+    // 问题2：什么时候可以发射数据
+
+    // 答案很简单：
+    // 问题1：
+    // 什么时机可以接收数据：当本单元 没有持有有效数据 或者 本单元计算完成且下游允许数据进入
+    // 没有持有数据很好理解，那就是空闲，空闲当然可以接受数据
+    // 不空闲也可以接受数据，但是有条件，那就是本单元计算完成，计算完成也不能接受数据，必须还得等下游允许进去
+    // 这是因为下游如果不能接受数据，上游接受了后就会把原来的数据覆盖掉
+
+    // 问题2：
+    // 什么时候可以发射数据：发射数据的前提是，本单元有有效数据，且计算完成，这个很好理解
+
+
+    // 以上问题可以抽象出 5 个信号：
+    // xx_ready_go：计算完成
+    // xx_allowin：可以接收数据
+    // xx_valid：本单元是否已经拿到有效的数据
+    // xx_to_yy_valid：本单元的数据是否可以传给下一个单元
+
+    // yy_allowin：下游是否可以接收数据
+
+    // aa_to_xx_valid：上游传来的数据是否有效
+    // aa_to_xx_bus：上游来的数据载荷
+
+    // 用状态机可以有以下表示
+    // assign xx_ready_go    = xx_caculate_done;
+    // assign xx_allowin     = !xx_valid || xx_ready_go && yy_allowin;
+    // assign xx_to_yy_valid =  xx_valid && xx_ready_go;
+
+    // 问题3：
+    // 现在有一个新的问题，那就是状态机的转换
+    // 由于目前只有一个状态机的状态 xx_valid，它代表着是否已经获取到了有效数据。更具体的准确的说法是，
+    // xx_valid 代表着从 已经交付给下游后，现在是否获取到了有效数据。
+    // 翻译一下就是，如果刚交付完数据后，es_allowin 就会拉高，此时 xx_valid
+    // 的状态就是 上游是否有效。
+    // 还有一种可能就是 reset 后，es_allowin 也会拉高，此时 xx_valid
+    // 的状态就是 上游是否有效。
+    // 因此，xx_valid 的含义就昭然若揭了：上一个事务完成后，xx_valid 就代表新的事务是否开始
+
+    // 它应该怎么转换呢？
+    // reset 后它清零，如果 xx_allowin 有效，那么它就是 aa_to_xx_valid，
+    // 这意味着上游如果无效，它也是无效。如果上游有效，那么 xx_allowin 也就有效，并且接受了数据。
+
+    // 一个可能得状态机如下：
+    // always @(posedge clk) begin
+    //     if (reset || flush_sign) begin
+    //         xx_valid <= 1'b0;
+    //     end
+    //     else if (xx_allowin) begin
+    //         xx_valid <= aa_to_xx_valid;
+    //     end
+
+    //     if (aa_to_xx_valid && yy_allowin) begin
+    //         aa_to_xx_bus_r <= aa_to_xx_bus;
+    //     end
+    // end
+
+    // 以上就是对于这两个问题的分析。接下来就是改造了
+
+
+    reg ifu_valid;
+    wire ifu_ready_go;
+
 
     always @(posedge clk) begin
-        if(rst || flush_sign ) begin
-            ifu_state <= 2'b0;
-            refetch_excp_i_r <= 1'b0;
+        if (rst || flush_sign || br_flush) begin
+            ifu_valid <= 1'b0;
             pc <= 32'd0;
         end
-        // 空闲且上游数据有效则 取出上游数据
-        else begin
-            case (ifu_state)
-                2'd0: begin
-                    if(up_valid) begin
-                        pc <= pc_i;
-                        ifu_state <= 2'b1;
-                        refetch_excp_i_r <= wbu_refetch_sign_i; // 记录是否需要重取
-                    end
-                end
-                2'd1: begin
-                    if(waite_ready_i && addr_ok && !data_ok) begin
-                        ifu_state <= 2'd2; // 等待
-                    end
-                    else if(waite_ready_i && addr_ok && data_ok) begin
-                        ifu_state <= 2'd0;
-                    end
-                end
-                2'd2: begin
-                    if (data_ok) begin
-                        ifu_state <= 2'b0;
-                    end
-                end
-                default: begin
-                    ifu_state <= 2'b0;
-                end
-            endcase
+        else if (ifu_allowin) begin
+            ifu_valid <= preifu_to_ifu_valid;
+        end
+        if (preifu_to_ifu_valid && ifu_allowin) begin
+            pc <= pc_i;
         end
     end
 
-    assign req = flush_sign ? 1'b0: ifu_state == 2'b1 && waite_ready_i && !addr_ok;
+    // 当当前有效的时候发起读取请求
+    assign req = flush_sign ? 1'b0: ifu_valid;
+
+    assign ifu_ready_go = data_ok;
+    assign ifu_allowin = !ifu_valid || ifu_ready_go && idu_allowin;
+    assign ifu_to_idu_valid = ifu_valid && ifu_ready_go && !flush_sign;
+
     assign pc_o =  pc;
     assign rdata_o = rdata;
-    assign waite_ready_o = idle_flush ? 1'b0: (ifu_state == 2'd0);
-    assign state_valid = data_ok;
 
     // tlb
     wire   pg_mode;
@@ -238,8 +277,7 @@ module IFU (
 
     assign addr = {inst_tag, inst_index, inst_offset}; // 物理地址
 
-    assign refetch_excp_o = refetch_excp_i_r;
     // 取消取指令
-    assign flush_sign_cancel = flush_sign;
+    assign flush_sign_cancel = flush_sign || br_flush;
 
 endmodule

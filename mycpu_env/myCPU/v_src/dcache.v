@@ -92,6 +92,14 @@ module dcache(
     // reg [149:0] cache_line_2[255:0];
     // reg [149:0] cache_line_3[255:0];
 
+    integer i;
+    initial begin
+        for (i = 0; i < 256; i = i + 1) begin
+            cache_line_0[i] = 150'b0;
+            cache_line_1[i] = 150'b0;
+        end
+    end
+
 
 
     reg [31:0] main_refill_data_buffer [3:0];
@@ -363,170 +371,177 @@ module dcache(
             uncache_data_buffer        <= 32'd0;
             when_cancel_state          <= 9'd0;
         end
-        else if (flush_sign_cancel) begin
+        // 请求取消，进入请求取消状态
+        else if (flush_sign_cancel && !(main_state_is_refill && ret_valid && ret_last)) begin
             // 请求取消
-            when_cancel_state         <= main_state;
+            when_cancel_state <= main_state;
+            main_state <= main_cancel;
+        end
+        // 这种情况非常少见
+        // 当取消的时候恰好返回，那么就可以直接终结事务了
+        else if(flush_sign_cancel && (main_state_is_refill && ret_valid && ret_last)) begin
             main_state <= main_idle;
         end
-        else
+        else begin
+            case (main_state)
+                main_idle: begin
+                    if (req_or_inst_valid) begin
+                        // 请求有效 且 无写后请求 冲突，就进入查询
+                        main_state <= main_lookup;
 
-        case (main_state)
-            main_idle: begin
-                if (req_or_inst_valid) begin
-                    // 请求有效 且 无写后请求 冲突，就进入查询
-                    main_state <= main_lookup;
+                        request_buffer_op         <= op;
+                        request_buffer_tag        <= tag;
+                        request_buffer_index      <= index;
+                        request_buffer_offset     <= offset;
+                        request_buffer_wstrb      <= wstrb;
+                        request_buffer_wdata      <= wdata;
+                        // request_buffer_uncache_en  <= uncache_en;
+                        request_buffer_uncache_en  <= uncache_en && !cacop_en;
+                        request_buffer_size        <= size;
 
-                    request_buffer_op         <= op;
-                    request_buffer_tag        <= tag;
-                    request_buffer_index      <= index;
-                    request_buffer_offset     <= offset;
-                    request_buffer_wstrb      <= wstrb;
-                    request_buffer_wdata      <= wdata;
-                    // request_buffer_uncache_en  <= uncache_en;
-                    request_buffer_uncache_en  <= uncache_en && !cacop_en;
-                    request_buffer_size        <= size;
-
-                    request_buffer_cacop_en    <= cacop_en;
-                    request_buffer_cacop_mode  <= cacop_mode;
-                end
-            end
-            main_lookup: begin
-                if (cacop_op_mode0) begin
-                    // invalid || icache Index Invalidate / just invalidate
-                    main_state <= main_idle;
-                end
-                else if (cacop_op_mode1) begin
-                    // dcache Index Invalidate / Invalidate and Writeback
-                    main_state <= replace_v ? main_write_back : main_idle;
-                end
-
-                else if (cache_hit) begin
-                    // 如果是 cacop_mode_2，切命中，这时候直接返回 idle，同时对命中的 cache_line 进行写会和无效化
-                    if (cacop_op_mode2) begin
-                        // Hit Invalidate / Invalidate and Writeback
-                        main_state <=  main_write_back;
+                        request_buffer_cacop_en    <= cacop_en;
+                        request_buffer_cacop_mode  <= cacop_mode;
                     end
-                    else if (!request_buffer_op) begin
-                        // 如果是 read
+                end
+                main_lookup: begin
+                    if (cacop_op_mode0) begin
+                        // invalid || icache Index Invalidate / just invalidate
                         main_state <= main_idle;
                     end
+                    else if (cacop_op_mode1) begin
+                        // dcache Index Invalidate / Invalidate and Writeback
+                        main_state <= replace_v ? main_write_back : main_idle;
+                    end
+
+                    else if (cache_hit) begin
+                        // 如果是 cacop_mode_2，切命中，这时候直接返回 idle，同时对命中的 cache_line 进行写会和无效化
+                        if (cacop_op_mode2) begin
+                            // Hit Invalidate / Invalidate and Writeback
+                            main_state <=  main_write_back;
+                        end
+                        else if (!request_buffer_op) begin
+                            // 如果是 read
+                            main_state <= main_idle;
+                        end
+                        else begin
+                            // 如果是 write
+                            main_state <= main_write;
+                        end
+                    end
+                    else if(!cache_hit) begin
+                        // 如果这里是 uncache write, 应该 write/read through
+                        if (request_buffer_uncache_en && !request_buffer_op) begin
+                            // 复用 axi_cache 的读取通道
+                            main_state <= main_replace;
+                        end
+                        else if (request_buffer_uncache_en && request_buffer_op) begin
+                            // 复用 axi_cache 的写通道
+                            main_state <= main_write_back;
+                        end
+                        // 如果没有命中，应该进行替换，但是替换前要判断 replace_d、replace_v 的状态
+                        else if (replace_d && replace_v) begin
+                            // 如果被替换的 way 脏位有效且有效位有效，就进入 main_write_back 状态
+                            main_state <= main_write_back;
+                        end
+                        else begin
+                            // 否则 直接替换就行
+                            main_state <= main_replace;
+                        end
+                    end
                     else begin
-                        // 如果是 write
+                        main_state <= main_idle;
+                    end
+                end
+                main_write_back: begin
+                    if (wr_rdy) begin
+                        // 如果写准备好
+                        main_state <= main_replace;
+                    end
+                end
+                main_replace: begin
+                    // 对于 cacop_mode_1, cacop_mode_2 充填后直接返回
+                    if(cacop_op_mode1 || cacop_op_mode2) begin
+                        main_state <= main_idle;
+                    end
+                    // uncache 访问
+                    // 取消写请求、状态机置到空闲
+                    else if (request_buffer_uncache_en && request_buffer_op) begin
+                        main_state <= main_idle;
+                    end
+                    // 回填 cache line 之前需要从 axi 获取 4 个字
+                    else if(rd_rdy) begin
+                        // 如果 axi 缓存准备好了数据，就可以进入 main_refill
+                        main_state <= main_refill;
+                        miss_buffer_ret_num <= 2'b0; // 开始计数
+                    end
+                end
+                main_refill: begin
+                    if (ret_valid && ret_last) begin
+                        // 如果是 uncache 的 read，就可以返回了
+                        if (request_buffer_uncache_en && !request_buffer_op) begin
+                            main_state <= main_idle;
+                            uncache_data_buffer <= ret_data;
+                        end
+                        else begin
+                            // 如果传送完成，retry
+                            main_state <= main_retry;
+                            refill_done <= 1'b1;
+                            main_refill_data_buffer[miss_buffer_ret_num] <= ret_data;
+                        end
+                    end
+                    else begin
+                        if (ret_valid) begin
+                            miss_buffer_ret_num <= miss_buffer_ret_num + 2'b1;
+                            main_refill_data_buffer[miss_buffer_ret_num] <= ret_data;
+                        end
+                    end
+                end
+                main_retry: begin
+                    // 此时已经经过了重填，肯定 cache_hit
+                    if(!request_buffer_op && cache_hit) begin
+                        main_state <= main_idle;
+                    end
+                    else if(request_buffer_op && cache_hit) begin
                         main_state <= main_write;
                     end
+                    refill_done <= 1'b0;
                 end
-                else if(!cache_hit) begin
-                    // 如果这里是 uncache write, 应该 write/read through
-                    if (request_buffer_uncache_en && !request_buffer_op) begin
-                        // 复用 axi_cache 的读取通道
-                        main_state <= main_replace;
-                    end
-                    else if (request_buffer_uncache_en && request_buffer_op) begin
-                        // 复用 axi_cache 的写通道
-                        main_state <= main_write_back;
-                    end
-                    // 如果没有命中，应该进行替换，但是替换前要判断 replace_d、replace_v 的状态
-                    else if (replace_d && replace_v) begin
-                        // 如果被替换的 way 脏位有效且有效位有效，就进入 main_write_back 状态
-                        main_state <= main_write_back;
-                    end
-                    else begin
-                        // 否则 直接替换就行
-                        main_state <= main_replace;
-                    end
-                end
-                else begin
+                main_write: begin
                     main_state <= main_idle;
                 end
-            end
-            main_write_back: begin
-                if (wr_rdy) begin
-                    // 如果写准备好
-                    main_state <= main_replace;
-                end
-            end
-            main_replace: begin
-                // 对于 cacop_mode_1, cacop_mode_2 充填后直接返回
-                if(cacop_op_mode1 || cacop_op_mode2) begin
-                    main_state <= main_idle;
-                end
-                // uncache 访问
-                // 取消写请求、状态机置到空闲
-                else if (request_buffer_uncache_en && request_buffer_op) begin
-                    main_state <= main_idle;
-                end
-                // 回填 cache line 之前需要从 axi 获取 4 个字
-                else if(rd_rdy) begin
-                    // 如果 axi 缓存准备好了数据，就可以进入 main_refill
-                    main_state <= main_refill;
-                    miss_buffer_ret_num <= 2'b0; // 开始计数
-                end
-            end
-            main_refill: begin
-                if (ret_valid && ret_last) begin
-                    // 如果是 uncache 的 read，就可以返回了
-                    if (request_buffer_uncache_en && !request_buffer_op) begin
-                        main_state <= main_idle;
-                        uncache_data_buffer <= ret_data;
-                    end
-                    else begin
-                        // 如果传送完成，retry
-                        main_state <= main_retry;
-                        refill_done <= 1'b1;
-                        main_refill_data_buffer[miss_buffer_ret_num] <= ret_data;
-                    end
-                end
-                else begin
-                    if (ret_valid) begin
-                        miss_buffer_ret_num <= miss_buffer_ret_num + 2'b1;
-                        main_refill_data_buffer[miss_buffer_ret_num] <= ret_data;
-                    end
-                end
-            end
-            main_retry: begin
-                // 此时已经经过了重填，肯定 cache_hit
-                if(!request_buffer_op && cache_hit) begin
-                    main_state <= main_idle;
-                end
-                else if(request_buffer_op && cache_hit) begin
-                    main_state <= main_write;
-                end
-                refill_done <= 1'b0;
-            end
-            main_write: begin
-                main_state <= main_idle;
-            end
 
-            // 保存了 cancel 到来时的状态
-            main_cancel: begin
-                // 如果是 idle, look_up, main_replace,此时拦截信号就行
-                if(when_cancel_state == main_idle ||
-                        when_cancel_state == main_lookup ||
-                        when_cancel_state == main_write_back ||
-                        when_cancel_state == main_replace ||
-                        when_cancel_state == main_retry ||
-                        when_cancel_state == main_write
-                  ) begin
-                    main_state <= main_idle;
-                end
-                // 此时拦截已经来不及，只能等这个事务执行完成
-                else if(when_cancel_state == main_refill) begin
-                    if(ret_valid && ret_last) begin
+                // 保存了 cancel 到来时的状态
+                main_cancel: begin
+                    // 如果是 idle, look_up, main_replace,此时拦截信号就行
+                    if(when_cancel_state == main_idle ||
+                            when_cancel_state == main_lookup ||
+                            when_cancel_state == main_write_back ||
+                            when_cancel_state == main_replace ||
+                            when_cancel_state == main_retry ||
+                            when_cancel_state == main_write
+                      ) begin
+                        main_state <= main_idle;
+                        refill_done <= 1'b0;
+                    end
+                    // 此时拦截已经来不及，只能等这个事务执行完成
+                    else if(when_cancel_state == main_refill) begin
+                        if(ret_valid && ret_last) begin
+                            main_state <= main_idle;
+                        end
+                    end
+                    else begin
                         main_state <= main_idle;
                     end
                 end
-                else begin
+                default: begin
                     main_state <= main_idle;
                 end
-            end
-            default: begin
-                main_state <= main_idle;
-            end
-        endcase
+            endcase
+        end
     end
     assign busy = !main_state_is_idle;
     assign cacop_addr_ok = main_state_is_lookup && request_buffer_cacop_en;
-    assign cacop_data_ok = main_state_is_lookup && cacop_op_mode0 ||
+    assign cacop_data_ok = main_state_is_lookup && (cacop_op_mode0 || cacop_op_mode1 && !replace_v) ||
            main_state_is_replace && (cacop_op_mode1 || cacop_op_mode2);
 
 endmodule

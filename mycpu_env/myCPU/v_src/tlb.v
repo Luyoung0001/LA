@@ -4,7 +4,6 @@ module tlb
      )
      (
          input  wire         clk,
-         input  wire         rst,
 
          // Search port 0
          input  wire [18:0] s0_vppn,

@@ -16,24 +16,22 @@ module EXU
          input wire [226:0] bus_ds_to_es_data,
          input wire [31:0]  inst_data_i,
          output wire [31:0] inst_data_o,
-         output wire [150:0] bus_exu_to_mem_data,
+         output wire [151:0] bus_exu_to_mem_data,
 
          input wire [9:0] in_mem_op,
          output wire [9:0] out_mem_op,
 
          output wire [70:0] bus_exu_bypass_data,
          // exception
-         input wire [1:0] flush,
+         input wire flush_sign,
          input wire mem_excp,
          output wire exu_excp, // 发射到上游的异常信号
-         input wire mem_in_is_ertn,
-         output wire exu_is_ertn,
 
          // 握手信号
-         input up_valid,
-         output state_valid,
-         input waite_ready_i,
-         output waite_ready_o,
+         input idu_to_exu_valid,
+         output exu_allowin,
+         input mem_allowin,
+         output exu_to_mem_valid,
 
          // tlb
          input wire [4:0] tlb_inst_bus, // 关于 tlb 的指令
@@ -56,16 +54,9 @@ module EXU
          input wire is_csr_wr_i,
          output wire is_csr_wr_o,
 
-         // from WBU
-         input wire wbu_refetch_sign_i,
-         input wire refetch_excp_i,
-         output wire refetch_excp_o,
-
-
          input [31:0] pc_pro_i,
          output [31:0] pc_pro_o,
 
-         input wbu_refetch_flush,
          input [82:0] bus_csr_rd_wr_data_i,
          output [82:0] bus_csr_rd_wr_data_o,
 
@@ -74,35 +65,98 @@ module EXU
          input wire csr_rstat_i,
          output wire csr_rstat_o,
 
-         input  wire after_br_invalid_i,
-         output wire after_br_invalid_o,
-
          input wire inst_idle_i,
          output wire inst_idle_o,
 
-         input wire idle_flush,
+         input wire idle_stall,
 
 
          // cacop，执行动作就应该放在 MEM 阶段
          input  wire cacop_i,
          output wire cacop_o,
 
-         input wire icacop_flush_i
+         // from csr
+         output wire [13:0] rd_csr_addr,
+         input  wire [31:0] rd_csr_data,
+         // //timer 64
+         input [63:0] timer_64,
+         input [31:0] csr_tid,
+
+         output wire cnt_inst_diff,
+         output wire [63:0] timer_64_diff,
+         output wire [31:0] csr_estat_data,
+         output wire [31:0] csr_data,
+
+         // 阻塞 tlbsrch
+         output wire exu_tlbsrch_stall,
+
+         // load_use
+         input ld_sc_inst_i,
+         output ld_sc_inst_o,
+
+         // bubble_tag
+         input wire inst_bubble_i,
+         output wire inst_bubble_o
      );
+
+    reg inst_bubble_i_r;
+
+
+    reg ld_sc_inst_i_r;
+    reg [82:0] bus_csr_rd_wr_data_i_r;
+
+    //    res_from_csr,
+    //    rd_csr_addr,
+    //    csr_we,
+    //    csr_mask,
+    //    csrkd_value
+
+    wire wire_res_from_csr;
+    wire [13:0] wire_rd_csr_addr;
+    wire wire_csr_we_1;
+    wire [31:0] wire_csr_mask;
+    wire [31:0] wire_csrkd_value;
+    wire wire_inst_rdcntvl_w;
+    wire wire_inst_rdcntvh_w;
+    wire wire_inst_rdcntid_w;
+
+    assign rd_csr_addr = wire_rd_csr_addr; // 访问 csr
+
+    assign {
+            wire_res_from_csr,
+            wire_rd_csr_addr,
+            wire_csr_we_1,
+            wire_csr_mask,
+            wire_csrkd_value,
+            wire_inst_rdcntvl_w,
+            wire_inst_rdcntvh_w,
+            wire_inst_rdcntid_w
+        } = bus_csr_rd_wr_data_i_r;
+
+    wire rdcnt_en;
+    wire [63:0] timer_64_set;
+    wire [31:0] rdcnt_result;
+    assign {rdcnt_en, rdcnt_result} = ({33{wire_inst_rdcntvl_w}} & {1'b1, timer_64_set[31: 0]}) |
+           ({33{wire_inst_rdcntvh_w}} & {1'b1, timer_64_set[63:32]}) |
+           ({33{wire_inst_rdcntid_w}} & {1'b1, csr_tid});
+
+    // 从 csr 独读出的值有两种情况
+    assign csr_data = rdcnt_en ? rdcnt_result :
+           wire_res_from_csr ? rd_csr_data : 32'd0;
+
+    assign csr_estat_data = (csr_rstat_i_r == 1'b1) ? csr_data : 32'b0; // 信号最好具体化，尽管写一个 final_result 没错，但是这里延迟会更低
+
+    wire [31:0] csr_wdata;
+    assign csr_wdata = wire_csrkd_value & wire_csr_mask | (csr_data & ~wire_csr_mask);
+
+
     reg cacop_i_r;
 
 
     reg inst_idle_i_r;
     reg csr_rstat_i_r;
-    reg [82:0] bus_csr_rd_wr_data_i_r;
+    // reg [82:0] bus_csr_rd_wr_data_i_r;
     reg is_csr_wr_i_r;
-    wire excp_flush;
-    wire ertn_flush;
-    assign {excp_flush, ertn_flush} = flush;
-
-    reg after_br_invalid_i_r;
-
-    reg refetch_excp_i_r;
 
     // 异常信号
     reg [15:0] ds_excp_num_r; // 从上一级接收
@@ -164,15 +218,12 @@ module EXU
             wire_inst_invtlb
         } = tlb_inst_bus_r;
 
-    assign exu_excp = es_excp | mem_excp; // 收集下游的信号，向上传递
-    assign exu_is_ertn = wire_is_inst_ertn | mem_in_is_ertn;
-
-    wire flush_sign;
-    assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush || icacop_flush_i;
+    // 向上传递，让某些 idu 信号终止解码比如等待什么的
+    assign exu_excp = es_excp || mem_excp || wire_is_inst_ertn; // 收集下游的信号，向上传递
 
     // 遇见这些信号不能产生任何执行效果
     wire stop_signal;
-    assign stop_signal = es_excp || mem_excp || flush_sign || mem_in_is_ertn || refetch_excp_i_r;
+    assign stop_signal = es_excp || flush_sign;
 
     assign {
             mul_div_op,
@@ -198,6 +249,7 @@ module EXU
     assign wire_in_pc = pc_pro_i_r;
 
     assign bus_exu_to_mem_data = {
+               res_from_csr,
                res_from_mem,
                exu_result,
                gr_we,
@@ -205,7 +257,7 @@ module EXU
                pc,
                wire_csr_we,
                wire_csr_idx,
-               wire_csr_wdata,
+               csr_wdata,
                wire_is_inst_ertn,
                error_va
            };
@@ -225,7 +277,7 @@ module EXU
     // 解决数据相关
     // 如果这是读取 csr 的指令，此时要写入 csr 的数据并没有被读出来
     // 因此这里遇到寄存器读的指令，exu_regWr 无效
-    assign exu_regWr = gr_we && !res_from_csr;
+    assign exu_regWr = gr_we;
     assign exu_data = exu_result;
     assign exu_regAddr = wire_in_dest;
 
@@ -251,9 +303,6 @@ module EXU
     assign op_modu = mul_div_op[6];
 
 
-    reg [1:0] exu_state;
-    reg [31:0] reg_rdata;
-
     wire div;
     wire div_signed;
     assign div = op_div || op_divu || op_mod || op_modu;
@@ -262,11 +311,29 @@ module EXU
 
     // 乘法器
     wire [31:0] mul_result;
-    mul mul(
+
+    wire mul_complete;
+    reg mul_complete_r;
+    wire multi = mul_div_op[0] | mul_div_op[1] | mul_div_op[2];
+    wire do_multi = multi && exu_valid && !(mul_complete || mul_complete_r);
+    always @(posedge clk) begin
+        if(rst || idu_to_exu_valid && exu_allowin || flush_sign) begin
+            mul_complete_r <= 1'b0;
+        end
+        else if(multi && exu_valid && mul_complete) begin
+            mul_complete_r <= 1'b1;
+        end
+    end
+
+    mul mul_o(
+            .clk (clk),
+            .reset(rst),
+            .mult(do_multi),
             .mul_div_op(mul_div_op),
             .alu_src1(wire_alu_src1),
             .alu_src2(wire_alu_src2),
-            .mul_result(mul_result)
+            .mul_result(mul_result),
+            .done(mul_complete)
         );
 
     // 除法器
@@ -274,8 +341,7 @@ module EXU
     wire [31:0] mod_result;
     wire wire_complete;
     // 适当的时机撤销除法信号
-    wire do_div;
-    assign do_div = div && exu_state == 2'd1 && !wire_complete;
+    wire do_div = div && exu_valid && !(div_or_mul_complete || wire_complete);
     divider divider(
                 .div_clk(clk),
                 .reset(rst),
@@ -287,6 +353,17 @@ module EXU
                 .r(mod_result),
                 .complete(wire_complete)
             );
+    // 保持乘除法完成的状态
+    reg div_or_mul_complete;
+    always @(posedge clk) begin
+        // 重置、新指令、flush，将状态清零
+        if(rst || idu_to_exu_valid && exu_allowin || flush_sign) begin
+            div_or_mul_complete <= 1'b0;
+        end
+        else if(div && exu_valid && wire_complete) begin
+            div_or_mul_complete <= 1'b1;
+        end
+    end
 
     // 对结果进行汇总
     assign exu_result =
@@ -305,6 +382,8 @@ module EXU
            wire_alu_op[9] ||
            wire_alu_op[10] ||
            wire_alu_op[11] ? alu_result:
+           // 从 csr 读出来的？
+           rdcnt_en || wire_res_from_csr ? csr_data :
            alu_result;
 
     // 是否访存
@@ -318,44 +397,41 @@ module EXU
     reg [18:0] invtlb_vpn_i_r;
     reg [31:0] pc_pro_i_r;
 
+    wire done;
+
+    // 从 csr 中读取数据
+    // 其中，如果是读计数器寄存器，则直接返回计数器的值
+    // 但是这个值可能会被上游用到，因此这里应该应该将这个值固定下来
+    reg [63:0] timer_64_set_r;
+    assign timer_64_set = timer_64_set_r;
+
+    reg exu_valid;
+    wire exu_ready_go;
+
     always @(posedge clk) begin
         if (rst || flush_sign) begin
-            exu_state <= 2'd0;
-            ds_to_es_bus_data_r <= 227'd0;
-            inst_data_i_r <= 32'd0;
-            mem_op_reg <= 10'd0;
-            ds_excp_num_r <= 16'd0;
-            ds_excp_r <= 1'b0;
-            // tlb
+            exu_valid <= 1'b0;
+            // 涉及到 stall 的信号一定要清零
             tlb_inst_bus_r <= 5'd0;
-            // invtlb
-            invtlb_op_i_r <= 5'd0;
-            invtlb_asid_i_r <= 10'd0;
-            invtlb_vpn_i_r <= 19'd0;
+            ld_sc_inst_i_r <= 1'b0;
+            inst_bubble_i_r <= 1'b0;
 
-            is_csr_wr_i_r <= 1'b0;
-
-            refetch_excp_i_r <= 1'b0;
-
+            ds_to_es_bus_data_r <= 227'd0;
             bus_csr_rd_wr_data_i_r <= 83'd0;
-
-
-            csr_rstat_i_r <= 1'b0;
-
-            after_br_invalid_i_r <= 1'b0;
-            inst_idle_i_r <= 1'b0;
-
-
-            cacop_i_r <= 1'b0;
+            timer_64_set_r <= 64'd0;
+            pc_pro_i_r <= 32'd0;
 
         end
-        else if (exu_state == 2'd0 && up_valid) begin
+        else if (exu_allowin) begin
+            exu_valid <= idu_to_exu_valid;
+        end
+        if (idu_to_exu_valid && exu_allowin) begin
             ds_to_es_bus_data_r <= bus_ds_to_es_data;
             mem_op_reg <= in_mem_op;
             ds_excp_num_r <= ds_excp_num;
             inst_data_i_r <= inst_data_i;
             ds_excp_r <= ds_excp;
-            exu_state <= 2'd1;
+
             // tlb
             tlb_inst_bus_r <= tlb_inst_bus;
             // invtlb
@@ -365,44 +441,29 @@ module EXU
 
             is_csr_wr_i_r <= is_csr_wr_i;
 
-            refetch_excp_i_r <= wbu_refetch_sign_i | refetch_excp_i;
-
             pc_pro_i_r <= pc_pro_i;
 
             bus_csr_rd_wr_data_i_r <= bus_csr_rd_wr_data_i;
 
             csr_rstat_i_r <= csr_rstat_i;
 
-            after_br_invalid_i_r <= after_br_invalid_i;
             inst_idle_i_r <= inst_idle_i;
 
             cacop_i_r <= cacop_i;
 
-        end
-        // 这里要处理，进入处理阶段
-        else if(exu_state == 2'd1) begin
-            if(stop_signal) begin
-                exu_state <= waite_ready_i ? 2'd0 : 2'd1;
-            end
-            else if(div) begin
-                exu_state <= wire_complete ? 2'd2 : 2'd1;
-            end
-            else begin
-                // 否则处理完成
-                exu_state <= 2'd2;
-            end
-        end
-        else if(exu_state == 2'd2) begin
-            if (waite_ready_i) begin
-                exu_state <= 2'd0;
-            end
+            timer_64_set_r <= timer_64;
+            ld_sc_inst_i_r <= ld_sc_inst_i;
+
+            inst_bubble_i_r <= inst_bubble_i;
         end
     end
+   assign done = es_excp || flush_sign ? 1'b1: ((div || multi) ? (div_or_mul_complete || mul_complete_r) : 1'b1);
 
-    assign state_valid = exu_state == 2'd1 ? (stop_signal == 1'b1 ? 1'b1: (div ? wire_complete : 1'b1)):1'b0;
+    assign exu_ready_go = done;
+    assign exu_allowin = !exu_valid || exu_ready_go && mem_allowin;
+    assign exu_to_mem_valid = exu_valid && exu_ready_go && !flush_sign;
 
-    assign waite_ready_o = idle_flush ? 1'b0: (exu_state == 2'd0);
-    assign exu_over = exu_state == 2'b0;
+    assign exu_over = exu_ready_go;
 
     wire [15:0] wire_ds_excp_num = ds_excp_num_r;
     wire wire_ds_excp = ds_excp_r;
@@ -428,22 +489,27 @@ module EXU
 
     assign is_csr_wr_o = is_csr_wr_i_r;
 
-    assign refetch_excp_o = refetch_excp_i_r;
-
     assign pc_pro_o = pc_pro_i_r;
 
     assign bus_csr_rd_wr_data_o = bus_csr_rd_wr_data_i_r;
 
-    assign es_to_ds_valid = state_valid;
+    assign es_to_ds_valid = exu_valid;
 
     assign csr_rstat_o = csr_rstat_i_r;
 
-    assign after_br_invalid_o = after_br_invalid_i_r;
     assign inst_idle_o = inst_idle_i_r;
 
     assign out_mem_op = mem_op_reg;
 
 
     assign cacop_o = cacop_i_r;
+
+    assign cnt_inst_diff = wire_inst_rdcntid_w || wire_inst_rdcntvh_w || wire_inst_rdcntvl_w;
+    assign timer_64_diff = timer_64_set;
+
+    assign exu_tlbsrch_stall = wire_inst_tlbsrch;
+    assign ld_sc_inst_o = ld_sc_inst_i_r;
+
+    assign inst_bubble_o = inst_bubble_i_r;
 
 endmodule

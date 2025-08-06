@@ -1,37 +1,45 @@
 module mul(
+        input clk,
+        input reset,
+        input mult,//乘法使能
         input wire [9:0] mul_div_op,
         input wire [31:0] alu_src1,
         input wire [31:0] alu_src2,
-        output wire [31:0] mul_result
-
+        output wire [31:0] mul_result,
+        output wire done
     );
-    wire [63:0] signed_mul_result64;
-    wire [63:0] unsigned_mul_result64;
+    wire [63:0] mul_res64;
+    wire done_internal;
 
-    wire op_mul;   //signed multiply operation low
-    wire op_mulh;  //signed multiply operation high
-    wire op_mulhu;  //unsigned multiply operation high
+    wire signed_op = (mul_div_op[0] || mul_div_op[1]) ? 1'b1 : 1'b0;
 
-    assign op_mul  = mul_div_op[0];
-    assign op_mulh = mul_div_op[1];
-    assign op_mulhu= mul_div_op[2];
+    TopMultiplier topmul_inst (
+                      .clk(clk),
+                      .reset(reset),
+                      .mult(mult),
+                      .x_in(alu_src1),
+                      .y_in(alu_src2),
+                      .signed_op(signed_op),
+                      .done(done_internal),
+                      .result_out(mul_res64)
+                  );
 
-    // // 这里会自动调用 ip
-    // // verilator 仿真
-    assign signed_mul_result64 = $signed(alu_src1) * $signed(alu_src2);
-    assign unsigned_mul_result64 = $unsigned(alu_src1) * $unsigned(alu_src2);
+    assign done = done_internal;
 
-    // mul_top o(
-    //             .alu_src1(alu_src1),
-    //             .alu_src2(alu_src2),
-    //             .mul_div_op(1'b1),
-    //             .signed_mul_result(signed_mul_result64),
-    //             .unsigned_mul_result(unsigned_mul_result64)
-    //         );
+    reg [31:0] mul_result_reg;
 
-    assign mul_result = ({32{op_mul       }} & signed_mul_result64[31:0])
-           | ({32{op_mulh      }} & signed_mul_result64[63:32])
-           | ({32{op_mulhu     }} & unsigned_mul_result64[63:32]);
+    always @(*) begin
+        case (mul_div_op[2:0])
+            3'b001:
+                mul_result_reg = mul_res64[31:0];
+            3'b010,3'b100:
+                mul_result_reg = mul_res64[63:32];
+            default:
+                mul_result_reg = 32'b0;
+        endcase
+    end
+
+    assign mul_result = mul_result_reg;
 
 
 endmodule

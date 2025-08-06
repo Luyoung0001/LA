@@ -73,6 +73,11 @@ module icache(
     // Miss Buffer
     reg  [1:0]  miss_buffer_ret_num;      // 已经从 AXI 返回了几个字
 
+`define V      149
+`define D      148
+`define Tag    147:128
+`define Data   127:0
+
     // 这里的 cache 为 4_way
     // V D Tag Data------> 1'bx  1'bx  20'bx  128'bx
     reg [149:0] cache_line_0[255:0]/*debug*/;
@@ -80,12 +85,18 @@ module icache(
     reg [149:0] cache_line_2[255:0];
     reg [149:0] cache_line_3[255:0];
 
+    integer i;
+    initial begin
+        for (i = 0; i < 256; i = i + 1) begin
+            cache_line_0[i] = 150'b0;
+            cache_line_1[i] = 150'b0;
+            cache_line_2[i] = 150'b0;
+            cache_line_3[i] = 150'b0;
+        end
+    end
+
     reg [31:0] main_refill_data_buffer [3:0];
 
-`define V      149
-`define D      148
-`define Tag    147:128
-`define Data   127:0
 
     wire [3:0]   replace_way; // 1000、0100、0010、0001
     // cache_hit stuff
@@ -94,6 +105,7 @@ module icache(
 
     wire [127:0]  refill_data;
     reg refill_done;
+
     // 确定 cacop_mode0 的信息
     // cacop_mode0_way 是 VA[1:0];
     // cache_line 是 index[7:0]，因此需要将 index[7:2] 作为 cache_line 的索引
@@ -291,10 +303,15 @@ module icache(
 
         end
         // 请求取消，进入请求取消状态
-        else if (flush_sign_cancel) begin
+        else if (flush_sign_cancel && !(main_state_is_refill && ret_valid && ret_last)) begin
             // 请求取消
             when_cancel_state <= main_state;
             main_state <= main_cancel;
+        end
+        // 这种情况非常少见
+        // 当取消的时候恰好返回，那么就可以直接终结事务了
+        else if(flush_sign_cancel && (main_state_is_refill && ret_valid && ret_last)) begin
+            main_state <= main_idle;
         end
         else begin
             case (main_state)
@@ -372,7 +389,10 @@ module icache(
                             when_cancel_state == main_retry
                       ) begin
                         main_state <= main_idle;
+                        // 如果没有重置，可能一直写 cache，尤其是从 retry 截获的
+                        refill_done <= 1'b0;
                     end
+
                     // 此时研究已经来不及，只能等这个事务执行完成
                     else if(when_cancel_state == main_refill) begin
                         if(ret_valid && ret_last) begin

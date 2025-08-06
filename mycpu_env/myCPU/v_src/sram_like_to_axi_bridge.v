@@ -1,1088 +1,229 @@
-// module sram_like_to_axi_bridge(
-
-//         input wire clk,
-//         input wire rst,
-
-
-//         // icache
-//         input   wire        icache_rd_req,
-//         input   wire [2:0]  icache_rd_type,
-//         input   wire [31:0] icache_rd_addr,
-//         output  wire        icache_rd_rdy,
-//         output  wire        icache_ret_valid,
-//         output  wire        icache_ret_last,
-//         output  wire [31:0] icache_ret_data,
-
-//         // dcache
-//         input   wire        dcache_rd_req,
-//         input   wire [2:0]  dcache_rd_type,
-//         input   wire [31:0] dcache_rd_addr,
-//         output  wire        dcache_rd_rdy,
-//         output  wire        dcache_ret_valid,
-//         output  wire        dcache_ret_last,
-//         output  wire [31:0] dcache_ret_data,
-
-//         input   wire         dcache_wr_req,
-//         input   wire [2:0]   dcache_wr_type,
-//         input   wire [31:0]  dcache_wr_addr,
-//         input   wire [3:0]   dcache_wr_wstrb,
-//         input   wire [127:0] dcache_wr_data,
-//         output  wire         dcache_wr_rdy,
-
-
-//         // AXI
-//         output   wire  [3:0]  arid,
-//         output   wire  [31:0] araddr,
-//         output   wire  [7:0]  arlen,
-//         output   wire  [2:0]  arsize,
-//         output   wire  [1:0]  arburst,
-//         output   wire  [1:0]  arlock,
-//         output   wire  [3:0]  arcache,
-//         output   wire  [2:0]  arprot,
-//         output   wire         arvalid,
-//         input    wire         arready,
-
-//         input   wire  [3:0]  rid,
-//         input   wire  [31:0] rdata,
-//         input   wire  [1:0]  rresp,
-//         input   wire         rlast,
-//         input   wire         rvalid,
-//         output  wire         rready,
-
-//         output   wire  [3:0]  awid,
-//         output   reg   [31:0] awaddr,
-//         output   reg   [7:0]  awlen,
-//         output   reg   [2:0]  awsize,
-//         output   wire  [1:0]  awburst,
-//         output   wire  [1:0]  awlock,
-//         output   wire  [3:0]  awcache,
-//         output   wire  [2:0]  awprot,
-//         output   reg          awvalid,
-//         input    wire         awready,
-
-//         output   wire  [3:0]  wid,
-//         output   reg   [31:0] wdata,
-//         output   reg   [3:0]  wstrb,
-//         output   reg          wlast,
-//         output   reg          wvalid,
-//         input    wire         wready,
-
-//         input   wire  [3:0]   bid,
-//         input   wire  [1:0]   bresp,
-//         input   wire          bvalid,
-//         output  reg           bready
-//     );
-
-//     // Fixed AXI signals
-//     assign arburst = 2'b01;    // INCR burst type
-//     assign arlock  = 2'b00;    // Normal access
-//     assign arcache = 4'b0000;  // Non-cacheable
-//     assign arprot  = 3'b000;   // Unprivileged, secure, data access
-
-//     assign awburst = 2'b01;    // INCR burst type
-//     assign awlock  = 2'b00;    // Normal access
-//     assign awcache = 4'b0000;  // Non-cacheable
-//     assign awprot  = 3'b000;   // Unprivileged, secure, data access
-
-//     assign awid    = 4'b0001;  // ID for write transactions
-//     assign wid     = 4'b0001;  // Write ID (same as awid)
-
-//     // FSM states
-//     localparam IDLE            = 3'b000;
-//     localparam READ_ADDR       = 3'b001;
-//     localparam READ_DATA       = 3'b010;
-//     localparam WRITE_ADDR      = 3'b011;
-//     localparam WRITE_DATA      = 3'b100;
-//     localparam WRITE_RESP      = 3'b101;
-
-//     // FSM state registers
-//     reg [2:0] inst_state;
-//     reg [2:0] data_state;
-
-//     // SRAM to AXI size conversion
-//     function [2:0] convert_size;
-//         input [1:0] sram_size;
-//         begin
-//             case(sram_size)
-//                 2'b00:
-//                     convert_size = 3'b000; // 1 byte
-//                 2'b01:
-//                     convert_size = 3'b001; // 2 bytes
-//                 2'b10:
-//                     convert_size = 3'b010; // 4 bytes
-//                 2'b11:
-//                     convert_size = 3'b010; // 4 bytes (max for 32-bit bus)
-//             endcase
-//         end
-//     endfunction
-
-//     // if icache asked for a cache line:
-//     wire inst_rd_cache_line = icache_rd_type == 3'b100;
-//     wire [2:0] inst_real_rd_size  = inst_rd_cache_line ? 3'b10 : icache_rd_type;
-//     wire [7:0] inst_real_rd_len   = inst_rd_cache_line ? 8'b11 : 8'b0; // burst times: 1 or 4
-
-//     // if dcache asked for a cache line:
-//     wire data_rd_cache_line = dcache_rd_type == 3'b100;
-//     wire [2:0] data_real_rd_size  = data_rd_cache_line ? 3'b10 : dcache_rd_type;
-//     wire [7:0] data_real_rd_len   = data_rd_cache_line ? 8'b11 : 8'b0;
-
-//     // dcache write
-//     // 这里使用 buffer 中存储的数据
-//     wire data_wr_cache_line = dcache_wr_type == 3'b100;
-//     wire [2:0] data_real_wr_size  = data_wr_cache_line ? 3'b10 : dcache_wr_type_buffer;
-//     wire [7:0] data_real_wr_len   = data_wr_cache_line ? 8'b11 : 8'b0;
-
-//     // Read/write arbitration logic
-//     wire inst_read_request;
-//     wire data_read_request;
-//     wire data_write_request;
-
-//     assign inst_read_request = icache_rd_req;
-//     assign data_read_request = dcache_rd_req && !dcache_wr_req && !inst_read_request; // inst_fetch has the priority
-//     assign data_write_request = dcache_wr_req; // 阻塞式访问，data_write 和 data_read 不会同时发生
-
-//     // Handshake signals
-//     reg inst_addr_accepted;
-//     reg data_addr_accepted;
-//     reg inst_data_received;
-//     reg data_data_received;
-//     reg data_write_done;
-
-//     // Read data buffers
-//     reg [31:0] inst_read_data;
-//     reg [31:0] data_read_data;
-
-//     // Signal for tracking which request is being processed
-//     reg handling_inst_request;
-//     reg handling_data_request;
-
-//     // ======================= icache =======================
-//     assign icache_rd_rdy = inst_state == IDLE;
-//     assign icache_ret_valid = rvalid && rid[0] == 1'b0 && inst_state == READ_DATA;
-//     assign icache_ret_last = rlast;
-//     assign icache_ret_data = rdata;
-
-//     reg inst_arvalid;
-//     reg [3:0] inst_arid;
-//     reg [31:0] inst_araddr;
-//     reg [2:0] inst_arsize;
-//     reg [7:0] inst_arlen;
-//     reg inst_rready;
-
-//     reg [7:0] inst_beat_count;
-//     reg [7:0] inst_total_beats;
-//     reg    inst_burst_complete;
-
-//     // =======================dcache =======================
-//     assign dcache_rd_rdy = data_state == IDLE;
-//     assign dcache_wr_rdy = !(handling_inst_request || inst_read_request) && data_state == IDLE;
-//     assign dcache_ret_valid = rvalid && rid[0] == 1'b1 && data_state == READ_DATA;
-//     assign dcache_ret_last = rlast;
-//     assign dcache_ret_data = rdata;
-
-//     reg data_arvalid;
-//     reg [3:0] data_arid;
-//     reg [31:0] data_araddr;
-//     reg [2:0] data_arsize;
-//     reg [7:0] data_arlen;
-//     reg data_rready;
-
-//     reg [7:0] data_beat_count;
-//     reg [7:0] data_total_beats;
-//     reg    data_burst_complete;
-
-//     always @(posedge clk) begin
-//         if (rst) begin
-//             inst_state <= IDLE;
-//             inst_addr_accepted <= 1'b0;
-//             inst_data_received <= 1'b0;
-//             inst_read_data <= 32'b0;
-//             handling_inst_request <= 1'b0;
-
-//             inst_arvalid <= 1'b0;
-//             inst_arid <= 4'd0;
-//             inst_araddr <= 32'd0;
-//             inst_arsize <= 3'd0;
-//             inst_arlen <= 8'd0;
-//             inst_rready <= 1'b0;
-
-//             inst_beat_count <= 8'd0;
-//             inst_total_beats <= 8'd0;
-//             inst_burst_complete <= 1'b0;
-//         end
-
-//         else begin
-//             // Reset per-cycle signals
-//             inst_addr_accepted <= 1'b0;
-//             inst_data_received <= 1'b0;
-//             inst_burst_complete <= 1'b0;
-
-//             case (inst_state)
-//                 IDLE: begin
-//                     if (inst_read_request && !handling_data_request) begin
-//                         inst_state <= READ_ADDR;
-//                         handling_inst_request <= 1'b1;
-//                         inst_arvalid <= 1'b1;
-//                         inst_arid <= 4'b0000; // ID for instruction reads
-//                         inst_araddr <= icache_rd_addr;
-//                         inst_arsize <= inst_real_rd_size;
-//                         inst_arlen <= inst_real_rd_len;
-
-//                         inst_total_beats <= inst_real_rd_len + 1;
-//                         inst_beat_count <= 8'd0;
-//                     end
-//                 end
-//                 READ_ADDR: begin
-//                     inst_arvalid <= 1'b1;
-//                     inst_arid <= 4'b0000; // ID for instruction reads
-//                     inst_araddr <= icache_rd_addr;
-//                     inst_arsize <= inst_real_rd_size;
-//                     inst_arlen <= inst_real_rd_len;
-
-//                     if (arready) begin
-//                         inst_arvalid <= 1'b0;
-//                         inst_state <= READ_DATA;
-//                         inst_addr_accepted <= 1'b1;
-//                         inst_rready <= 1'b1;
-//                     end
-//                 end
-//                 READ_DATA: begin
-//                     inst_rready <= 1'b1;
-//                     if (rvalid && rid[0] == 1'b0) begin  // Check if it's instruction data (rid[0] = 0)
-//                         inst_data_received <= 1'b1;
-//                         inst_beat_count <= inst_beat_count + 1;
-//                         if (rlast || (inst_beat_count == (inst_total_beats - 1))) begin
-//                             inst_rready <= 1'b0;
-//                             inst_state <= IDLE;
-//                             handling_inst_request <= 1'b0;
-//                             inst_burst_complete <= 1'b1;
-//                             inst_beat_count <= 8'd0;
-//                         end
-//                     end
-//                 end
-//                 default:
-//                     inst_state <= IDLE;
-//             endcase
-//         end
-//     end
-
-//     // Main FSM for data requests
-//     reg [ 2:0]  write_buffer_num;
-
-//     wire write_buffer_last = write_buffer_num == 3'b1;
-
-//     // 在 awready 有效之前，为了确保一些写信息不改变，这里引入 buffer
-//     reg [2:0]  dcache_wr_type_buffer;
-//     reg [31:0] dcache_wr_addr_buffer;
-//     reg [3:0]  dcache_wr_wstrb_buffer;
-//     reg [127:0] write_buffer_data;
-
-
-//     always @(posedge clk) begin
-//         if (rst) begin
-//             data_state <= IDLE;
-//             data_addr_accepted <= 1'b0;
-//             data_data_received <= 1'b0;
-//             data_write_done <= 1'b0;
-//             data_read_data <= 32'b0;
-//             handling_data_request <= 1'b0;
-
-//             data_arvalid <= 1'b0;
-//             data_arid <= 4'd0;
-//             data_araddr <= 32'd0;
-//             data_arsize <= 3'd0;
-//             data_arlen <= 8'd0;
-//             data_rready <= 1'b0;
-
-//             awvalid <= 1'b0;
-//             wvalid <= 1'b0;
-//             wlast <= 1'b0;
-//             bready <= 1'b0;
-
-//             data_beat_count <= 8'd0;
-//             data_total_beats <= 8'd0;
-//             data_burst_complete <= 1'b0;
-
-//             write_buffer_data  <= 128'b0;
-//             write_buffer_num   <= 3'b0;
-
-//             dcache_wr_type_buffer <= 3'd0;
-//             dcache_wr_addr_buffer <= 32'd0;
-//             dcache_wr_wstrb_buffer <= 4'd0;
-
-
-//         end
-//         else begin
-//             // Reset per-cycle signals
-//             data_addr_accepted <= 1'b0;
-//             data_data_received <= 1'b0;
-//             data_write_done <= 1'b0;
-
-//             case (data_state)
-//                 IDLE: begin
-//                     if (!handling_inst_request) begin
-//                         if (data_read_request) begin
-//                             data_state <= READ_ADDR;
-//                             handling_data_request <= 1'b1;
-
-//                             data_arvalid <= 1'b1;
-//                             data_arid <= 4'b0001; // ID for data reads
-//                             data_araddr <= dcache_rd_addr;
-//                             data_arsize <= data_real_rd_size;
-//                             data_arlen <= data_real_rd_len;
-
-//                             data_total_beats <= data_real_rd_len + 1;
-//                             data_beat_count <= 8'd0;
-//                         end
-//                         else if (data_write_request) begin
-//                             data_state <= WRITE_ADDR;
-//                             handling_data_request <= 1'b1;
-
-//                             awvalid <= 1'b1;
-//                             awaddr <= dcache_wr_addr;
-//                             awsize <= data_real_wr_size;
-//                             awlen <= data_real_wr_len;
-
-//                             // 缓存起来，防止下一个事务干扰
-//                             write_buffer_data <= dcache_wr_data;
-//                             dcache_wr_type_buffer <= dcache_wr_type;
-//                             dcache_wr_addr_buffer <= dcache_wr_addr;
-//                             dcache_wr_wstrb_buffer <= dcache_wr_wstrb;
-//                         end
-//                     end
-//                 end
-
-//                 READ_ADDR: begin
-//                     data_arvalid <= 1'b1;
-//                     data_arid <= 4'b0001; // ID for data reads
-//                     data_araddr <= dcache_rd_addr;
-//                     data_arsize <= data_real_rd_size;
-//                     data_arlen <= data_real_rd_len;
-
-//                     if (arready) begin
-//                         data_arvalid <= 1'b0;
-//                         data_state <= READ_DATA;
-//                         data_addr_accepted <= 1'b1;
-//                         data_rready <= 1'b1;
-//                     end
-//                 end
-//                 READ_DATA: begin
-//                     data_rready <= 1'b1;
-//                     if (rvalid && rid[0] == 1'b1) begin  // check if it's data read (rid[0] = 1)
-//                         data_data_received <= 1'b1;
-//                         // data_read_data <= rdata;
-//                         data_beat_count <= data_beat_count + 1;
-//                         if (rlast || (data_beat_count == (data_total_beats - 1))) begin
-//                             data_rready <= 1'b0;
-//                             data_state <= IDLE;
-//                             handling_data_request <= 1'b0;
-//                             data_burst_complete <= 1'b1;
-//                             data_beat_count <= 8'd0;
-//                         end
-//                     end
-//                 end
-//                 // *************************************WRITE*************************************
-//                 WRITE_ADDR: begin
-//                     awvalid <= 1'b1;
-//                     // awaddr <= dcache_wr_addr;
-//                     // awsize <= data_real_wr_size;
-//                     // awlen <= data_real_wr_len;
-
-//                     awaddr <= dcache_wr_addr_buffer;
-//                     awsize <= data_real_wr_size;
-//                     awlen <= data_real_wr_len;
-
-//                     if (awready) begin
-//                         awvalid <= 1'b0;
-//                         data_state <= WRITE_DATA;
-//                         data_addr_accepted <= 1'b1;
-//                         wvalid <= 1'b1;
-//                         wdata <= write_buffer_data[31:0];  //from write 128 bit buffer
-//                         wstrb <= dcache_wr_wstrb_buffer;
-
-//                         write_buffer_data <= {32'b0, write_buffer_data[127:32]};
-//                         // if write cache line, we need to write 4 beats
-//                         if (dcache_wr_type_buffer == 3'b100) begin
-//                             write_buffer_num <= 3'b011;
-//                         end
-//                         // or just write 1 beat
-//                         else begin
-//                             write_buffer_num <= 3'b0;
-//                             wlast <= 1'b1;
-//                         end
-
-//                     end
-//                 end
-//                 WRITE_DATA: begin
-//                     if (wready) begin
-//                         if (wlast) begin
-//                             data_state <= WRITE_RESP;
-//                             wvalid <= 1'b0;
-//                             wlast <= 1'b0;
-//                             bready <= 1'b1;
-//                         end
-//                         else begin
-//                             if (write_buffer_last) begin
-//                                 wlast <= 1'b1;
-//                             end
-//                             data_state <= WRITE_DATA;
-
-//                             wdata   <= write_buffer_data[31:0];
-//                             wvalid  <= 1'b1;
-//                             write_buffer_data <= {32'b0, write_buffer_data[127:32]};
-//                             write_buffer_num  <= write_buffer_num - 3'b1;
-//                         end
-//                     end
-//                 end
-//                 WRITE_RESP: begin
-//                     if (bvalid) begin
-//                         bready <= 1'b0;
-//                         data_write_done <= 1'b1;
-//                         data_state <= IDLE;
-//                         handling_data_request <= 1'b0;
-//                     end
-//                 end
-//                 default:
-//                     data_state <= IDLE;
-//             endcase
-//         end
-//     end
-
-//     assign arvalid = inst_arvalid || data_arvalid;
-//     assign araddr = handling_inst_request ? inst_araddr : data_araddr;
-//     assign arid = handling_inst_request ? inst_arid : data_arid;
-//     assign arsize = handling_inst_request ? inst_arsize : data_arsize;
-//     assign arlen = handling_inst_request ? inst_arlen : data_arlen;
-//     assign rready = inst_rready || data_rready;
-
-// endmodule
-
-
-// module axi_bridge(
-//     input   clk,
-//     input   reset,
-
-//     output   reg[ 3:0] arid,
-//     output   reg[31:0] araddr,
-//     output   reg[ 7:0] arlen,
-//     output   reg[ 2:0] arsize,
-//     output      [ 1:0] arburst,
-//     output      [ 1:0] arlock,
-//     output      [ 3:0] arcache,
-//     output      [ 2:0] arprot,
-//     output   reg       arvalid,
-//     input              arready,
-
-//     input    [ 3:0] rid,
-//     input    [31:0] rdata,
-//     input    [ 1:0] rresp,
-//     input           rlast,
-//     input           rvalid,
-//     output   reg    rready,
-
-//     output      [ 3:0] awid,
-//     output   reg[31:0] awaddr,
-//     output   reg[ 7:0] awlen,
-//     output   reg[ 2:0] awsize,
-//     output      [ 1:0] awburst,
-//     output      [ 1:0] awlock,
-//     output      [ 3:0] awcache,
-//     output      [ 2:0] awprot,
-//     output   reg       awvalid,
-//     input              awready,
-
-//     output      [ 3:0] wid,
-//     output   reg[31:0] wdata,
-//     output   reg[ 3:0] wstrb,
-//     output   reg       wlast,
-//     output   reg       wvalid,
-//     input              wready,
-
-//     input    [ 3:0] bid,
-//     input    [ 1:0] bresp,
-//     input           bvalid,
-//     output   reg    bready,
-//     //cache sign
-//     input            icache_rd_req     ,
-//     input  [ 2:0]    icache_rd_type    ,
-
-//     input  [31:0]    icache_rd_addr    ,
-//     output           icache_rd_rdy     ,
-//     output           icache_ret_valid  ,
-//     output           icache_ret_last   ,
-//     output [31:0]    icache_ret_data   ,
-//     input            inst_wr_req     ,
-//     input  [ 2:0]    inst_wr_type    ,
-//     input  [31:0]    inst_wr_addr    ,
-//     input  [ 3:0]    inst_wr_wstrb   ,
-//     input  [127:0]   inst_wr_data    ,
-//     output           inst_wr_rdy     ,
-
-//     input            dcache_rd_req     ,
-//     input  [ 2:0]    dcache_rd_type    ,
-//     input  [31:0]    dcache_rd_addr    ,
-//     output           dcache_rd_rdy     ,
-//     output           dcache_ret_valid  ,
-//     output           dcache_ret_last   ,
-//     output [31:0]    dcache_ret_data   ,
-//     input            dcache_wr_req     ,
-//     input  [ 2:0]    dcache_wr_type    ,
-//     input  [31:0]    dcache_wr_addr    ,
-//     input  [ 3:0]    dcache_wr_wstrb   ,
-//     input  [127:0]   dcache_wr_data    ,
-//     output           dcache_wr_rdy     ,
-//     output           write_buffer_empty
-// );
-
-// //fixed signal
-// assign  arburst = 2'b1;
-// assign  arlock  = 2'b0;
-// assign  arcache = 4'b0;
-// assign  arprot  = 3'b0;
-// assign  awid    = 4'b1;
-// assign  awburst = 2'b1;
-// assign  awlock  = 2'b0;
-// assign  awcache = 4'b0;
-// assign  awprot  = 3'b0;
-// assign  wid     = 4'b1;
-
-// assign  inst_wr_rdy = 1'b1;
-
-// localparam read_requst_empty = 1'b0;
-// localparam read_requst_ready = 1'b1;
-// localparam read_respond_empty = 1'b0;
-// localparam read_respond_transfer = 1'b1;
-// localparam write_request_empty = 3'b000;
-// localparam write_addr_ready = 3'b001;
-// localparam write_data_ready = 3'b010;
-// localparam write_all_ready = 3'b011;
-// localparam write_data_transform = 3'b100;
-// localparam write_data_wait = 3'b101;
-// localparam write_wait_b = 3'b110;
-
-// reg       read_requst_state;
-// reg       read_respond_state;
-// reg [2:0] write_requst_state;
-
-// wire      write_wait_enable;
-
-// wire         rd_requst_state_is_empty;
-// wire         rd_requst_can_receive;
-
-// assign rd_requst_state_is_empty = read_requst_state == read_requst_empty;
-
-// wire        data_rd_cache_line;
-// wire        inst_rd_cache_line;
-// wire [ 2:0] data_real_rd_size;
-// wire [ 7:0] data_real_rd_len ;
-// wire [ 2:0] inst_real_rd_size;
-// wire [ 7:0] inst_real_rd_len ;
-// wire        data_wr_cache_line;
-// wire [ 2:0] data_real_wr_size;
-// wire [ 7:0] data_real_wr_len ;
-
-// reg [127:0] write_buffer_data;
-// reg [ 2:0]  write_buffer_num;
-
-// wire        write_buffer_last;
-
-// assign write_buffer_empty = (write_buffer_num == 3'b0) && !write_wait_enable;
-
-// assign rd_requst_can_receive = rd_requst_state_is_empty && !(write_wait_enable && !(bvalid && bready));
-
-// assign dcache_rd_rdy = rd_requst_can_receive;
-// assign icache_rd_rdy = !dcache_rd_req && rd_requst_can_receive;
-
-// //read type must be cache line
-// assign data_rd_cache_line = dcache_rd_type == 3'b100                   ;
-// assign data_real_rd_size  = data_rd_cache_line ? 3'b10 : dcache_rd_type;
-// assign data_real_rd_len   = data_rd_cache_line ? 8'b11 : 8'b0        ;
-
-// assign inst_rd_cache_line = icache_rd_type == 3'b100                   ;
-// assign inst_real_rd_size  = inst_rd_cache_line ? 3'b10 : icache_rd_type;
-// assign inst_real_rd_len   = inst_rd_cache_line ? 8'b11 : 8'b0        ;
-
-// //write size can be special
-// assign data_wr_cache_line = dcache_wr_type == 3'b100;
-// assign data_real_wr_size  = data_wr_cache_line ? 3'b10 : dcache_wr_type;
-// assign data_real_wr_len   = data_wr_cache_line ? 8'b11 : 8'b0             ;
-
-// assign icache_ret_valid = !rid[0] && rvalid;
-// assign icache_ret_last  = !rid[0] && rlast;
-// assign icache_ret_data  = rdata;    //this signal needed buffer???
-// assign dcache_ret_valid =  rid[0] && rvalid;
-// assign dcache_ret_last  =  rid[0] && rlast;
-// assign dcache_ret_data  = rdata;
-
-// assign dcache_wr_rdy = (write_requst_state == write_request_empty);
-
-// assign write_buffer_last = write_buffer_num == 3'b1;
-
-// always @(posedge clk) begin
-//     if (reset) begin
-//         read_requst_state <= read_requst_empty;
-//         arvalid <= 1'b0;
-//     end
-//     else case (read_requst_state)
-//         read_requst_empty: begin
-//             if (dcache_rd_req) begin
-//                 if (write_wait_enable) begin
-//                     if (bvalid && bready) begin   //when wait write back, stop send read request. easiest way.
-//                         read_requst_state <= read_requst_ready;
-//                         arid <= 4'b1;
-//                         araddr <= dcache_rd_addr;
-//                         arsize <= data_real_rd_size;
-//                         arlen  <= data_real_rd_len;
-//                         arvalid <= 1'b1;
-//                     end
-//                 end
-//                 else begin
-//                     read_requst_state <= read_requst_ready;
-//                     arid <= 4'b1;
-//                     araddr <= dcache_rd_addr;
-//                     arsize <= data_real_rd_size;
-//                     arlen  <= data_real_rd_len;
-//                     arvalid <= 1'b1;
-//                 end
-//             end
-//             else if (icache_rd_req) begin
-//                 if (write_wait_enable) begin
-//                     if (bvalid && bready) begin
-//                         read_requst_state <= read_requst_ready;
-//                         arid <= 4'b0;
-//                         araddr <= icache_rd_addr;
-//                         arsize <= inst_real_rd_size;
-//                         arlen  <= inst_real_rd_len;
-//                         arvalid <= 1'b1;
-//                     end
-//                 end
-//                 else begin
-//                     read_requst_state <= read_requst_ready;
-//                     arid <= 4'b0;
-//                     araddr <= icache_rd_addr;
-//                     arsize <= inst_real_rd_size;
-//                     arlen  <= inst_real_rd_len;
-//                     arvalid <= 1'b1;
-//                 end
-//             end
-//         end
-//         read_requst_ready: begin
-//             if (arready && arid[0]) begin
-//                 read_requst_state <= read_requst_empty;
-//                 arvalid <= 1'b0;
-//             end
-//             else if (arready && !arid[0]) begin
-//                 read_requst_state <= read_requst_empty;
-//                 arvalid <= 1'b0;
-//             end
-//         end
-//     endcase
-// end
-
-// always @(posedge clk) begin
-//     if (reset) begin
-//         read_respond_state <= read_respond_empty;
-//         rready <= 1'b1;
-//     end
-//     else case (read_respond_state)
-//         read_respond_empty: begin
-//             if (rvalid && rready) begin
-//                 read_respond_state <= read_respond_transfer;
-//             end
-//         end
-//         read_respond_transfer: begin
-//             if (rlast && rvalid) begin
-//                 read_respond_state <= read_respond_empty;
-//             end
-//         end
-//     endcase
-// end
-
-// always @(posedge clk) begin
-//     if (reset) begin
-//         write_requst_state <= write_request_empty;
-//         awvalid <= 1'b0;
-//         wvalid  <= 1'b0;
-//         wlast   <= 1'b0;
-//         bready  <= 1'b0;
-
-//         write_buffer_num   <= 3'b0;
-//         write_buffer_data  <= 128'b0;
-//     end
-//     else case (write_requst_state)
-//         write_request_empty: begin
-//             if (dcache_wr_req) begin
-//                 write_requst_state <= write_data_wait;
-//                 //end
-//                 awaddr  <= dcache_wr_addr;
-//                 awsize  <= data_real_wr_size;
-//                 awlen   <= data_real_wr_len;
-//                 awvalid <= 1'b1;
-//                 wdata   <= dcache_wr_data[31:0];  //from write 128 bit buffer
-//                 wstrb   <= dcache_wr_wstrb;
-
-//                 write_buffer_data <= {32'b0, dcache_wr_data[127:32]};
-
-//                 if (dcache_wr_type == 3'b100) begin
-//                     write_buffer_num <= 3'b011;
-//                 end
-//                 else begin
-//                     write_buffer_num <= 3'b0;
-//                     wlast <= 1'b1;
-//                 end
-//             end
-//         end
-//         write_data_wait: begin
-//             if (awready) begin
-//                 write_requst_state <= write_data_transform;
-//                 awvalid <= 1'b0;
-// 		wvalid  <= 1'b1;
-//             end
-//         end
-//         write_data_transform: begin
-//             if (wready) begin
-//                 if (wlast) begin
-//                     write_requst_state <= write_wait_b;
-//                     wvalid <= 1'b0;
-//                     wlast <= 1'b0;
-//         	    bready <= 1'b1;
-//                 end
-//                 else begin
-//                     if (write_buffer_last) begin
-//                         wlast <= 1'b1;
-//                     end
-
-//                     write_requst_state <= write_data_transform;
-
-//                     wdata   <= write_buffer_data[31:0];
-//                     wvalid  <= 1'b1;
-//                     write_buffer_data <= {32'b0, write_buffer_data[127:32]};
-//                     write_buffer_num  <= write_buffer_num - 3'b1;
-//                 end
-//             end
-//         end
-// 	write_wait_b: begin
-// 		if (bvalid && bready) begin
-//                     write_requst_state <= write_request_empty;
-// 		    bready <= 1'b0;
-// 		end
-// 	end
-//         default: begin
-//             write_requst_state <= write_request_empty;
-//         end
-//     endcase
-// end
-
-// assign write_wait_enable = ~(write_requst_state == write_request_empty);
-
-// endmodule
-
-module sram_like_to_axi_bridge(
-        input wire  clk,
-        input  wire reset,
-
-        output   reg[ 3:0] arid,
-        output   reg[31:0] araddr,
-        output   reg[ 7:0] arlen,
-        output   reg[ 2:0] arsize,
-        output    wire  [ 1:0] arburst,
-        output    wire  [ 1:0] arlock,
-        output  wire    [ 3:0] arcache,
-        output   wire   [ 2:0] arprot,
-        output   reg       arvalid,
-        input      wire        arready,
-
-        input  wire  [ 3:0] rid,
-        input  wire  [31:0] rdata,
-        input  wire  [ 1:0] rresp,
-        input   wire        rlast,
-        input   wire        rvalid,
-        output   reg    rready,
-
-        output   wire   [ 3:0] awid,
-        output   reg[31:0] awaddr,
-        output   reg[ 7:0] awlen,
-        output   reg[ 2:0] awsize,
-        output   wire   [ 1:0] awburst,
-        output   wire   [ 1:0] awlock,
-        output   wire   [ 3:0] awcache,
-        output   wire   [ 2:0] awprot,
-        output   reg       awvalid,
-        input     wire         awready,
-
-        output   wire  [ 3:0] wid,
-        output   reg[31:0] wdata,
-        output   reg[ 3:0] wstrb,
-        output   reg       wlast,
-        output   reg       wvalid,
-        input    wire        wready,
-
-        input   wire [ 3:0] bid,
-        input   wire [ 1:0] bresp,
-        input   wire        bvalid,
-        output   reg        bready,
-        //cache sign
-        input      wire      icache_rd_req     ,
-        input  wire[ 2:0]    icache_rd_type    ,
-        input  wire[31:0]    icache_rd_addr    ,
-        output  wire         icache_rd_rdy     ,
-        output  wire         icache_ret_valid  ,
-        output  wire         icache_ret_last   ,
-        output wire [31:0]    icache_ret_data   ,
-
-        input     wire       dcache_rd_req     ,
-        input  wire[ 2:0]    dcache_rd_type    ,
-        input  wire[31:0]    dcache_rd_addr    ,
-        output   wire        dcache_rd_rdy     ,
-        output   wire        dcache_ret_valid  ,
-        output    wire       dcache_ret_last   ,
-        output wire [31:0]    dcache_ret_data   ,
-
-        input   wire         dcache_wr_req     ,
-        input  wire [ 2:0]    dcache_wr_type    ,
-        input  wire [31:0]    dcache_wr_addr    ,
-        input  wire [ 3:0]    dcache_wr_wstrb   ,
-        input  wire [127:0]   dcache_wr_data    ,
-        output   wire        dcache_wr_rdy
-    );
-
-    //fixed signal
-    assign  arburst = 2'b1;
-    assign  arlock  = 2'b0;
-    assign  arcache = 4'b0;
-    assign  arprot  = 3'b0;
-    assign  awid    = 4'b1;
-    assign  awburst = 2'b1;
-    assign  awlock  = 2'b0;
-    assign  awcache = 4'b0;
-    assign  awprot  = 3'b0;
-    assign  wid     = 4'b1;
-
-    localparam read_requst_empty = 1'b0;
-    localparam read_requst_ready = 1'b1;
-    localparam read_respond_empty = 1'b0;
-    localparam read_respond_transfer = 1'b1;
-    localparam write_request_empty = 3'b000;
-    localparam write_addr_ready = 3'b001;
-    localparam write_data_ready = 3'b010;
-    localparam write_all_ready = 3'b011;
-    localparam write_data_transform = 3'b100;
-    localparam write_data_wait = 3'b101;
-    localparam write_wait_b = 3'b110;
-
-    reg       read_requst_state;
-    reg       read_respond_state;
-    reg [2:0] write_requst_state;
-
-    wire      write_wait_enable;
-
-    wire         rd_requst_state_is_empty;
-    wire         rd_requst_can_receive;
-
-    assign rd_requst_state_is_empty = read_requst_state == read_requst_empty;
-
-    wire        data_rd_cache_line;
-    wire        inst_rd_cache_line;
-    wire [ 2:0] data_real_rd_size;
-    wire [ 7:0] data_real_rd_len ;
-    wire [ 2:0] inst_real_rd_size;
-    wire [ 7:0] inst_real_rd_len ;
-    wire        data_wr_cache_line;
-    wire [ 2:0] data_real_wr_size;
-    wire [ 7:0] data_real_wr_len ;
-
-    reg [127:0] write_buffer_data;
-    reg [ 2:0]  write_buffer_num;
-
-    wire        write_buffer_last;
-
-    assign rd_requst_can_receive = rd_requst_state_is_empty && !(write_wait_enable && !(bvalid && bready));
-
-    assign dcache_rd_rdy = rd_requst_can_receive;
-    assign icache_rd_rdy = !dcache_rd_req && rd_requst_can_receive;
-
-    //read type must be cache line
-    assign data_rd_cache_line = dcache_rd_type == 3'b100                   ;
-    assign data_real_rd_size  = data_rd_cache_line ? 3'b10 : dcache_rd_type;
-    assign data_real_rd_len   = data_rd_cache_line ? 8'b11 : 8'b0        ;
-
-    assign inst_rd_cache_line = icache_rd_type == 3'b100                   ;
-    assign inst_real_rd_size  = inst_rd_cache_line ? 3'b10 : icache_rd_type;
-    assign inst_real_rd_len   = inst_rd_cache_line ? 8'b11 : 8'b0        ;
-
-    //write size can be special
-    assign data_wr_cache_line = dcache_wr_type == 3'b100;
-    assign data_real_wr_size  = data_wr_cache_line ? 3'b10 : dcache_wr_type;
-    assign data_real_wr_len   = data_wr_cache_line ? 8'b11 : 8'b0             ;
-
-    assign icache_ret_valid = !rid[0] && rvalid;
-    assign icache_ret_last  = !rid[0] && rlast;
-    assign icache_ret_data  = rdata;    //this signal needed buffer???
-    assign dcache_ret_valid =  rid[0] && rvalid;
-    assign dcache_ret_last  =  rid[0] && rlast;
-    assign dcache_ret_data  = rdata;
-
-    assign dcache_wr_rdy = (write_requst_state == write_request_empty);
-
-    assign write_buffer_last = write_buffer_num == 3'b1;
-
-    always @(posedge clk) begin
-        if (reset) begin
-            read_requst_state <= read_requst_empty;
-            arvalid <= 1'b0;
-        end
-        else
-        case (read_requst_state)
-            read_requst_empty: begin
-                if (dcache_rd_req) begin
-                    if (write_wait_enable) begin
-                        if (bvalid && bready) begin   //when wait write back, stop send read request. easiest way.
-                            read_requst_state <= read_requst_ready;
-                            arid <= 4'b1;
-                            araddr <= dcache_rd_addr;
-                            arsize <= data_real_rd_size;
-                            arlen  <= data_real_rd_len;
-                            arvalid <= 1'b1;
-                        end
-                    end
-                    else begin
-                        read_requst_state <= read_requst_ready;
-                        arid <= 4'b1;
-                        araddr <= dcache_rd_addr;
-                        arsize <= data_real_rd_size;
-                        arlen  <= data_real_rd_len;
-                        arvalid <= 1'b1;
-                    end
-                end
-                else if (icache_rd_req) begin
-                    if (write_wait_enable) begin
-                        if (bvalid && bready) begin
-                            read_requst_state <= read_requst_ready;
-                            arid <= 4'b0;
-                            araddr <= icache_rd_addr;
-                            arsize <= inst_real_rd_size;
-                            arlen  <= inst_real_rd_len;
-                            arvalid <= 1'b1;
-                        end
-                    end
-                    else begin
-                        read_requst_state <= read_requst_ready;
-                        arid <= 4'b0;
-                        araddr <= icache_rd_addr;
-                        arsize <= inst_real_rd_size;
-                        arlen  <= inst_real_rd_len;
-                        arvalid <= 1'b1;
-                    end
+// sram_like_to_axi_bridge.v
+
+module sram_like_to_axi_bridge (
+    input  wire        clk,
+    input  wire        reset,
+
+    // AXI Read Address Channel
+    output reg  [3:0]   arid,
+    output reg  [31:0]  araddr,
+    output reg  [7:0]   arlen,
+    output reg  [2:0]   arsize,
+    output wire [1:0]   arburst,
+    output wire [1:0]   arlock,
+    output wire [3:0]   arcache,
+    output wire [2:0]   arprot,
+    output reg          arvalid,
+    input  wire         arready,
+
+    // AXI Read Data Channel
+    input  wire [3:0]   rid,
+    input  wire [31:0]  rdata,
+    input  wire [1:0]   rresp,
+    input  wire         rlast,
+    input  wire         rvalid,
+    output reg          rready,
+
+    // AXI Write Address Channel
+    output wire [3:0]   awid,
+    output reg  [31:0]  awaddr,
+    output reg  [7:0]   awlen,
+    output reg  [2:0]   awsize,
+    output wire [1:0]   awburst,
+    output wire [1:0]   awlock,
+    output wire [3:0]   awcache,
+    output wire [2:0]   awprot,
+    output reg          awvalid,
+    input  wire         awready,
+
+    // AXI Write Data Channel
+    output wire [3:0]   wid,
+    output reg  [31:0]  wdata,
+    output reg  [3:0]   wstrb,
+    output reg          wlast,
+    output reg          wvalid,
+    input  wire         wready,
+
+    // AXI Write Response Channel
+    input  wire [3:0]   bid,
+    input  wire [1:0]   bresp,
+    input  wire         bvalid,
+    output reg          bready,
+
+    // Cache request & response
+    input  wire         icache_rd_req,
+    input  wire [2:0]   icache_rd_type,
+    input  wire [31:0]  icache_rd_addr,
+    output wire         icache_rd_rdy,
+    output wire         icache_ret_valid,
+    output wire         icache_ret_last,
+    output wire [31:0]  icache_ret_data,
+
+    input  wire         dcache_rd_req,
+    input  wire [2:0]   dcache_rd_type,
+    input  wire [31:0]  dcache_rd_addr,
+    output wire         dcache_rd_rdy,
+    output wire         dcache_ret_valid,
+    output wire         dcache_ret_last,
+    output wire [31:0]  dcache_ret_data,
+
+    input  wire         dcache_wr_req,
+    input  wire [2:0]   dcache_wr_type,
+    input  wire [31:0]  dcache_wr_addr,
+    input  wire [3:0]   dcache_wr_wstrb,
+    input  wire [127:0] dcache_wr_data,
+    output wire         dcache_wr_rdy
+);
+
+// AXI fixed signals
+assign arburst = 2'b01;
+assign arlock  = 2'b00;
+assign arcache = 4'b0000;
+assign arprot  = 3'b000;
+assign awid    = 4'b0001;
+assign awburst = 2'b01;
+assign awlock  = 2'b00;
+assign awcache = 4'b0000;
+assign awprot  = 3'b000;
+assign wid     = 4'b0001;
+
+// Internal state definitions
+localparam RREQ_IDLE  = 1'b0, RREQ_ACTIVE = 1'b1;
+localparam RRESP_IDLE = 1'b0, RRESP_BUSY  = 1'b1;
+localparam WREQ_IDLE  = 3'd0, WADDR_READY = 3'd1, WDATA_WAIT = 3'd2, WDATA_SEND = 3'd3, WB_RESP = 3'd4;
+
+reg        read_req_state;
+reg        read_resp_state;
+reg [2:0]  write_state;
+
+reg [127:0] write_buf;
+reg [2:0]   write_count;
+
+wire write_in_progress = write_state != WREQ_IDLE;
+
+// Read Cache Request Mux
+assign dcache_rd_rdy = (read_req_state == RREQ_IDLE) && !write_in_progress;
+assign icache_rd_rdy = !dcache_rd_req && dcache_rd_rdy;
+
+// AXI read request packaging
+wire use_dcache = dcache_rd_req;
+wire [31:0] req_addr  = use_dcache ? dcache_rd_addr : icache_rd_addr;
+wire [2:0]  req_size  = (use_dcache ? dcache_rd_type : icache_rd_type) == 3'b100 ? 3'b010 : (use_dcache ? dcache_rd_type : icache_rd_type);
+wire [7:0]  req_len   = (use_dcache ? dcache_rd_type : icache_rd_type) == 3'b100 ? 8'd3   : 8'd0;
+wire [3:0]  req_id    = use_dcache ? 4'b0001 : 4'b0000;
+
+// AXI read response
+assign icache_ret_valid = (rid == 4'b0000) && rvalid;
+assign icache_ret_last  = (rid == 4'b0000) && rlast;
+assign icache_ret_data  = rdata;
+assign dcache_ret_valid = (rid == 4'b0001) && rvalid;
+assign dcache_ret_last  = (rid == 4'b0001) && rlast;
+assign dcache_ret_data  = rdata;
+
+// Write Request Ready
+assign dcache_wr_rdy = (write_state == WREQ_IDLE);
+
+// Read request FSM
+always @(posedge clk) begin
+    if (reset) begin
+        read_req_state <= RREQ_IDLE;
+        arvalid <= 1'b0;
+    end else begin
+        case (read_req_state)
+            RREQ_IDLE: begin
+                if ((dcache_rd_req || icache_rd_req) && !write_in_progress) begin
+                    arid    <= req_id;
+                    araddr  <= req_addr;
+                    arsize  <= req_size;
+                    arlen   <= req_len;
+                    arvalid <= 1'b1;
+                    read_req_state <= RREQ_ACTIVE;
                 end
             end
-            read_requst_ready: begin
-                if (arready && arid[0]) begin
-                    read_requst_state <= read_requst_empty;
+            RREQ_ACTIVE: begin
+                if (arvalid && arready) begin
                     arvalid <= 1'b0;
-                end
-                else if (arready && !arid[0]) begin
-                    read_requst_state <= read_requst_empty;
-                    arvalid <= 1'b0;
+                    read_req_state <= RREQ_IDLE;
                 end
             end
         endcase
     end
+end
 
-    always @(posedge clk) begin
-        if (reset) begin
-            read_respond_state <= read_respond_empty;
-            rready <= 1'b1;
-        end
-        else
-        case (read_respond_state)
-            read_respond_empty: begin
-                if (rvalid && rready) begin
-                    read_respond_state <= read_respond_transfer;
-                end
+// Read response FSM
+always @(posedge clk) begin
+    if (reset) begin
+        read_resp_state <= RRESP_IDLE;
+        rready <= 1'b1;
+    end else begin
+        case (read_resp_state)
+            RRESP_IDLE: begin
+                if (rvalid) read_resp_state <= RRESP_BUSY;
             end
-            read_respond_transfer: begin
-                if (rlast && rvalid) begin
-                    read_respond_state <= read_respond_empty;
-                end
+            RRESP_BUSY: begin
+                if (rvalid && rlast) read_resp_state <= RRESP_IDLE;
             end
         endcase
     end
+end
 
-    always @(posedge clk) begin
-        if (reset) begin
-            write_requst_state <= write_request_empty;
-            awvalid <= 1'b0;
-            wvalid  <= 1'b0;
-            wlast   <= 1'b0;
-            bready  <= 1'b0;
-
-            write_buffer_num   <= 3'b0;
-            write_buffer_data  <= 128'b0;
-        end
-        else
-        case (write_requst_state)
-            write_request_empty: begin
+// Write FSM
+always @(posedge clk) begin
+    if (reset) begin
+        write_state    <= WREQ_IDLE;
+        awvalid        <= 1'b0;
+        wvalid         <= 1'b0;
+        wlast          <= 1'b0;
+        bready         <= 1'b0;
+        write_buf      <= 128'd0;
+        write_count    <= 3'd0;
+    end else begin
+        case (write_state)
+            WREQ_IDLE: begin
                 if (dcache_wr_req) begin
-                    write_requst_state <= write_data_wait;
-                    //end
-                    awaddr  <= dcache_wr_addr;
-                    awsize  <= data_real_wr_size;
-                    awlen   <= data_real_wr_len;
-                    awvalid <= 1'b1;
-                    wdata   <= dcache_wr_data[31:0];  //from write 128 bit buffer
-                    wstrb   <= dcache_wr_wstrb;
-
-                    write_buffer_data <= {32'b0, dcache_wr_data[127:32]};
-
-                    if (dcache_wr_type == 3'b100) begin
-                        write_buffer_num <= 3'b011;
-                    end
-                    else begin
-                        write_buffer_num <= 3'b0;
-                        wlast <= 1'b1;
-                    end
+                    awaddr     <= dcache_wr_addr;
+                    awsize     <= dcache_wr_type == 3'b100 ? 3'b010 : dcache_wr_type;
+                    awlen      <= dcache_wr_type == 3'b100 ? 8'd3 : 8'd0;
+                    awvalid    <= 1'b1;
+                    wdata      <= dcache_wr_data[31:0];
+                    wstrb      <= dcache_wr_wstrb;
+                    write_buf  <= {32'd0, dcache_wr_data[127:32]};
+                    write_count <= (dcache_wr_type == 3'b100) ? 3'd3 : 3'd0;
+                    wlast      <= (dcache_wr_type != 3'b100);
+                    write_state <= WADDR_READY;
                 end
             end
-            write_data_wait: begin
+            WADDR_READY: begin
                 if (awready) begin
-                    write_requst_state <= write_data_transform;
                     awvalid <= 1'b0;
                     wvalid  <= 1'b1;
+                    write_state <= WDATA_SEND;
                 end
             end
-            write_data_transform: begin
+            WDATA_SEND: begin
                 if (wready) begin
                     if (wlast) begin
-                        write_requst_state <= write_wait_b;
                         wvalid <= 1'b0;
-                        wlast <= 1'b0;
+                        wlast  <= 1'b0;
                         bready <= 1'b1;
-                    end
-                    else begin
-                        if (write_buffer_last) begin
-                            wlast <= 1'b1;
-                        end
-                        write_requst_state <= write_data_transform;
-
-                        wdata   <= write_buffer_data[31:0];
-                        wvalid  <= 1'b1;
-                        write_buffer_data <= {32'b0, write_buffer_data[127:32]};
-                        write_buffer_num  <= write_buffer_num - 3'b1;
+                        write_state <= WB_RESP;
+                    end else begin
+                        wdata  <= write_buf[31:0];
+                        write_buf <= {32'd0, write_buf[127:32]};
+                        write_count <= write_count - 3'd1;
+                        wlast <= (write_count == 3'd1);
                     end
                 end
             end
-            write_wait_b: begin
-                if (bvalid && bready) begin
-                    write_requst_state <= write_request_empty;
+            WB_RESP: begin
+                if (bvalid) begin
                     bready <= 1'b0;
+                    write_state <= WREQ_IDLE;
                 end
             end
-            default: begin
-                write_requst_state <= write_request_empty;
-            end
+            default: write_state <= WREQ_IDLE;
         endcase
     end
-
-    assign write_wait_enable = ~(write_requst_state == write_request_empty);
+end
 
 endmodule

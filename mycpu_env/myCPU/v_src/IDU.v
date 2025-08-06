@@ -3,7 +3,7 @@ module IDU (
         input wire clk,
         input wire rst,
         // to ifu
-        output wire [33:0] bus_br_data,
+        output wire [34:0] bus_br_data,
         // from ifu
         input wire [31:0] in_pc,
         input wire [31:0] in_rdata,
@@ -29,12 +29,8 @@ module IDU (
         input  wire [1:0]  csr_plv,
 
         // exception
-
-        input wire [1:0] flush,
         input wire has_int,
-
         input wire exu_excp,
-        input wire exu_is_ertn_i,
 
         // 直通解决数据相关
         input wire [70:0] bus_exu_bypass_data,
@@ -43,10 +39,10 @@ module IDU (
 
         // csr 的数据相关
         // 握手信号
-        input up_valid,
-        output state_valid,
-        input waite_ready_i,
-        output waite_ready_o,
+        input ifu_to_idu_valid,
+        output idu_allowin,
+        input exu_allowin,
+        output idu_to_exu_valid,
         // tlb
         output wire [4:0] tlb_inst_bus,
         // invtlb
@@ -56,13 +52,9 @@ module IDU (
         output wire is_csr_wr,
 
         // from WBU
-        input wire wbu_refetch_sign_i,
-        input wire refetch_excp_i,
-        output wire refetch_excp_o,
 
         output [31:0] pc_pro_o, // PC 应该走专线
 
-        input wbu_refetch_flush,
 
         // 对于 csr 读的操作转移到 MEM
         output wire [82:0] bus_csr_rd_wr_data,
@@ -75,11 +67,8 @@ module IDU (
         // csr_rstat : 当提交指令为csrrd、csrwr、csrxchg，同时该指令对应的csr寄存器为estat寄存器时该位拉高
         output wire  csr_rstat,
 
-        output wire after_br_invalid,
-
         output wire inst_idle_o,
-
-        input wire flush_idle,
+        input wire idle_stall,
 
         // 数据前递
         // 这里数据前递需要判断 MEM 阶段是否是访存操作以及 sc 操作
@@ -89,18 +78,38 @@ module IDU (
 
         // cacop
         output cacop_o,
-        input wire icacop_flush_i
+
+        input wire flush_sign,
+        output wire br_flush,
+
+        input wire exu_tlbsrch_stall,
+        input wire [31:0] tlbsrch_stall_wbu_pc,
+
+        output wire ld_sc_inst_o,
+        input wire ld_sc_inst_i,
+
+        // 分支预测
+        output wire br_taken1,
+        output wire [31:0] br_target1,
+        output wire [31:0] current_pc,
+        output wire notice_pre,
+
+        // bubble tag
+        // 这个信号发射到 wbu 中用来 difftest 的cmt
+        output wire inst_bubble_o
     );
+
+    // 这里的 tlbsrch_stall 的理解不难
+    // 当检测到 exu 单元有 tlbsrch 指令的时候，直接stall
+    // 当检测到 wbu 的 pc 和 exu 单元的 pc 一致的时候，说明已经执行结束了
+    // 从而消掉 stall 信号，必须是 valid 的，因为可能遇到 flush
+    wire tlbsrch_stall = exu_tlbsrch_stall && tlbsrch_stall_wbu_pc != exu_pc;
 
     wire        pipeline_no_empty;
     wire        dbar_stall;
     wire        ibar_stall;
     wire [13:0] rd_csr_addr;
     wire [31:0] csr_rkd_value;
-
-    wire excp_flush;
-    wire ertn_flush;
-    assign {excp_flush, ertn_flush} = flush;
 
     // 异常类型
     wire [15:0] syscall_num;    // 系统调用异常
@@ -123,7 +132,6 @@ module IDU (
 
     reg [15:0] fs_excp_num_r; // 从上一级接收
     reg fs_excp_r;
-    reg reg_condition_4;
 
     wire [15:0] wire_fs_excp_num;
     wire wire_fs_excp;
@@ -139,9 +147,6 @@ module IDU (
     wire caculate_done_2;
 
     wire caculate_done;
-
-    wire flush_sign;
-    assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush || icacop_flush_i;
 
     // 数据相关
 
@@ -202,7 +207,7 @@ module IDU (
     wire [13:0] csr_idx;    // csr 索引
     wire [31:0] csr_data = 32'd0;
     wire [31:0] csr_mask;
-    wire [31:0] csr_wdata = 32'd0;  // 给 csr 中写的数据
+    wire [31:0] csr_wdata = 32'd0;
     wire is_inst_ertn;
     wire csr_we;
 
@@ -335,13 +340,15 @@ module IDU (
     // 指令合法，但是暂时没有执行意义
     wire        inst_nop;
     wire        inst_preld;
+    wire        inst_cpucfg;
 
 
     wire br_taken;
     wire [31:0] br_target;
+    wire br_true;
 
-    assign bus_br_data = {br_taken, br_target, caculate_done};
-    assign bus_ds_to_es_data = {
+    assign bus_br_data = {br_taken, br_target, caculate_done, br_true};
+    assign bus_ds_to_es_data = (load_use_stall_1|load_use_stall_2) ? 227'd0 : {
                mul_div_op,
                alu_op,
                alu_src1,
@@ -366,107 +373,250 @@ module IDU (
     reg [31:0] inst_sram_rdata_reg;
     reg [31:0] pc_reg;
     wire [31:0] inst_nop_data = 32'b0000_0011_0100_0000_0000_0000_0000_0000; // nop : andi r0, r0,0
-    reg [1:0] idu_state;
 
-    assign caculate_done = caculate_done_1 && caculate_done_2;
 
-    reg refetch_excp_i_r;
 
-    reg after_br_invalid_r;
+    // 分支预测怎么在这里工作
+    // 我的设想是，当 br_taken_r 发生的时候，先不要“惊动”上游，先检查
+    // 下来的指令，如果指令一致，撤销信号br_taken_r 并接受指令
+    // 如果下来的指令不一致，说明预测错误，此时立即 flush 上游
+    // 这里成本相当高，预测错误的惩罚很大，因此要尽量早的 flush 上游
+    // 最早有多早?
+    // 最早在 ifu 就可以“看到” 即将到来的 pc（之后优化这里）
+    // 这里就不要接受，直接过滤，当过滤到合适的时候，就可以继续推进了
 
-    always @(posedge clk ) begin
-        if (rst || flush_sign) begin
-            idu_state <= 2'd0;
-            inst_sram_rdata_reg <= 32'd0;
-            fs_excp_num_r <= 16'd0;
-            fs_excp_r <= 1'b0;
+    // 还有一种可能就是根本不跳转，但是 preifu 命中，此时发射来了
+    // 错误的 pc，这没办法做？
+    // 事实上也是可以的，只要对比 idu 的 expected 的 pc 就行
+    // 怎么计算 expected_pc 呢？
+    // 如果 br_taken 了，就是 br_target
+    // 否则 就是pc+4
+    // 但是这样太繁琐，带来的思维负担太重，而且刚开始启动的时候无法得出具体数值，
+    // 因此这种 expected_pc 是错误的想法
 
-            refetch_excp_i_r <= 1'b0;
-            after_br_invalid_r <= 1'b0;
+    assign br_true = idu_valid && br_taken_r && expected_pc != in_pc;
+
+    // 这会清掉上游 ifu 的指令缓存，并且让 preifu 发生混乱，换句话说
+    // 如果 br_taken 信号发出去了代价很大
+    // 如果不发 br_taken 呢？
+    // 那么就在 br_taken 的时候打一个标记，
+    // 等待上级的 pc，如果和 br_target 一致，说明猜对了，随后取消标记
+    // 如果等待错了 pc，那么就再发射 br_taken 信号
+    // 因此分支预测期从这里开始----->
+    assign br_flush = br_true;
+
+    // wire [31:0] expected_pc = br_taken ? br_target : pc_reg + 4;
+    reg br_taken_r;
+    reg [31:0] expected_pc;
+
+    always @(posedge clk) begin
+        if(rst ||flush_sign) begin
+            br_taken_r <= 1'b0;
+            expected_pc <= 32'd0;
         end
-        // idle
-        else if (idu_state == 2'd0 && up_valid) begin
-            // 取出数据
-            after_br_invalid_r <= br_taken ? 1'b1 : 1'b0;
-            pc_reg <= br_taken ? pc_reg : in_pc;
-            // 如果当前是跳转，那么下一条指令置 NOP
-            inst_sram_rdata_reg <= br_taken ? inst_nop_data : in_rdata;
-            fs_excp_num_r <= br_taken ? 16'd0: fs_excp_num;
-            fs_excp_r <= br_taken ? 1'b0 : fs_excp;
-            idu_state <= 2'd1;
-            refetch_excp_i_r <= wbu_refetch_sign_i | refetch_excp_i; // 记录是否需要重取
-        end
-        // waite_valid
-        else if (idu_state == 2'd1 && caculate_done) begin
-            // 等待数据相关稳定
-            if(waite_ready_i) begin
-                idu_state <= 2'd0;
+        // 一次只能解决一个 taken
+        else begin
+            if(br_taken && caculate_done && !br_taken_r) begin
+                br_taken_r <= 1'b1;
+                expected_pc <= br_target;
+            end
+            else if(!br_taken_r) begin
+                expected_pc <= pc_reg + 32'd4;
+            end
+
+            if(ifu_to_idu_valid && idu_allowin && (br_target == in_pc || just_started)) begin
+                br_taken_r <= 1'b0;
             end
         end
     end
 
-    // 只有计算完成，这里才有效
-    assign state_valid = idu_state == 2'd1 && caculate_done && !(dbar_stall || ibar_stall);
-    assign waite_ready_o = flush_idle ? 1'b0: (idu_state == 2'd0);
+    reg [4:0] refetch_wait;
 
+    assign notice_pre = refetch_wait == 5'd4;
 
-    // load_use 数据前递
-    wire is_ld = inst_ld_from_mem[32];
-    wire [31:0] ld_result = inst_ld_from_mem[31:0];
+    reg idu_valid;
+    wire idu_ready_go;
+    reg just_started;
 
-    // sc 数据前递
-    wire is_sc = inst_sc_from_mem[1];
-    wire sc_result = inst_sc_from_mem[0];
+    always @(posedge clk ) begin
+        if (rst || flush_sign) begin
+            idu_valid <= 1'b0;
+            refetch_wait <= 5'd0;
+            just_started <= 1'b1;
+            pc_reg <= 32'd0;
+        end
+        else if(idu_allowin) begin
+            idu_valid <= ifu_to_idu_valid;
+        end
+
+        if(ifu_to_idu_valid && idu_allowin) begin
+            // 在这里进行分支预测结果检验
+            // 刚启动的时候，expected_pc 是
+            if(br_taken && caculate_done && !br_taken_r) begin
+                // 跳转预测正确
+                if(br_target == in_pc) begin
+                    pc_reg <= in_pc;
+                    inst_sram_rdata_reg <= in_rdata;
+                    fs_excp_num_r <= fs_excp_num;
+                    fs_excp_r <= fs_excp;
+
+                    refetch_wait <= 5'd0;
+                    // br_taken_r <= 1'b0;
+                    just_started <= 1'b0;
+                end
+                // 跳转预测不正确, 准备纠正
+                else begin
+                    refetch_wait <= refetch_wait + 5'd1;
+                end
+            end
+            else if(br_taken_r) begin
+                // 跳转预测正确
+                if(expected_pc == in_pc) begin
+                    pc_reg <= in_pc;
+                    inst_sram_rdata_reg <= in_rdata;
+                    fs_excp_num_r <= fs_excp_num;
+                    fs_excp_r <= fs_excp;
+
+                    refetch_wait <= 5'd0;
+                    // br_taken_r <= 1'b0;
+                    just_started <= 1'b0;
+                end
+                // 跳转预测不正确, 准备纠正
+                else begin
+                    refetch_wait <= refetch_wait + 5'd1;
+                end
+            end
+            // 也有可能进行“预测”
+            else begin
+                if(expected_pc == in_pc || just_started) begin
+                    pc_reg <= in_pc;
+                    inst_sram_rdata_reg <= in_rdata;
+                    fs_excp_num_r <= fs_excp_num;
+                    fs_excp_r <= fs_excp;
+
+                    refetch_wait <= 5'd0;
+                    // br_taken_r <= 1'b0;
+                    just_started <= 1'b0;
+                end
+                // 跳转预测不正确, 准备纠正
+                else begin
+                    refetch_wait <= refetch_wait + 5'd1;
+                end
+            end
+        end
+    end
+    assign idu_ready_go = caculate_done;
+    // 有效性一定要确认
+    assign idu_to_exu_valid = (idu_valid && idu_ready_go && refetch_wait == 5'd0 || idu_valid && (load_use_stall_1 | load_use_stall_2)) && !flush_sign;
+    assign idu_allowin = !idu_valid || idu_ready_go && exu_allowin;
 
     wire [31:0] conflict_regaData;
     wire [31:0] conflict_regbData;
 
     // 当检测到冲突以后，就得阻塞
 
-    // pc 不能一致，如果一致没有前递意义
+    // pc 不能一致，如果一致没有前递意义?
 
     // 数据前递 匹配
-    wire exu_forward_match_1 = exu_regWr && (rf_raddr1 == exu_regAddr) && rf_raddr1 != 5'd0 && idu_pc != exu_pc;
-    wire mem_forward_match_1 = mem_regWr && (rf_raddr1 == mem_regAddr) && rf_raddr1 != 5'd0 && idu_pc != mem_pc;
-    wire wbu_forward_match_1 = wbu_regWr && (rf_raddr1 == wbu_regAddr) && rf_raddr1 != 5'd0 && idu_pc != wbu_pc;
+    // wire exu_forward_match_1 = exu_regWr && (rf_raddr1 == exu_regAddr) && rf_raddr1 != 5'd0 && idu_pc != exu_pc;
+    // wire mem_forward_match_1 = mem_regWr && (rf_raddr1 == mem_regAddr) && rf_raddr1 != 5'd0 && idu_pc != mem_pc;
+    // wire wbu_forward_match_1 = wbu_regWr && (rf_raddr1 == wbu_regAddr) && rf_raddr1 != 5'd0 && idu_pc != wbu_pc;
 
-    wire exu_forward_match_2 = exu_regWr && (rf_raddr2 == exu_regAddr) && rf_raddr2 != 5'd0 && idu_pc != exu_pc;
-    wire mem_forward_match_2 = mem_regWr && (rf_raddr2 == mem_regAddr) && rf_raddr2 != 5'd0 && idu_pc != mem_pc;
-    wire wbu_forward_match_2 = wbu_regWr && (rf_raddr2 == wbu_regAddr) && rf_raddr2 != 5'd0 && idu_pc != wbu_pc;
+    // wire exu_forward_match_2 = exu_regWr && (rf_raddr2 == exu_regAddr) && rf_raddr2 != 5'd0 && idu_pc != exu_pc;
+    // wire mem_forward_match_2 = mem_regWr && (rf_raddr2 == mem_regAddr) && rf_raddr2 != 5'd0 && idu_pc != mem_pc;
+    // wire wbu_forward_match_2 = wbu_regWr && (rf_raddr2 == wbu_regAddr) && rf_raddr2 != 5'd0 && idu_pc != wbu_pc;
+    // 事实上，如果是一个 load 循环，比如这段代码：
+    // a0547ad4:	28800108 	ld.w	$r8,$r8,0
+    // a0547ad8:	028006d6 	addi.w	$r22,$r22,1(0x1)
+    // a0547adc:	5ffff928 	bne	$r9,$r8,-8(0x3fff8) # a0547ad4 <check_tty_count+0x2c>
+    // 这种看起来在相关自己这条指令，实际上是两条指令，上次r8 加载的数据和现在 r8 相关
+    // 因此不能认为 pc 就一定不一致
+    wire exu_forward_match_1 = exu_regWr && (rf_raddr1 == exu_regAddr) && rf_raddr1 != 5'd0;
+    wire mem_forward_match_1 = mem_regWr && (rf_raddr1 == mem_regAddr) && rf_raddr1 != 5'd0;
+    wire wbu_forward_match_1 = wbu_regWr && (rf_raddr1 == wbu_regAddr) && rf_raddr1 != 5'd0;
 
-    // 优先的匹配：is_ld, is_sc
-    // idu_pc 必须仅仅比 mem_pc 多 4 才能构成 load_use, 不然可能导致 mem 的 ld 指令总是优先前递，导致出错
-    wire mem_forward_match_ld_use_1 = mem_regWr && (rf_raddr1 == mem_regAddr) && rf_raddr1 != 5'd0 && idu_pc == (mem_pc + 32'd4);
-    wire mem_forward_match_ld_use_2 = mem_regWr && (rf_raddr2 == mem_regAddr) && rf_raddr2 != 5'd0 && idu_pc == (mem_pc + 32'd4);
+    wire exu_forward_match_2 = exu_regWr && (rf_raddr2 == exu_regAddr) && rf_raddr2 != 5'd0;
+    wire mem_forward_match_2 = mem_regWr && (rf_raddr2 == mem_regAddr) && rf_raddr2 != 5'd0;
+    wire wbu_forward_match_2 = wbu_regWr && (rf_raddr2 == wbu_regAddr) && rf_raddr2 != 5'd0;
 
-    wire first_macth_1 = mem_forward_match_ld_use_1 && (is_ld || is_sc);
-    wire first_macth_2 = mem_forward_match_ld_use_2 && (is_ld || is_sc);
-    wire [31:0] first_match_result = ({32{is_ld}} & ld_result) | ({32{is_sc}} & {{31{1'b0}}, sc_result});
+    // load_use
+    // 检测 exu 的指令是否是 ld、ll、以及 sc，如果是，将会一直阻塞，
+    // 一直到 exu 执行到 wbu，此时 idu 自然没有数据相关了
+    // ld_sc 会用到 rj，往 rd 中存储数据
+    // 因此一旦发生 load_use，我们先检查当前 use 的指令的 地址 和
+    // ld_sc 指令的 rd 是否一致
+
+    // 如果检测到了 load_use 那就 stall，但是与此同时，可以继续向后端发射空指令 bubble
+    // idu use，exu 把 ld 指令发射到 mem，exu 持有 bubble，mem 持有 ld 指令，
+    // 这会显示 load_use 消失，但是 mem 还没有处理完成。遇到这种情况，只需要检测 wbu 是否拿到
+    // bubble，如果拿到 bubble，说明 idu 可以从寄存器中获取数据了。
+
+    // 如何发射 bubble_inst?
+    // 将当前的 将要发射的 inst 设置成 bubble（03400000），包括已经解码好的数据
+    // 同时，还要设置一次 idu_to_exu_valid
+
+    // 但是 idu 的 load_use 只能维持一拍，exu 拿到 bubble 之后信号就消失了
+    // 此时 idu 依然没有等来关键数据，只能持续 load_use_stall，这个信号怎么维持呢？
+    reg load_use_stalled;
+    wire load_use_stall_1;
+    wire load_use_stall_2;
+
+    always@(posedge clk) begin
+        if(rst || flush_sign) begin
+            load_use_stalled <= 1'b0;
+        end
+        else begin
+            if(load_use_stall_1 || load_use_stall_2) begin
+                load_use_stalled <= 1'b1;
+            end
+            // 如果 stalled 并且 wbu 已经拿到了 bubble，
+            // 说明 stalled 可以解除
+            else if(load_use_stalled && idu_pc == wbu_pc) begin
+                load_use_stalled <= 1'b0;
+            end
+        end
+    end
+
+    // load_use 的匹配机制和数据前递不一样
+    wire load_use_judge_1 = (rf_raddr1 == exu_regAddr) && rf_raddr1 != 5'd0 && idu_pc != exu_pc;
+    wire load_use_judge_2 = (rf_raddr2 == exu_regAddr) && rf_raddr2 != 5'd0 && idu_pc != exu_pc && !inst_cacop;
+
+    assign load_use_stall_1 = load_use_judge_1 &&
+           ld_sc_inst_i;
+    assign load_use_stall_2 = load_use_judge_2 &&
+           ld_sc_inst_i;
 
     // 根据匹配与否进行 多路选择
-    assign conflict_regaData = first_macth_1 ? first_match_result :
+    assign conflict_regaData =
            exu_forward_match_1 ? exu_data :
            mem_forward_match_1 ? mem_data :
            wbu_forward_match_1 ? wbu_data : rf_rdata1;
 
-    assign conflict_regbData = first_macth_2 ? first_match_result :
+    assign conflict_regbData =
            exu_forward_match_2 ? exu_data :
            mem_forward_match_2 ? mem_data :
            wbu_forward_match_2 ? wbu_data : rf_rdata2;
 
     // 这是计算完成的标志：当匹配成功的时候，必须等到其计算完成才能最终裁定 idu 是否彻底计算完成
-assign caculate_done_1 = first_macth_1 ? mem_over ? 1'b1 : 1'b0:
+    // 如果 stall 的时候，wbu_pc+4 等于idu_pc 就行。不一样继续 stall，否则 stall 结束，阻塞一个信号就行
+    // 指令能走到 wbu，说明 mem 已经完成了访存，直接从 mem 拿数据就行。
+
+    // 阻塞一个信号就行
+    assign caculate_done_1 = (load_use_stalled | load_use_stall_1) ? 1'b0:
        exu_forward_match_1 ? exu_over ? 1'b1 : 1'b0:
        mem_forward_match_1 ? mem_over ? 1'b1 : 1'b0:
        wbu_forward_match_1 ? wbu_over ? 1'b1 : 1'b0:
            1'b1;
 
-assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
+    assign caculate_done_2 = (load_use_stalled | load_use_stall_2) ? 1'b0:
        exu_forward_match_2 ? exu_over ? 1'b1 : 1'b0:
        mem_forward_match_2 ? mem_over ? 1'b1 : 1'b0:
        wbu_forward_match_2 ? wbu_over ? 1'b1 : 1'b0:
            1'b1;
 
+
+    assign caculate_done = caculate_done_1 && caculate_done_2 &&
+           !(dbar_stall || ibar_stall) && !tlbsrch_stall;
 
     assign idu_inst = inst_sram_rdata_reg;
     // 当前指令是空指令
@@ -476,7 +626,7 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
     // 因为空指令被标记为无效指令
     // 携带 refetch_sign 的指令以及指令携带的中断都会被抛弃
     // inst_idle 指令会直接 lock
-    assign is_nop = (after_br_invalid_r == 1'b1 || refetch_excp_i_r == 1'b1 || inst_idle) ? 1'b1 : 1'b0;
+    assign is_nop = inst_idle;
     assign idu_pc = pc_reg;
     // assign pc = idu_pc;
 
@@ -589,6 +739,7 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
     assign inst_nop = inst_cacop && ((dest[2:0]!=3'b0 && dest[2:0] != 3'b1) || (dest[4:3]==2'd3));
 
     assign inst_preld      = op_31_26_d[6'h0a] & op_25_22_d[4'hb];
+    assign inst_cpucfg     = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h0] & op_19_15_d[5'h0] & rk_d[5'h1b];
 
 
 
@@ -690,7 +841,7 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
            inst_valid_cacop
            ;
 
-    assign out_mem_op = {inst_sc_w, inst_ll_w, inst_ld_w, inst_ld_hu, inst_ld_h, inst_ld_bu, inst_ld_b, inst_st_w, inst_st_h, inst_st_b};
+    assign out_mem_op = (load_use_stall_1 | load_use_stall_2) ? 10'd0 : {inst_sc_w, inst_ll_w, inst_ld_w, inst_ld_hu, inst_ld_h, inst_ld_bu, inst_ld_b, inst_st_w, inst_st_h, inst_st_b};
 
     assign res_from_mem  = inst_ld_w |
            inst_ld_b |
@@ -704,7 +855,9 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
            inst_csrxchg |
            inst_rdcntid_w |
            inst_rdcntvl_w |
-           inst_rdcntvh_w;
+           inst_rdcntvh_w |
+           inst_cpucfg
+           ;
 
     assign rd_csr_addr = csr_idx;
     assign csr_we = inst_csrwr | inst_csrxchg; // 修改 csr
@@ -759,7 +912,9 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
            inst_rdcntvh_w|
 
            inst_ll_w|
-           inst_sc_w;
+           inst_sc_w|
+           inst_cpucfg
+           ;
 
     assign mem_we = inst_st_w || inst_st_b || inst_st_h || (inst_sc_w && llbit);
     assign dest = dst_is_r1 ? 5'd1 :
@@ -769,8 +924,10 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
     assign rf_raddr2 = src_reg_is_rd ? rd : rk;
 
     // 只有计算完成，才能进行数据前递
-    assign rj_value  = state_valid ? conflict_regaData : rf_rdata1;
-    assign rkd_value = state_valid ? conflict_regbData : rf_rdata2;
+    // assign rj_value  = state_valid ? conflict_regaData : rf_rdata1;
+    // assign rkd_value = state_valid ? conflict_regbData : rf_rdata2;
+    assign rj_value  = conflict_regaData;
+    assign rkd_value = conflict_regbData;
 
     wire rj_lt_rd;
     wire rj_ltu_rd;
@@ -798,12 +955,12 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
                        || inst_bltu && rj_ltu_rd
                        || inst_bge  && rj_gt_rd
                        || inst_bgeu && rj_gtu_rd
-                      )  && !wire_fs_excp && !refetch_excp_i_r; // 计算完成才能裁定，这里不裁定，最终由 preIFU 进行裁定
-    assign br_target = (inst_beq || inst_bne || inst_bl || inst_b || inst_blt || inst_bltu || inst_bge || inst_bgeu) ? (idu_pc + br_offs) :
-           /*inst_jirl*/  (rj_value + jirl_offs);
+                      )  && idu_valid && !wire_fs_excp; // 计算完成才能裁定，这里不裁定，最终由 preIFU 进行裁定
+    assign br_target = br_taken_r ? expected_pc :(inst_beq || inst_bne || inst_bl || inst_b || inst_blt || inst_bltu || inst_bge || inst_bgeu) ? (idu_pc + br_offs) :
+           (rj_value + jirl_offs);
 
     // 如果下游有异常，当前指令全部 valid 就行，不用报指令无效异常
-    assign inst_valid = exu_excp ? 1'b1 : inst_add_w |
+    assign inst_valid = inst_add_w |
            inst_sub_w|
            inst_slt |
            inst_slti|
@@ -870,6 +1027,7 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
            inst_valid_cacop|
            inst_nop        |
            inst_preld      |
+           inst_cpucfg     |
            (inst_invtlb && (rd == 5'd0 ||
                             rd == 5'd1 ||
                             rd == 5'd2 ||
@@ -902,7 +1060,10 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
     assign idu_excp_brk = inst_break;
     assign excp_brk_num = idu_excp_brk ? 16'h0040 : 16'b0;
     // 0x7
-    assign idu_excp_ie = has_int & ~is_nop;
+    // 挂在指令的开头
+    // 会死锁，比如死循环等待 int ，却挂不上去，这时候就可以设置一个信号
+    // 当指令一样的时候设置一个计数器，当计数器的值很大比如 5 的时候且有 int，直接挂
+    assign idu_excp_ie = has_int && ~is_nop;
     assign excp_ie_num = idu_excp_ie ? 16'h0080 : 16'b0;
     // 0x8
     assign idu_excp_ipe = kernel_inst && (csr_plv == 2'b11);
@@ -916,8 +1077,8 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
            ( wire_fs_excp_num | syscall_num | excp_ine_num | excp_brk_num);
 
     // 输出
-    assign ds_excp_out =  ds_excp;
-    assign ds_excp_num_out =  ds_excp_num;
+    assign ds_excp_out =  (load_use_stall_1|load_use_stall_2) ? 1'b0 : ds_excp;
+    assign ds_excp_num_out = (load_use_stall_1|load_use_stall_2) ? 16'd0 : ds_excp_num;
 
     // 异常=================================================
 
@@ -939,12 +1100,12 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
     assign invtlb_vpn = rkd_value[31:13];
 
     //debug
-    assign idu_inst_o = inst_sram_rdata_reg;
+    assign idu_inst_o = (load_use_stall_1 | load_use_stall_2) ? 32'h03400000 : inst_sram_rdata_reg;
     assign is_csr_wr = inst_csrwr |
            inst_csrxchg |
            inst_tlbrd |
            inst_tlbsrch;
-    assign refetch_excp_o = refetch_excp_i_r;
+
     assign pc_pro_o = idu_pc;
 
     assign bus_csr_rd_wr_data = {
@@ -958,6 +1119,9 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
                inst_rdcntid_w
            };
 
+    // ld_use
+    assign ld_sc_inst_o = inst_ld_b || inst_ld_bu || inst_ld_h || inst_ld_hu || inst_ld_w || inst_ll_w || inst_sc_w;
+
     //ibar dbar
     assign pipeline_no_empty = es_to_ds_valid || ms_to_ds_valid || ws_to_ds_valid;
 
@@ -966,10 +1130,14 @@ assign caculate_done_2 = first_macth_2 ? mem_over ? 1'b1 : 1'b0:
 
     assign csr_rstat = (inst_csrrd || inst_csrwr || inst_csrxchg) && (rd_csr_addr == 14'h5);
 
-    assign after_br_invalid = after_br_invalid_r;
 
     assign inst_idle_o = inst_idle;
 
     assign cacop_o = inst_valid_cacop;
+
+    assign br_taken1 = br_taken && caculate_done;
+    assign br_target1 = br_target;
+    assign current_pc = pc_reg;
+    assign inst_bubble_o = idu_valid && (load_use_stall_1 | load_use_stall_2);
 
 endmodule

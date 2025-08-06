@@ -88,7 +88,7 @@ module MEM
 
          // ================访存单元================
 
-         input wire [150:0] es_to_ms_data_i,
+         input wire [151:0] es_to_ms_data_i,
          input wire [31:0]  es_inst_data_i,
 
          output wire [31:0]  ms_inst_data_o,
@@ -98,17 +98,16 @@ module MEM
          output wire [70:0] bus_mem_bypass_data,
 
          // exception
-         input wire [1:0] flush,
+         input wire flush_sign,
 
          input wire wbu_in_is_ertn, // from wbu
          output wire mem_excp, // 发射到 exu 以实现精确异常
-         output wire is_ertn, // 这个信号的作用和异常一致，但是它归根结底不属于异常
 
          // 握手信号
-         input up_valid,
-         output state_valid,
-         input waite_ready_i,
-         output waite_ready_o,
+         input exu_to_mem_valid,
+         output mem_allowin,
+         input wbu_allowin,
+         output mem_to_wbu_valid,
          // tlb
          input wire [4:0] es_tlb_inst_bus_i,
          output wire [4:0] ms_tlb_inst_bus_o,
@@ -130,22 +129,9 @@ module MEM
          output wire ms_is_csr_wr_o,
 
          // refetch sign
-         input wire wbu_refetch_sign_i,
-
-         input wire es_refetch_excp_i,
-         output wire ms_refetch_excp_o,
 
          input [31:0] es_pc_pro_i,
          output [31:0] ms_pc_pro_o,
-
-         input wbu_refetch_flush,
-
-         // from csr
-         output wire [13:0] rd_csr_addr,
-         input  wire [31:0] rd_csr_data,
-         // //timer 64
-         input [63:0] timer_64,
-         input [31:0] csr_tid,
 
          input [82:0] bus_csr_rd_wr_data_i,
 
@@ -157,12 +143,16 @@ module MEM
 
          input wire csr_rstat_i,
          output wire csr_rstat_o,
-         // csr_data : 当csrstat == 1时，当前指令读取到的csr寄存器(estat)的值
-         output wire [31:0] csr_estat_data,
 
+         //  csr_data : 当csrstat == 1时，当前指令读取到的csr寄存器(estat)的值
+         input wire [31:0] csr_estat_data_i,
+         input wire cnt_inst_diff_i,
+         input wire [63:0] timer_64_diff_i,
+         input wire [31:0] csr_data_i,
+
+         output wire [31:0] csr_estat_data,
          output wire cnt_inst_diff,
          output wire [63:0] timer_64_diff,
-
 
          output   wire [7:0] ld_diff,
          output   wire [31:0] paddr_diff,
@@ -172,18 +162,14 @@ module MEM
          output  wire [7:0] st_diff,
          output  wire [31:0] st_data_diff,
 
-         input  wire after_br_invalid_i,
-         output wire after_br_invalid_o,
-
          input wire inst_idle_i,
          output wire inst_idle_o,
-         input wire idle_flush,
 
+         input wire idle_stall,
          input wire disable_cache, //debug
 
          // cacop
          input wire cacop_i,
-         input wire icacop_flush_i,
          // icache
          output wire icacop_op_en,
          input wire icache_busy,
@@ -199,10 +185,20 @@ module MEM
          output wire [1:0] cacop_op_mode,
          // 生成 icacop_flush
          output icacop_o,
-         output cacop_op_mode_di
+         output cacop_op_mode_di,
+
+         // bubble_tag
+         input wire inst_bubble_i,
+         output wire inst_bubble_o
      );
+    reg inst_bubble_i_r;
 
     reg cacop_i_r;
+
+    reg [31:0] csr_estat_data_i_r;
+    reg cnt_inst_diff_i_r;
+    reg [63:0] timer_64_diff_i_r;
+    reg [31:0] csr_data_i_r;
 
     wire req; // en
     wire wr;   // |we
@@ -236,7 +232,7 @@ module MEM
     reg [31:0] es_rkd_value_i_r;
     reg [31:0] es_alu_result_i_r;
 
-    reg [150:0] es_to_ms_data_i_r;
+    reg [151:0] es_to_ms_data_i_r;
     reg [31:0]  es_inst_data_i_r;
 
     reg [4:0]  es_tlb_inst_bus_i_r;
@@ -246,18 +242,12 @@ module MEM
     reg [18:0] es_invtlb_vpn_i_r;
 
     reg         es_is_csr_wr_i_r;
-    reg         es_refetch_excp_i_r;
     reg [31:0]  es_pc_pro_i_r;
 
-    reg [82:0] bus_csrd_wr_data_i_r;
 
     reg csr_rstat_i_r;
-    reg after_br_invalid_i_r;
     reg inst_idle_i_r;
 
-    wire excp_flush;
-    wire ertn_flush;
-    assign {excp_flush, ertn_flush} = flush;
 
     // 异常信号
 
@@ -280,10 +270,6 @@ module MEM
     wire mem_excp_pme;
     wire [15:0] excp_pme_num;
 
-    // 清空信号
-    wire flush_sign;
-    assign flush_sign = ertn_flush || excp_flush || wbu_refetch_flush || icacop_flush_i;
-
     // 数据相关
     wire mem_regWr;
     wire [31:0] mem_data;
@@ -292,6 +278,7 @@ module MEM
 
 
     wire [31:0] wire_exu_result;
+    wire wire_res_from_csr;
     wire wire_res_from_mem;
     wire [4:0] wire_dest;
     wire wire_gr_we;
@@ -324,6 +311,7 @@ module MEM
 
 
     assign {
+            wire_res_from_csr,
             wire_res_from_mem,
             wire_exu_result,
             wire_gr_we,
@@ -341,75 +329,28 @@ module MEM
                dest,
                final_result,
                pc,
-               wire_csr_we,
+               wire_csr_we_1,
                wire_csr_idx,
-               csr_wdata,
+               wire_csr_wdata,
                wire_is_inst_ertn,
                wire_error_va
            };
 
-    //    res_from_csr,
-    //    rd_csr_addr,
-    //    csr_we,
-    //    csr_mask,
-    //    csrkd_value
-
-    wire wire_res_from_csr;
-    wire [13:0] wire_rd_csr_addr;
-    wire wire_csr_we;
-    wire [31:0] wire_csr_mask;
-    wire [31:0] wire_csrkd_value;
-    wire wire_inst_rdcntvl_w;
-    wire wire_inst_rdcntvh_w;
-    wire wire_inst_rdcntid_w;
-
-    assign {
-            wire_res_from_csr,
-            wire_rd_csr_addr,
-            wire_csr_we,
-            wire_csr_mask,
-            wire_csrkd_value,
-            wire_inst_rdcntvl_w,
-            wire_inst_rdcntvh_w,
-            wire_inst_rdcntid_w
-        } = bus_csrd_wr_data_i_r;
-
-    wire rdcnt_en;
-    wire [63:0] timer_64_set;
-    wire [31:0] rdcnt_result;
-    assign {rdcnt_en, rdcnt_result} = ({33{wire_inst_rdcntvl_w}} & {1'b1, timer_64_set[31: 0]}) |
-           ({33{wire_inst_rdcntvh_w}} & {1'b1, timer_64_set[63:32]}) |
-           ({33{wire_inst_rdcntid_w}} & {1'b1, csr_tid});
-
-    // 从 csr 独读出的值有两种情况
-    wire [31:0] csr_data;
-    assign csr_data = rdcnt_en ? rdcnt_result :
-           wire_res_from_csr ? rd_csr_data : 32'd0;
-
-    // 从 csr 中读取数据
-    // 其中，如果是读计数器寄存器，则直接返回计数器的值
-    // 但是这个值可能会被上游用到，因此这里应该应该将这个值固定下来
-    reg [63:0] timer_64_set_r;
-    assign timer_64_set = timer_64_set_r;
+    reg sc_r;
     always @(posedge clk) begin
-        if (up_valid) begin
-            timer_64_set_r <= timer_64;
+        if(sc_do) begin
+            sc_r <= 1'b1;
+        end
+        if(!sc_w) begin
+            sc_r <= 1'b0;
         end
     end
 
-    assign rd_csr_addr = wire_rd_csr_addr;
-    wire [31:0] csr_wdata;
-    assign csr_wdata = wire_csrkd_value & wire_csr_mask | (csr_data & ~wire_csr_mask);
-
     assign final_result = wire_res_from_mem ? rdata_final :
-           wire_res_from_csr ? csr_data :
-           sc_w ? {{31{1'b0}},sc_do}: // 如果是 sc，就看能否成功执行
+           wire_res_from_csr ? csr_data_i_r :
+           sc_w ? {{31{1'b0}},sc_do | sc_r & sc_w}: // 如果是 sc，就看能否成功执行
            wire_exu_result;
-
-
-
-    assign mem_excp = ms_excp;   // 发送给上一级，目的是为了取消上一级的一些执行效果，比如内存写、除法计算等等
-    assign is_ertn = wire_is_inst_ertn; // 同样也是为了取消上一级的执行效果
+    assign mem_excp = ms_excp || wire_is_inst_ertn;   // 发送给上一级，目的是为了取消上一级的一些执行效果，比如内存写、除法计算等等
 
     assign gr_we          = wire_gr_we;
     assign dest           = wire_dest;
@@ -465,42 +406,29 @@ module MEM
                mem_over
            };
 
-    reg [2:0] mem_state;
+
+    wire done; // done 指明 MEM 计算是否完成
+
+    reg mem_valid;
+    wire mem_ready_go;
 
     always @(posedge clk) begin
         if (rst || flush_sign) begin
-            mem_state <= 3'd0;
+            mem_valid <= 1'b0;
+            inst_bubble_i_r <= 1'b0;
 
-            es_excp_i_r <= 1'b0;
-            es_excp_num_i_r <= 16'd0;
-            es_mem_op_i_r <=10'd0;
+            es_to_ms_data_i_r <= 152'd0;
             es_rkd_value_i_r <= 32'd0;
             es_alu_result_i_r <= 32'd0;
+            csr_estat_data_i_r <= 32'd0;
+            timer_64_diff_i_r <= 64'd0;
+            csr_data_i_r <= 32'd0;
 
-            es_to_ms_data_i_r <= 151'd0;
-            es_inst_data_i_r <= 32'd0;
-            // tlb
-            es_tlb_inst_bus_i_r <= 5'd0;
-            // invtlb
-            es_invtlb_op_i_r <= 5'd0;
-            es_invtlb_asid_i_r <= 10'd0;
-            es_invtlb_vpn_i_r <= 19'd0;
-
-            es_is_csr_wr_i_r <= 1'b0;
-            es_refetch_excp_i_r <= 1'b0;
-            es_pc_pro_i_r <= 32'd0;
-
-            bus_csrd_wr_data_i_r <= 83'd0;
-
-            csr_rstat_i_r <= 1'b0;
-            after_br_invalid_i_r <= 1'b0;
-            inst_idle_i_r <= 1'b0;
-
-            cacop_i_r <= 1'b0;
         end
-        else if (mem_state == 3'd0 && up_valid) begin
-            mem_state <= 3'd1;
-
+        else if(mem_allowin) begin
+            mem_valid <= exu_to_mem_valid;
+        end
+        if(mem_allowin && exu_to_mem_valid) begin
             es_excp_i_r <= es_excp_i;
             es_excp_num_i_r <= es_excp_num_i;
             es_mem_op_i_r <= es_mem_op_i;
@@ -517,77 +445,107 @@ module MEM
             es_invtlb_vpn_i_r <= es_invtlb_vpn_i;
 
             es_is_csr_wr_i_r <= es_is_csr_wr_i;
-            es_refetch_excp_i_r <= wbu_refetch_sign_i | wbu_refetch_sign_i;
             es_pc_pro_i_r <= es_pc_pro_i;
 
-            bus_csrd_wr_data_i_r <= bus_csr_rd_wr_data_i;
-
             csr_rstat_i_r <= csr_rstat_i;
-            after_br_invalid_i_r <= after_br_invalid_i;
             inst_idle_i_r <= inst_idle_i;
 
             cacop_i_r <= cacop_i;
-        end
-        else if(mem_state == 3'd1) begin
-            // 如果是 cacop 操作
-            if(cacop_i_r && !stop_signal) begin
-                // 操作 icache的话维护状态机
-                // 进入新的状态
-                if(icacop_op_en) begin
-                    mem_state <= 3'd3;
-                end
-                else if(dcacop_op_en) begin
-                    mem_state <= 3'd4;
-                end
-            end
-            else if(access_memo && !stop_signal) begin
-                if(waite_ready_i && addr_ok && !data_ok) begin
-                    mem_state <= 3'd2; // 等待
-                end
-                else if(waite_ready_i && addr_ok && data_ok) begin
-                    mem_state <= 3'd0;
-                end
-            end
-            else if(stop_signal) begin
-                mem_state <= waite_ready_i ? 3'd0 : 3'd1;
-            end
-            else begin
-                // 否则处理完成
-                mem_state <= waite_ready_i ? 3'd0 : 3'd1;
-            end
-        end
-        else if (mem_state == 3'd2) begin
-            if (data_ok) begin
-                mem_state <= 3'd0;// 处理完成
-            end
-        end
-        else if (mem_state == 3'd3) begin
-            if (icacop_addr_ok && icacop_data_ok) begin
-                mem_state <= 3'd0; // 处理完成
-            end
-        end
-        else if (mem_state == 3'd4) begin
-            // 操作 dcache 的话，维护状态机
-            if(dcacop_addr_ok && !dcacop_data_ok) begin
-                mem_state <= 3'd5; // 等待 ok
-            end
-            else if (dcacop_addr_ok && dcacop_data_ok) begin
-                mem_state <= 3'd0; // 处理完成
-            end
-        end
-        else if( mem_state == 3'd5) begin
-            if(dcacop_data_ok) begin
-                mem_state <= 3'd0; // 处理完成
-            end
-        end
-        else begin
-             mem_state <= 3'd0; // 处理完成
+            csr_estat_data_i_r <= csr_estat_data_i;
+            cnt_inst_diff_i_r <= cnt_inst_diff_i;
+            timer_64_diff_i_r <= timer_64_diff_i;
+            csr_data_i_r <= csr_data_i;
+
+            inst_bubble_i_r <= inst_bubble_i;
         end
     end
+
+    // 这里单独维护一个状态机用于访存和 cacop
+    reg [2:0] sub_fsm;
+    always @(posedge clk) begin
+        if(rst || flush_sign) begin
+            sub_fsm <= 3'd0;
+        end
+        else begin
+            case(sub_fsm)
+                3'd0:begin
+                    if(cacop_i_r && !stop_signal) begin
+                        // 操作 icache的话维护状态机
+                        // 进入新的状态
+                        if(icacop_op_en) begin
+                            sub_fsm <= 3'd2;
+                        end
+                        else if(dcacop_op_en) begin
+                            sub_fsm <= 3'd3;
+                        end
+                    end
+                    // 如果是访存操作
+                    else if(access_memo && !stop_signal) begin
+                        if(addr_ok && !data_ok) begin
+                            sub_fsm <= 3'd1; // 等待
+                        end
+                        else if(addr_ok && data_ok) begin
+                            sub_fsm <= 3'd0;
+                        end
+                    end
+                    else if(stop_signal) begin
+                        sub_fsm <= 3'd0;
+                    end
+                    else begin
+                        sub_fsm <= 3'd0;
+                    end
+                end
+
+                // 访存操作
+                3'd1: begin
+                    if (data_ok) begin
+                        sub_fsm <= 3'd0;// 处理完成
+                    end
+                end
+                // 处理 icacop:这两个信号一定是同步拉高的
+                3'd2:begin
+                    if (icacop_addr_ok && icacop_data_ok) begin
+                        sub_fsm <= 3'd0; // 处理完成
+                    end
+                end
+                // 处理 dcache
+                3'd3:begin
+                    if(dcacop_addr_ok && !dcacop_data_ok) begin
+                        sub_fsm <= 3'd4; // 等待 ok
+                    end
+                    else if (dcacop_addr_ok && dcacop_data_ok) begin
+                        sub_fsm <= 3'd0; // 处理完成
+                    end
+
+                end
+                3'd4:begin
+                    if(dcacop_data_ok) begin
+                        sub_fsm <= 3'd0; // 处理完成
+                    end
+                end
+                default:begin
+                end
+            endcase
+        end
+    end
+
+    // done 信号的生成
+    // 这个信号的前提是 mem_state 必须处在 1 状态，因为这时候缓存中存的信息是待处理的
+    assign done = stop_signal ? 1'd1:
+           access_memo ? data_ok : // 访存的话数据完成就 done
+           cacop_i_r ? icacop_addr_ok && icacop_data_ok || dcacop_data_ok :
+           1'd1;
 
     // 取消取指令
     assign flush_sign_cancel = flush_sign;
 
+    // 发送访存请求
+    assign req = stop_signal ? 1'b0 :
+           mem_valid && access_memo && sub_fsm == 3'd0 && !addr_ok;
+
+    assign mem_ready_go = done;
+    assign mem_allowin = !mem_valid || mem_ready_go && wbu_allowin;
+    assign mem_to_wbu_valid = mem_valid && mem_ready_go && !flush_sign;
 
     // real data
     // axi 返回的永远是 4 字节，因此这里会根据 size 以及地址生成最终的数据
@@ -634,23 +592,17 @@ module MEM
 
     assign rdata_final = flush_sign ? 32'd0 : real_data;
 
-    assign state_valid = access_memo && !stop_signal ? data_ok :
-           mem_state == 3'd1 && stop_signal ? 1'd1:
-           cacop_i_r && stop_signal ? 1'd1:
-           cacop_i_r ? icacop_addr_ok && icacop_data_ok || dcacop_data_ok:
-           mem_state == 3'd1;
 
-    assign waite_ready_o = idle_flush ? 1'b0: (mem_state == 3'd0);
     // 这里的 over 可以提前结束:
-    assign mem_over = mem_state == 3'd0;
+    assign mem_over = mem_ready_go;
 
     // ================访存单元================
     wire stop_signal;
-    assign stop_signal = es_excp_i_r || mem_excp || flush_sign || wbu_in_is_ertn || es_refetch_excp_i_r;
+    assign stop_signal = flush_sign || ms_excp;
 
     // sc 是否执行，如果执行了，就往 rd 中写 1
     wire sc_do;
-    assign sc_do = (sc_w & ds_llbit && lladdr == paddr[31:4]);
+    assign sc_do = (sc_w && ds_llbit && lladdr == paddr[31:4]);
 
     assign size = ld_b || ld_bu || st_b ? 2'b00 :
            ld_h || ld_hu || st_h ? 2'b01 :
@@ -660,7 +612,7 @@ module MEM
     assign wstrb = stop_signal ? 4'b0000 : // 异常
            st_b  ? st_b_we :
            st_h  ? st_h_we :
-           st_w || sc_do  ? st_w_we :
+           st_w || sc_do ? st_w_we :
            4'b0000 ;
     // 写入
     assign wdata = st_b ? {4{es_rkd_value_i_r[7:0]}} :
@@ -674,7 +626,6 @@ module MEM
 
     assign dcache_op = write_mem;
 
-    assign req = stop_signal ? 1'b0 : mem_state == 3'd1 && access_memo && waite_ready_i && !addr_ok;
 
     // for difftest
     wire [31:0] wdata_diff;
@@ -767,8 +718,8 @@ module MEM
 
     // 当前阶段的异常 += 上一阶段
     assign ms_excp = wire_es_excp || mem_excp_ale ||
-         mem_excp_tlbr || mem_excp_pil || mem_excp_pis ||
-         mem_excp_ppi || mem_excp_pme;
+           mem_excp_tlbr || mem_excp_pil || mem_excp_pis ||
+           mem_excp_ppi || mem_excp_pme;
 
     // 输出
     assign ms_excp_o = ms_excp;
@@ -784,19 +735,19 @@ module MEM
     assign ms_inst_data_o = es_inst_data_i_r;
     assign ms_is_csr_wr_o = es_is_csr_wr_i_r;
 
-    assign ms_refetch_excp_o = es_refetch_excp_i_r;
 
     assign ms_pc_pro_o = es_pc_pro_i_r;
     assign ll_sc = es_mem_op_i_r[9:8];
 
-    assign ms_to_ds_valid = state_valid;
+    assign ms_to_ds_valid = mem_valid;
 
     assign csr_rstat_o = csr_rstat_i_r;
-    assign csr_estat_data = (csr_rstat_i_r == 1'b1) ? csr_data : 32'b0; // 信号最好具体化，尽管写一个 final_result 没错，但是这里延迟会更低
+    assign csr_estat_data = (csr_rstat_i_r == 1'b1) ? csr_data_i_r : 32'b0; // 信号最好具体化，尽管写一个 final_result 没错，但是这里延迟会更低
     assign ms_paddr_o = {data_tag, es_alu_result_i_r[11:0]};
 
     // cacop_mode == 2'b01 || cacop_mode == 2'b01 时，表示直接索引
     // cacop_mode == 2'b10                        时，表示查询索引
+
     wire [4:0] cacop_op;
     wire icacop_inst;
     wire dcacop_inst;
@@ -808,15 +759,15 @@ module MEM
     assign dcacop_inst      = cacop_i_r && (cacop_op[2:0] == 3'b1);
 
     // 只有当她们都不 busy 的时候，才可以发起 cacop 操作
-    assign icacop_op_en     = icacop_inst && !icache_busy && mem_state == 3'd1;
-    assign dcacop_op_en     = dcacop_inst && !dcache_busy && mem_state == 3'd1;
+    assign icacop_op_en     = icacop_inst && !icache_busy && mem_valid;
+    assign dcacop_op_en     = dcacop_inst && !dcache_busy && mem_valid;
 
     // cacop_op_mode为 0 或者 1 时，表示直接索引
     assign cacop_op_mode_di = cacop_i_r && ((cacop_op_mode == 2'b0) || (cacop_op_mode == 2'b1));
 
 
-    assign cnt_inst_diff = wire_inst_rdcntid_w || wire_inst_rdcntvh_w || wire_inst_rdcntvl_w;
-    assign timer_64_diff = timer_64_set;
+    assign cnt_inst_diff = cnt_inst_diff_i_r ;
+    assign timer_64_diff = timer_64_diff_i_r;
 
     assign ld_diff = {2'b0, ll_w, ld_w, ld_hu, ld_h, ld_bu, ld_b};
     assign paddr_diff = {data_tag, data_index, data_offset};
@@ -825,10 +776,11 @@ module MEM
     assign st_data_diff = wdata_diff;
     assign st_diff = {4'b0, ds_llbit && sc_w, st_w, st_h, st_b};
 
-    assign after_br_invalid_o = after_br_invalid_i_r;
 
     assign inst_idle_o = inst_idle_i_r;
 
-    assign inst_sc = {sc_w, sc_do};
+    assign inst_sc = {sc_w, sc_do|sc_r};
     assign icacop_o = icacop_inst;
+
+    assign inst_bubble_o = inst_bubble_i_r;
 endmodule
