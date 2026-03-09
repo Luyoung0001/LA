@@ -1,5 +1,7 @@
 CPU_HOME = $(shell pwd)
 
+EXP ?= 10
+
 # mycpu
 VSRC_mycpu_env_vsrc = $(CPU_HOME)/mycpu_env/myCPU/v_src/*.v
 VSRC_dpic = $(CPU_HOME)/mycpu_env/myCPU/DPIC
@@ -31,6 +33,12 @@ OBJ_DIR = obj_dir
 
 EXE = $(CPU_HOME)/$(OBJ_DIR)/V$(TOP)
 
+test:
+	make -C mycpu_env/func EXP=$(EXP)
+
+trace:
+	make -C mycpu_env/gettrace iverilog
+
 simu: clean
 	$(VERILATOR) $(V_FLAGS)
 
@@ -40,13 +48,15 @@ build: simu
 run: build
 	$(EXE)
 
+all: test trace run
+
 clean:
 	@rm -rf $(OBJ_DIR) wave.vcd
 
 runall:
 	@bash run_all_tests.sh
 
-.PHONY: simu build run
+.PHONY: simu build run test trace all
 
 
 
