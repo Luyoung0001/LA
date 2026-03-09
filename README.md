@@ -1,6 +1,17 @@
 # LA
 Loongarch 挑战赛
 
+## 环境准备
+
+### 工具链安装
+
+1. **LoongArch 工具链**：从 [ChipLab 仓库](https://gitee.com/loongson-edu/chiplab/tree/chiplab_diff/toolchains) 下载并安装 `loongarch32r-linux-gnusf-*` 工具链
+
+2. **仿真工具**：
+```bash
+sudo apt install iverilog verilator bear
+```
+
 ## 快速开始
 
 ```bash
