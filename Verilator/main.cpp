@@ -24,8 +24,9 @@ int i = 0;
 diff mycpu_trace_info;
 // 打开文件
 FILE* fp;
+const char *golden_trace_PATH = "/home/luyoung/LA/mycpu_env/gettrace/golden_trace.txt";
 void op_file() {
-    fp = fopen("/home/luyoung/LA/mycpu_env/gettrace/golden_trace.txt", "r");
+    fp = fopen(golden_trace_PATH, "r");
 }
 void step() {
     top->clk = 0;
