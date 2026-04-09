@@ -24,7 +24,7 @@ module verilator_top(
     wire [ 3:0] debug_wb_rf_wen/* verilator public */;
     wire [ 4:0] debug_wb_rf_wnum/* verilator public */;
     wire [31:0] debug_wb_rf_wdata/* verilator public */;
-    // wire [31:0] debug_wb_inst/* verilator public */;
+    wire [31:0] debug_wb_inst/* verilator public */;
     // wire debug_wb_is_csr_wr_o/* verilator public */;
     // wire debug_has_refetch_excp_o/* verilator public */;
     // wire [31:0] csr_crmd_diff/* verilator public */;
@@ -184,8 +184,8 @@ module verilator_top(
                   .debug0_wb_pc      (debug_wb_pc),
                   .debug0_wb_rf_wen  (debug_wb_rf_wen),
                   .debug0_wb_rf_wnum (debug_wb_rf_wnum),
-                  .debug0_wb_rf_wdata(debug_wb_rf_wdata)
-                //   .debug_wb_inst    (debug_wb_inst    ),
+                  .debug0_wb_rf_wdata(debug_wb_rf_wdata),
+                  .debug0_wb_inst    (debug_wb_inst)
                 //   .debug_wb_is_csr_wr_o (debug_wb_is_csr_wr_o),
                 //   .debug_has_refetch_excp_o(debug_has_refetch_excp_o),
                 //   .csr_crmd_diff      (csr_crmd_diff    ),

@@ -1,6 +1,6 @@
 CPU_HOME = $(shell pwd)
 
-EXP ?= 10
+EXP ?= 6
 
 # mycpu
 VSRC_mycpu_env_vsrc = $(CPU_HOME)/mycpu_env/myCPU/v_src/*.v
@@ -25,7 +25,7 @@ TOP = verilator_top
 CPPSRC = $(CPU_HOME)/Verilator/*.cpp
 SRC = $(CPPSRC) $(DPIC_C_SRC) $(MEM_SRC)
 
-VSRC = $(VSRC_mycpu_env_vsrc) $(VSRC_dpic)/*.sv
+VSRC = $(VSRC_mycpu_env_vsrc) $(VSRC_dpic)/*.sv $(VSRC_dpic)/*.v
 
 V_FLAGS = --cc $(VSRC) --Wno-UNOPTFLAT -Wno-fatal --exe $(SRC) $(SV_FLAGS) --top $(TOP)  --trace-fst --CFLAGS "$(INCFLAGS)"
 
@@ -34,29 +34,41 @@ OBJ_DIR = obj_dir
 EXE = $(CPU_HOME)/$(OBJ_DIR)/V$(TOP)
 
 test:
-	make -C mycpu_env/func EXP=$(EXP)
+	$(MAKE) -C mycpu_env/func EXP=$(EXP)
 
 trace:
-	make -C mycpu_env/gettrace iverilog
+	$(MAKE) -C mycpu_env/gettrace iverilog
 
 simu: clean
 	$(VERILATOR) $(V_FLAGS)
 
 build: simu
-	bear -- make -C $(OBJ_DIR) -f V$(TOP).mk -j10
+	bear -- $(MAKE) -C $(OBJ_DIR) -f V$(TOP).mk -j10
 
 run: build
 	$(EXE)
 
 all: test trace run
 
+docs:
+	@echo "Docs index: $(CPU_HOME)/docs/README.md"
+
+help:
+	@echo "Usage:"
+	@echo "  make all EXP=6      # run test + trace + verilator simulation"
+	@echo "  make test EXP=6     # build func test program"
+	@echo "  make trace          # generate golden trace"
+	@echo "  make build          # build verilator executable"
+	@echo "  make run            # run simulation"
+	@echo "  make docs           # print docs index path"
+	@echo "  make clean          # clean build artifacts"
+
 clean:
-	@rm -rf $(OBJ_DIR) wave.vcd
+	@rm -rf $(OBJ_DIR) wave.vcd wave.fst
 
 runall:
 	@bash run_all_tests.sh
 
-.PHONY: simu build run test trace all
-
+.PHONY: test trace simu build run all clean runall docs help
 
 
