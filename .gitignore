@@ -1,16 +1,22 @@
 .cache
 wave.vcd
+wave.fst
 obj_dir
 mycpu_env/func/obj
 mycpu_env/gettrace/golden_trace.txt
 mycpu_env/gettrace/gettrace.sim
+mycpu_env/gettrace/func
 compile_commands.json
 open_la500_golden_difftest.txt
+result.txt
+temp_i.txt
+hs_err_pid*.log
+vivado.jou
+vivado.log
 
 difftest_on_Open_LA_500/obj_dir
 difftest_on_Open_LA_500/wave.vcd
 difftest_on_Open_LA_500/compile_commands.json
 difftest_on_Open_LA_500/.cache
-
 
 
