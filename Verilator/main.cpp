@@ -1,6 +1,8 @@
 #include <main.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <cstdio>
+#include <cstdlib>
 #include "Vverilator_top.h"
 #include "Vverilator_top___024root.h"
 #include "Vverilator_top_verilator_top.h"
@@ -19,14 +21,51 @@ typedef struct diff {
 
 diff ref_struct;
 diff last_op;
+bool trace_eof = false;
+bool trace_eof_warned = false;
 
 int i = 0;
 diff mycpu_trace_info;
 // 打开文件
 FILE* fp;
-const char *golden_trace_PATH = "/home/luyoung/LA/mycpu_env/gettrace/golden_trace.txt";
+const char* golden_trace_path = NULL;
+
+static FILE* open_golden_trace() {
+    const char* env_path = getenv("LA_GOLDEN_TRACE");
+    if (env_path == NULL) {
+        env_path = "";
+    }
+    const char* candidates[] = {
+        env_path,
+        "mycpu_env/gettrace/golden_trace.txt",
+        "../mycpu_env/gettrace/golden_trace.txt",
+        NULL
+    };
+    for (int i = 0; candidates[i] != NULL; i++) {
+        if (candidates[i][0] == '\0') {
+            continue;
+        }
+        FILE* f = fopen(candidates[i], "r");
+        if (f != NULL) {
+            golden_trace_path = candidates[i];
+            return f;
+        }
+    }
+    fprintf(stderr, "Failed to open golden_trace.txt. Tried:\n");
+    for (int i = 0; candidates[i] != NULL; i++) {
+        if (candidates[i][0] != '\0') {
+            fprintf(stderr, "  %s\n", candidates[i]);
+        }
+    }
+    return NULL;
+}
+
 void op_file() {
-    fp = fopen(golden_trace_PATH, "r");
+    fp = open_golden_trace();
+    if (fp == NULL) {
+        exit(1);
+    }
+    printf("Use golden trace: %s\n", golden_trace_path);
 }
 void step() {
     top->clk = 0;
@@ -54,9 +93,19 @@ void stepi() {
 // 打印行数
 int j = 1;
 
-void read_ref() {
-    fscanf(fp, "%x%x%x%x", &ref_struct.we, &ref_struct.pc, &ref_struct.wnum,
-           &ref_struct.value);
+int read_ref() {
+    int rc = fscanf(fp, "%x%x%x%x", &ref_struct.we, &ref_struct.pc,
+                    &ref_struct.wnum, &ref_struct.value);
+    if (rc != 4) {
+        trace_eof = true;
+        if (!trace_eof_warned) {
+            fprintf(stderr, "Warning: golden trace EOF reached: %s\n",
+                    golden_trace_path == NULL ? "(unknown)" : golden_trace_path);
+            trace_eof_warned = true;
+        }
+        return 0;
+    }
+    return 1;
 }
 void print_info() {
     printf("-->CPU %d %08x %02x %08x\n", mycpu_trace_info.we,
@@ -81,9 +130,19 @@ int difftest() {
     if (mycpu_trace_info.we == 0 || mycpu_trace_info.wnum == 0) {
         return 1;
     } else {
-        read_ref();
-        while (ref_struct.we == 0) {
-            read_ref();
+        if (trace_eof) {
+            return 1;
+        }
+        if (!read_ref()) {
+            return 1;
+        }
+        while (!trace_eof && ref_struct.we == 0) {
+            if (!read_ref()) {
+                return 1;
+            }
+        }
+        if (trace_eof) {
+            return 1;
         }
         if (mycpu_trace_info.pc != ref_struct.pc) {
             return 1;
@@ -126,6 +185,10 @@ void cpu_exec(uint64_t n) {
         n--;
     }
     printf("i: %d\n", i);
+    if (fp != NULL) {
+        fclose(fp);
+        fp = NULL;
+    }
     top->final();
     tfp->close();
 }

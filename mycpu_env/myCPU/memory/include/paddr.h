@@ -15,8 +15,8 @@ void paddr_write(uint32_t addr, uint32_t data);
 
 // 地址转换
 uint8_t* padd2host(uint32_t paddr);
-uint32_t pmem_read(uint32_t paddr);
-void pmem_write(uint32_t paddr, uint32_t data);
+uint32_t pmem_read(uint8_t* paddr);
+void pmem_write(uint8_t* paddr, uint32_t data);
 
 #ifdef __cplusplus
 }

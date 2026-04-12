@@ -6,17 +6,52 @@
 uint8_t* pmem = NULL;
 
 // 加载指令
-#define img_file "/home/luyoung/LA/mycpu_env/func/obj/main.bin"
 #define RESET_VECTOR 0x1c000000
+#define PMEM_SIZE 0x100000000ULL
+
+static const char* img_path = NULL;
+
+static FILE* open_img_file() {
+    const char* env_path = getenv("LA_MAIN_BIN");
+    if (env_path == NULL) {
+        env_path = "";
+    }
+    const char* candidates[] = {
+        env_path,
+        "mycpu_env/func/obj/main.bin",
+        "../mycpu_env/func/obj/main.bin",
+        NULL
+    };
+
+    for (int i = 0; candidates[i] != NULL; i++) {
+        if (candidates[i][0] == '\0') {
+            continue;
+        }
+        FILE* fp = fopen(candidates[i], "rb");
+        if (fp != NULL) {
+            img_path = candidates[i];
+            return fp;
+        }
+    }
+
+    fprintf(stderr, "Failed to open main.bin. Tried:\n");
+    for (int i = 0; candidates[i] != NULL; i++) {
+        if (candidates[i][0] != '\0') {
+            fprintf(stderr, "  %s\n", candidates[i]);
+        }
+    }
+    return NULL;
+}
 
 void init_mem() {
-    pmem = (uint8_t*)malloc(0x100000000);
-    printf("PMEM_ADDR:0x%08x\n", pmem);
-    printf("PMEM_END:0x%08x\n", pmem + 0x100000000);
+    pmem = (uint8_t*)malloc(PMEM_SIZE);
     if (pmem == NULL) {
-        fprintf(stderr, "内存分配失败！\n");
+        fprintf(stderr, "Memory allocation failed for PMEM_SIZE=%llu bytes\n",
+                (unsigned long long)PMEM_SIZE);
         exit(1);
     }
+    printf("PMEM_ADDR:%p\n", (void*)pmem);
+    printf("PMEM_END :%p\n", (void*)(pmem + PMEM_SIZE));
 }
 
 // 地址转换
@@ -54,17 +89,38 @@ void paddr_write(uint32_t paddr, uint32_t data) {
 }
 
 void load_inst() {
-    FILE* fp = fopen(img_file, "rb");
+    FILE* fp = open_img_file();
+    if (fp == NULL) {
+        exit(1);
+    }
 
-    fseek(fp, 0, SEEK_END);
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        perror("fseek(main.bin, SEEK_END) failed");
+        fclose(fp);
+        exit(1);
+    }
     long size = ftell(fp);
+    if (size <= 0) {
+        fprintf(stderr, "Invalid main.bin size: %ld\n", size);
+        fclose(fp);
+        exit(1);
+    }
 
-    printf("The image is %s, size = %ld\n", img_file, size);
+    printf("The image is %s, size = %ld\n", img_path, size);
 
-    fseek(fp, 0, SEEK_SET);
+    if (fseek(fp, 0, SEEK_SET) != 0) {
+        perror("fseek(main.bin, SEEK_SET) failed");
+        fclose(fp);
+        exit(1);
+    }
 
     // 装载 bin 到仿真环境，可以是 sram、mrom、flash
-    int ret = fread(padd2host(RESET_VECTOR), size, 1, fp);
+    size_t ret = fread(padd2host(RESET_VECTOR), (size_t)size, 1, fp);
+    if (ret != 1) {
+        perror("fread(main.bin) failed");
+        fclose(fp);
+        exit(1);
+    }
 
     fclose(fp);
 }
