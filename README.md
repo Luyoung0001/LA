@@ -9,6 +9,7 @@ LoongArch 挑战赛工程（当前为 8~9 级流水线骨架 + 软件 SoC 仿真
 ```bash
 sudo apt install iverilog verilator bear
 ```
+3. 频率评估工具（可选）：Vivado 2025.2 或兼容版本（用于 `make fmax`）
 
 ## 快速开始
 
@@ -32,6 +33,7 @@ LA/
 │   │   ├── DPIC_C/         # DPI-C C/C++ 桥接实现
 │   │   └── memory/         # 软件物理内存模型（pmem）
 │   └── func/               # 功能测试程序（EXP 控制）
+├── scripts/                # Vivado 综合与时序评估脚本
 ├── Verilator/              # 仿真入口与 difftest 主循环
 └── Makefile                # 顶层构建文件
 ```
@@ -47,6 +49,9 @@ LA/
 - `make build`：编译 Verilator 可执行文件
 - `make run`：运行仿真（动态 NEMU difftest）
 - `make all EXP=6`：执行 `test + run`
+- `make fmax`：执行 Vivado 综合+布局布线并输出估算频率
+- `make synth_timing FREQ=150 JOBS=8 SYNTH_TOP=core_top`：自定义综合参数
+- `make synth_timing_clean`：清理综合输出（`vivado_timing/`、`logs/`、`.Xil/`）
 - `make docs`：输出文档索引路径
 - `make clean`：清理构建产物
 - `make help`：查看命令帮助
@@ -72,6 +77,18 @@ LA/
 - `LA_DIFFTEST_REF_SO`：指定 NEMU `.so` 路径
 - `LA_STOP_PC`：指定通过判定 PC（默认 `0x1c000100`）
 - `LA_DIFFTEST_VERBOSE=1`：打印每条提交日志
+
+## Vivado 频率评估
+
+```bash
+# 默认参数（器件 xc7a200tfbg676-1，top=core_top，目标频率 100MHz）
+make fmax
+
+# 指定目标频率和并行度
+make synth_timing FREQ=150 JOBS=8
+```
+
+结果摘要位于 `vivado_timing/timing_summary.txt`，其中 `FMAX_MHZ=` 为估算最大频率。
 
 ## 说明
 

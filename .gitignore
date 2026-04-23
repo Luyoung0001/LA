@@ -7,5 +7,8 @@ mycpu_env/func/obj
 compile_commands.json
 vivado.jou
 vivado.log
-
+logs
+vivado_timing
+.Xil
+hs_err_pid*.log
 
