@@ -7,7 +7,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <dlfcn.h>
-#include <string>
 #include <unistd.h>
 
 #include "Vverilator_top.h"
@@ -76,33 +75,18 @@ static bool try_file(const char* path) {
 }
 
 static const char* resolve_ref_so() {
+    static const char* kRepoLocalSo =
+        "toolchains/nemu/la32r-nemu-interpreter-so";
+
     const char* env_so = getenv("LA_DIFFTEST_REF_SO");
     if (try_file(env_so)) {
         return env_so;
     }
 
-    const char* chiplab_home = getenv("CHIPLAB_HOME");
-    if (chiplab_home != NULL && chiplab_home[0] != '\0') {
-        static std::string by_env;
-        by_env = std::string(chiplab_home) +
-                 "/toolchains/nemu/la32r-nemu-interpreter-so";
-        if (try_file(by_env.c_str())) {
-            return by_env.c_str();
-        }
+    if (try_file(kRepoLocalSo)) {
+        return kRepoLocalSo;
     }
 
-    const char* candidates[] = {
-        "/home/luyoung/chiplab/toolchains/nemu/la32r-nemu-interpreter-so",
-        "../chiplab/toolchains/nemu/la32r-nemu-interpreter-so",
-        "../../chiplab/toolchains/nemu/la32r-nemu-interpreter-so",
-        NULL,
-    };
-
-    for (int i = 0; candidates[i] != NULL; i++) {
-        if (try_file(candidates[i])) {
-            return candidates[i];
-        }
-    }
     return NULL;
 }
 
@@ -149,7 +133,8 @@ static bool init_difftest() {
     if (so == NULL) {
         fprintf(stderr,
                 "Cannot find la32r-nemu-interpreter-so.\n"
-                "Set LA_DIFFTEST_REF_SO or CHIPLAB_HOME first.\n");
+                "Expected local path: ./toolchains/nemu/la32r-nemu-interpreter-so\n"
+                "Or set LA_DIFFTEST_REF_SO.\n");
         return false;
     }
 
@@ -257,6 +242,22 @@ static void print_reg_mismatch(uint32_t idx, uint32_t dut, uint32_t ref,
            dut, ref);
 }
 
+static void print_ref_dut_compare(const CommitInfo& c,
+                                  uint32_t ref_pc_before_exec) {
+    uint32_t dut_reg = (c.wen && c.wnum != 0) ? c.wnum : 0;
+    uint32_t dut_data = (c.wen && c.wnum != 0) ? c.wdata : 0;
+    uint32_t ref_data = 0;
+    if (c.wen && c.wnum != 0) {
+        ref_data = ref_gpr(c.wnum);
+    }
+
+    printf("[difftest %llu]\n", (unsigned long long)commit_cnt);
+    printf("REF ---> PC: 0x%08x REG: 0x%x DATA: 0x%08x WE: %u\n",
+           ref_pc_before_exec, dut_reg, ref_data, c.wen ? 1u : 0u);
+    printf("DUT ---> PC: 0x%08x REG: 0x%x DATA: 0x%08x WE: %u\n", c.pc, dut_reg,
+           dut_data, c.wen ? 1u : 0u);
+}
+
 static bool compare_with_ref(const CommitInfo& c, uint32_t ref_pc_before_exec) {
     bool ok = true;
 
@@ -329,6 +330,8 @@ static StepResult difftest_step() {
                    mmio_load_addr, c.wnum, c.wdata);
         }
     }
+
+    print_ref_dut_compare(c, ref_pc_before_exec);
 
     if (!compare_with_ref(c, ref_pc_before_exec)) {
         return StepResult::kMismatch;

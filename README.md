@@ -68,7 +68,7 @@ LA/
 
 ## 动态 Difftest
 
-- 默认参考核：`/home/luyoung/chiplab/toolchains/nemu/la32r-nemu-interpreter-so`
+- 默认参考核：`./toolchains/nemu/la32r-nemu-interpreter-so`（已随仓库提供并可被 git 追踪）
 - 每次 DUT `ws_valid` 提交一条指令时，REF 执行 `difftest_exec(1)`，随后对比 GPR + 提交 PC。
 - 不再依赖 `mycpu_env/gettrace/golden_trace.txt` 作为运行必需条件（该 legacy 流程已移除）。
 
