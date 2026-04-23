@@ -34,6 +34,7 @@ OBJ_DIR = obj_dir
 EXE = $(CPU_HOME)/$(OBJ_DIR)/V$(TOP)
 
 test:
+	@rm -rf $(CPU_HOME)/mycpu_env/func/obj
 	$(MAKE) -C mycpu_env/func EXP=$(EXP)
 
 simu: clean
