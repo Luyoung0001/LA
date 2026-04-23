@@ -108,10 +108,12 @@ module core_top #(
     reg [31:0] dwr_wdata_r;
     reg [3:0]  dwr_wstrb_r;
 
-    reg        icache_resp_valid_r;
-    reg [31:0] icache_resp_data_r;
-    reg        dcache_resp_valid_r;
-    reg [31:0] dcache_resp_data_r;
+    reg        icache_axi_req_ready_r;
+    reg        icache_axi_resp_valid_r;
+    reg [31:0] icache_axi_resp_data_r;
+    reg        dcache_axi_req_ready_r;
+    reg        dcache_axi_resp_valid_r;
+    reg [31:0] dcache_axi_resp_data_r;
 
     reg        issue_busy_r;
 
@@ -128,6 +130,10 @@ module core_top #(
     wire [31:0] if1_icache_req_addr_w;
     wire if1_out_valid_w;
     wire [31:0] if1_out_pc_w;
+    wire if2_icache_resp_valid_w;
+    wire [31:0] if2_icache_resp_data_w;
+    wire icache_axi_req_valid_w;
+    wire [31:0] icache_axi_req_addr_w;
 
     wire if2_out_valid_w;
     wire [31:0] if2_out_pc_w;
@@ -211,6 +217,13 @@ module core_top #(
     wire [4:0] mem1_out_rd_w;
     wire [31:0] mem1_out_wb_data_w;
     wire mem1_out_wen_w;
+    wire dcache_mem_resp_valid_w;
+    wire [31:0] dcache_mem_resp_data_w;
+    wire dcache_axi_req_valid_w;
+    wire dcache_axi_req_write_w;
+    wire [31:0] dcache_axi_req_addr_w;
+    wire [31:0] dcache_axi_req_wdata_w;
+    wire [3:0] dcache_axi_req_wstrb_w;
 
     wire wbu_ws_valid_w;
     wire [31:0] wbu_debug_wb_pc_w;
@@ -288,13 +301,28 @@ module core_top #(
         .out_pc         (if1_out_pc_w)
     );
 
+    icache_stub u_icache_stub (
+        .clk         (aclk),
+        .reset       (reset),
+        .req_valid   (if1_icache_req_valid_w),
+        .req_addr    (if1_icache_req_addr_w),
+        .req_ready   (),
+        .resp_valid  (if2_icache_resp_valid_w),
+        .resp_data   (if2_icache_resp_data_w),
+        .axi_req_valid(icache_axi_req_valid_w),
+        .axi_req_addr (icache_axi_req_addr_w),
+        .axi_req_ready(icache_axi_req_ready_r),
+        .axi_resp_valid(icache_axi_resp_valid_r),
+        .axi_resp_data (icache_axi_resp_data_r)
+    );
+
     stage2_if2 u_stage2_if2 (
         .clk            (aclk),
         .reset          (reset),
         .in_valid       (if1_out_valid_w),
         .in_pc          (if1_out_pc_w),
-        .icache_resp_valid(icache_resp_valid_r),
-        .icache_resp_data (icache_resp_data_r),
+        .icache_resp_valid(if2_icache_resp_valid_w),
+        .icache_resp_data (if2_icache_resp_data_w),
         .out_valid      (if2_out_valid_w),
         .out_pc         (if2_out_pc_w),
         .out_inst       (if2_out_inst_w)
@@ -459,14 +487,35 @@ module core_top #(
         .dcache_req_addr (mem1_dcache_req_addr_w),
         .dcache_req_wdata(mem1_dcache_req_wdata_w),
         .dcache_req_wstrb(mem1_dcache_req_wstrb_w),
-        .dcache_resp_valid(dcache_resp_valid_r),
-        .dcache_resp_data (dcache_resp_data_r),
+        .dcache_resp_valid(dcache_mem_resp_valid_w),
+        .dcache_resp_data (dcache_mem_resp_data_w),
         .out_valid       (mem1_out_valid_w),
         .out_pc          (mem1_out_pc_w),
         .out_inst        (mem1_out_inst_w),
         .out_rd          (mem1_out_rd_w),
         .out_wb_data     (mem1_out_wb_data_w),
         .out_wen         (mem1_out_wen_w)
+    );
+
+    dcache_stub u_dcache_stub (
+        .clk         (aclk),
+        .reset       (reset),
+        .req_valid   (mem1_dcache_req_valid_w),
+        .req_write   (mem1_dcache_req_write_w),
+        .req_addr    (mem1_dcache_req_addr_w),
+        .req_wdata   (mem1_dcache_req_wdata_w),
+        .req_wstrb   (mem1_dcache_req_wstrb_w),
+        .req_ready   (),
+        .resp_valid  (dcache_mem_resp_valid_w),
+        .resp_rdata  (dcache_mem_resp_data_w),
+        .axi_req_valid(dcache_axi_req_valid_w),
+        .axi_req_write(dcache_axi_req_write_w),
+        .axi_req_addr (dcache_axi_req_addr_w),
+        .axi_req_wdata(dcache_axi_req_wdata_w),
+        .axi_req_wstrb(dcache_axi_req_wstrb_w),
+        .axi_req_ready(dcache_axi_req_ready_r),
+        .axi_resp_valid(dcache_axi_resp_valid_r),
+        .axi_resp_rdata(dcache_axi_resp_data_r)
     );
 
     stage8_wbu u_stage8_wbu (
@@ -560,24 +609,42 @@ module core_top #(
             dwr_wdata_r <= 32'b0;
             dwr_wstrb_r <= 4'b0;
 
-            icache_resp_valid_r <= 1'b0;
-            icache_resp_data_r  <= 32'h03400000;
-            dcache_resp_valid_r <= 1'b0;
-            dcache_resp_data_r  <= 32'b0;
+            icache_axi_req_ready_r  <= 1'b0;
+            icache_axi_resp_valid_r <= 1'b0;
+            icache_axi_resp_data_r  <= 32'b0;
+            dcache_axi_req_ready_r  <= 1'b0;
+            dcache_axi_resp_valid_r <= 1'b0;
+            dcache_axi_resp_data_r  <= 32'b0;
         end else begin
-            icache_resp_valid_r <= 1'b0;
-            dcache_resp_valid_r <= 1'b0;
+            icache_axi_req_ready_r  <= 1'b0;
+            icache_axi_resp_valid_r <= 1'b0;
+            dcache_axi_req_ready_r  <= 1'b0;
+            dcache_axi_resp_valid_r <= 1'b0;
 
             case (axi_state_r)
                 AXI_IDLE: begin
-                    if (mem1_dcache_req_valid_w) begin
-                        if (mem1_dcache_req_write_w) begin
-                            dwr_addr_r  <= mem1_dcache_req_addr_w;
-                            dwr_wdata_r <= mem1_dcache_req_wdata_w;
-                            dwr_wstrb_r <= mem1_dcache_req_wstrb_w;
+                    // Temporarily use all-miss forwarding cache stubs.
+                    // AXI arbitration policy: I-cache > D-cache.
+                    if (icache_axi_req_valid_w) begin
+                        arid_r    <= 4'h0;
+                        araddr_r  <= icache_axi_req_addr_w;
+                        arlen_r   <= 8'd0;
+                        arsize_r  <= 3'b010;
+                        arburst_r <= 2'b01;
+                        arlock_r  <= 2'b0;
+                        arcache_r <= 4'b0;
+                        arprot_r  <= 3'b0;
+                        arvalid_r <= 1'b1;
+
+                        axi_state_r <= AXI_I_AR;
+                    end else if (dcache_axi_req_valid_w) begin
+                        if (dcache_axi_req_write_w) begin
+                            dwr_addr_r  <= dcache_axi_req_addr_w;
+                            dwr_wdata_r <= dcache_axi_req_wdata_w;
+                            dwr_wstrb_r <= dcache_axi_req_wstrb_w;
 
                             awid_r    <= 4'h1;
-                            awaddr_r  <= mem1_dcache_req_addr_w;
+                            awaddr_r  <= dcache_axi_req_addr_w;
                             awlen_r   <= 8'd0;
                             awsize_r  <= 3'b010;
                             awburst_r <= 2'b01;
@@ -589,7 +656,7 @@ module core_top #(
                             axi_state_r <= AXI_D_AW;
                         end else begin
                             arid_r    <= 4'h1;
-                            araddr_r  <= mem1_dcache_req_addr_w;
+                            araddr_r  <= dcache_axi_req_addr_w;
                             arlen_r   <= 8'd0;
                             arsize_r  <= 3'b010;
                             arburst_r <= 2'b01;
@@ -600,18 +667,6 @@ module core_top #(
 
                             axi_state_r <= AXI_D_AR;
                         end
-                    end else if (if1_icache_req_valid_w) begin
-                        arid_r    <= 4'h0;
-                        araddr_r  <= if1_icache_req_addr_w;
-                        arlen_r   <= 8'd0;
-                        arsize_r  <= 3'b010;
-                        arburst_r <= 2'b01;
-                        arlock_r  <= 2'b0;
-                        arcache_r <= 4'b0;
-                        arprot_r  <= 3'b0;
-                        arvalid_r <= 1'b1;
-
-                        axi_state_r <= AXI_I_AR;
                     end
                 end
 
@@ -619,6 +674,7 @@ module core_top #(
                     if (arvalid_r && arready) begin
                         arvalid_r <= 1'b0;
                         rready_r  <= 1'b1;
+                        icache_axi_req_ready_r <= 1'b1;
                         axi_state_r <= AXI_I_R;
                     end
                 end
@@ -626,8 +682,8 @@ module core_top #(
                 AXI_I_R: begin
                     if (rvalid && rready_r) begin
                         rready_r <= 1'b0;
-                        icache_resp_valid_r <= 1'b1;
-                        icache_resp_data_r  <= rdata;
+                        icache_axi_resp_valid_r <= 1'b1;
+                        icache_axi_resp_data_r  <= rdata;
                         axi_state_r <= AXI_IDLE;
                     end
                 end
@@ -636,6 +692,7 @@ module core_top #(
                     if (arvalid_r && arready) begin
                         arvalid_r <= 1'b0;
                         rready_r  <= 1'b1;
+                        dcache_axi_req_ready_r <= 1'b1;
                         axi_state_r <= AXI_D_R;
                     end
                 end
@@ -643,8 +700,8 @@ module core_top #(
                 AXI_D_R: begin
                     if (rvalid && rready_r) begin
                         rready_r <= 1'b0;
-                        dcache_resp_valid_r <= 1'b1;
-                        dcache_resp_data_r  <= rdata;
+                        dcache_axi_resp_valid_r <= 1'b1;
+                        dcache_axi_resp_data_r  <= rdata;
                         axi_state_r <= AXI_IDLE;
                     end
                 end
@@ -652,6 +709,7 @@ module core_top #(
                 AXI_D_AW: begin
                     if (awvalid_r && awready) begin
                         awvalid_r <= 1'b0;
+                        dcache_axi_req_ready_r <= 1'b1;
 
                         wid_r    <= 4'h1;
                         wdata_r  <= dwr_wdata_r;
@@ -674,8 +732,8 @@ module core_top #(
                 AXI_D_B: begin
                     if (bvalid && bready_r) begin
                         bready_r <= 1'b0;
-                        dcache_resp_valid_r <= 1'b1;
-                        dcache_resp_data_r  <= 32'b0;
+                        dcache_axi_resp_valid_r <= 1'b1;
+                        dcache_axi_resp_data_r  <= 32'b0;
                         axi_state_r <= AXI_IDLE;
                     end
                 end
