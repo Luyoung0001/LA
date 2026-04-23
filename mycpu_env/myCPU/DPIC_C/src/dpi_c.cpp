@@ -40,7 +40,7 @@ extern "C" int inst_ram_read(int addr) {
 }
 
 extern "C" void data_ram_write(int addr, int wdata, unsigned char wmask) {
-    printf("data_write_addr:%08x--->wdata:%08x--->wmask%x\n", addr, wdata,
+    printf("data_write_addr:%08x--->wdata:%08x--->wmask:%x\n", addr, wdata,
            wmask);
     char ch;
     if (wmask == 0x00) {
