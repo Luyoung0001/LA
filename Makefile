@@ -36,9 +36,6 @@ EXE = $(CPU_HOME)/$(OBJ_DIR)/V$(TOP)
 test:
 	$(MAKE) -C mycpu_env/func EXP=$(EXP)
 
-trace:
-	$(MAKE) -C mycpu_env/gettrace iverilog
-
 simu: clean
 	$(VERILATOR) $(V_FLAGS)
 
@@ -57,7 +54,6 @@ help:
 	@echo "Usage:"
 	@echo "  make all EXP=6      # run test + dynamic difftest simulation"
 	@echo "  make test EXP=6     # build func test program"
-	@echo "  make trace          # generate golden trace"
 	@echo "  make build          # build verilator executable"
 	@echo "  make run            # run simulation"
 	@echo "  make docs           # print docs index path"
@@ -69,4 +65,4 @@ clean:
 runall:
 	@bash run_all_tests.sh
 
-.PHONY: test trace simu build run all clean runall docs help
+.PHONY: test simu build run all clean runall docs help

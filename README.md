@@ -31,8 +31,7 @@ LA/
 │   │   ├── DPIC/           # SystemVerilog DPI/AXI RAM 侧
 │   │   ├── DPIC_C/         # DPI-C C/C++ 桥接实现
 │   │   └── memory/         # 软件物理内存模型（pmem）
-│   ├── func/               # 功能测试程序（EXP 控制）
-│   └── gettrace/           # legacy 静态 trace 生成（可选）
+│   └── func/               # 功能测试程序（EXP 控制）
 ├── Verilator/              # 仿真入口与 difftest 主循环
 └── Makefile                # 顶层构建文件
 ```
@@ -45,7 +44,6 @@ LA/
 ## Makefile 目标
 
 - `make test EXP=6`：编译 `func` 测试程序
-- `make trace`：生成 `golden_trace.txt`（仅 legacy 静态比对）
 - `make build`：编译 Verilator 可执行文件
 - `make run`：运行仿真（动态 NEMU difftest）
 - `make all EXP=6`：执行 `test + run`
@@ -67,7 +65,7 @@ LA/
 
 - 默认参考核：`/home/luyoung/chiplab/toolchains/nemu/la32r-nemu-interpreter-so`
 - 每次 DUT `ws_valid` 提交一条指令时，REF 执行 `difftest_exec(1)`，随后对比 GPR + 提交 PC。
-- 不再依赖 `golden_trace.txt` 作为运行必需条件。
+- 不再依赖 `mycpu_env/gettrace/golden_trace.txt` 作为运行必需条件（该 legacy 流程已移除）。
 
 可选环境变量：
 
