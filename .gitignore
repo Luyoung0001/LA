@@ -4,10 +4,7 @@ wave.vcd
 wave.fst
 obj_dir
 mycpu_env/func/obj
-mycpu_env/gettrace/func
 compile_commands.json
-
-hs_err_pid*.log
 vivado.jou
 vivado.log
 
