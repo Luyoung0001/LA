@@ -21,6 +21,7 @@ module verilator_top(
 
     //debug
     wire [31:0] debug_wb_pc/* verilator public */;
+    wire        debug_wb_valid/* verilator public */;
     wire [ 3:0] debug_wb_rf_wen/* verilator public */;
     wire [ 4:0] debug_wb_rf_wnum/* verilator public */;
     wire [31:0] debug_wb_rf_wdata/* verilator public */;
@@ -177,7 +178,7 @@ module verilator_top(
                   .break_point(1'b0),
                   .infor_flag(1'b0),
                   .reg_num(5'd0),
-                  .ws_valid(),
+                  .ws_valid(debug_wb_valid),
                   .rf_rdata(),
 
 

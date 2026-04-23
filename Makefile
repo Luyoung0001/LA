@@ -27,7 +27,7 @@ SRC = $(CPPSRC) $(DPIC_C_SRC) $(MEM_SRC)
 
 VSRC = $(VSRC_mycpu_env_vsrc) $(VSRC_dpic)/*.sv $(VSRC_dpic)/*.v
 
-V_FLAGS = --cc $(VSRC) --Wno-UNOPTFLAT -Wno-fatal --exe $(SRC) $(SV_FLAGS) --top $(TOP)  --trace-fst --CFLAGS "$(INCFLAGS)"
+V_FLAGS = --cc $(VSRC) --Wno-UNOPTFLAT -Wno-fatal --exe $(SRC) $(SV_FLAGS) --top $(TOP)  --trace-fst --CFLAGS "$(INCFLAGS)" --LDFLAGS "-ldl"
 
 OBJ_DIR = obj_dir
 
@@ -48,14 +48,14 @@ build: simu
 run: build
 	$(EXE)
 
-all: test trace run
+all: test run
 
 docs:
 	@echo "Docs index: $(CPU_HOME)/docs/README.md"
 
 help:
 	@echo "Usage:"
-	@echo "  make all EXP=6      # run test + trace + verilator simulation"
+	@echo "  make all EXP=6      # run test + dynamic difftest simulation"
 	@echo "  make test EXP=6     # build func test program"
 	@echo "  make trace          # generate golden trace"
 	@echo "  make build          # build verilator executable"
@@ -70,5 +70,3 @@ runall:
 	@bash run_all_tests.sh
 
 .PHONY: test trace simu build run all clean runall docs help
-
-

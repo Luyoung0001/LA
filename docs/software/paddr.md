@@ -15,9 +15,10 @@
 - `pmem_read/pmem_write` 会把地址低 2 位清零，按 4 字节对齐访问。
 
 ## 3. 镜像加载
-- `load_inst()` 从固定路径读取：`/home/luyoung/LA/mycpu_env/func/obj/main.bin`。
+- `load_inst()` 按候选路径读取镜像（支持 `LA_MAIN_BIN` 环境变量覆盖）。
 - 装载目标地址：`RESET_VECTOR = 0x1c000000`。
 - 读入大小为镜像文件实际大小，直接拷贝到 `pmem + RESET_VECTOR`。
+- 提供 `get_loaded_img_size()/get_loaded_img_path()` 给动态 difftest 使用。
 
 ## 4. 时序说明
 - `paddr.c` 不维护时钟，属于纯软件存储层。

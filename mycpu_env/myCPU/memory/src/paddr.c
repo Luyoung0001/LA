@@ -5,11 +5,8 @@
 
 uint8_t* pmem = NULL;
 
-// 加载指令
-#define RESET_VECTOR 0x1c000000
-#define PMEM_SIZE 0x100000000ULL
-
 static const char* img_path = NULL;
+static size_t loaded_img_size = 0;
 
 static FILE* open_img_file() {
     const char* env_path = getenv("LA_MAIN_BIN");
@@ -106,7 +103,8 @@ void load_inst() {
         exit(1);
     }
 
-    printf("The image is %s, size = %ld\n", img_path, size);
+    loaded_img_size = (size_t)size;
+    printf("The image is %s, size = %zu\n", img_path, loaded_img_size);
 
     if (fseek(fp, 0, SEEK_SET) != 0) {
         perror("fseek(main.bin, SEEK_SET) failed");
@@ -115,7 +113,7 @@ void load_inst() {
     }
 
     // 装载 bin 到仿真环境，可以是 sram、mrom、flash
-    size_t ret = fread(padd2host(RESET_VECTOR), (size_t)size, 1, fp);
+    size_t ret = fread(padd2host(RESET_VECTOR), loaded_img_size, 1, fp);
     if (ret != 1) {
         perror("fread(main.bin) failed");
         fclose(fp);
@@ -124,6 +122,15 @@ void load_inst() {
 
     fclose(fp);
 }
+
+size_t get_loaded_img_size(void) {
+    return loaded_img_size;
+}
+
+const char* get_loaded_img_path(void) {
+    return img_path;
+}
+
 // 加载数据，这里不设置 bootloader，数据与指令共享内存，越简单越好
 void load_data() {
     // FILE* fp = fopen(img_file, "rb");
