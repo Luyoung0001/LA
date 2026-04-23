@@ -24,6 +24,12 @@ module stage7_mem1 (
     output reg         out_wen
 );
 
+    wire [5:0] op_31_26;
+    wire inst_b;
+    wire inst_beq;
+    wire inst_bne;
+    wire wb_wen_no_mem;
+
     reg        pend_valid;
     reg        pend_req_sent;
     reg [31:0] pend_pc;
@@ -33,6 +39,13 @@ module stage7_mem1 (
     reg        pend_is_load;
     reg        pend_is_store;
     reg [31:0] pend_store_data;
+
+    assign op_31_26 = in_inst[31:26];
+    assign inst_b   = (op_31_26 == 6'h14);
+    assign inst_beq = (op_31_26 == 6'h16);
+    assign inst_bne = (op_31_26 == 6'h17);
+    // b/beq/bne should not write GPR; bl/jirl keep link writeback.
+    assign wb_wen_no_mem = ~(inst_b | inst_beq | inst_bne);
 
     always @(posedge clk) begin
         if (reset) begin
@@ -85,7 +98,7 @@ module stage7_mem1 (
                     out_inst        <= in_inst;
                     out_rd          <= in_rd;
                     out_wb_data     <= in_result;
-                    out_wen         <= 1'b1;
+                    out_wen         <= wb_wen_no_mem;
                 end
             end
 
