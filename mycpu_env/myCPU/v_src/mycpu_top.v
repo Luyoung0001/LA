@@ -225,7 +225,10 @@ module core_top #(
     wire [31:0] branch_redirect_pc_w;
 
     assign issue_fire_w = ifu_out_valid_w && (~issue_busy_r);
-    assign hold_fetch_w = issue_busy_r;
+    // Advance IFU PC only when the current fetch entry is really issued.
+    // This avoids skipping one sequential instruction while issue_busy_r is
+    // being raised in the same cycle.
+    assign hold_fetch_w = ~issue_fire_w;
 
     assign branch_redirect_valid_w = ex2_branch_update_valid_w;
     assign branch_redirect_pc_w    = ex2_branch_taken_w ? ex2_branch_target_w : (ex2_out_pc_w + 32'd4);
