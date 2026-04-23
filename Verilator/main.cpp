@@ -222,6 +222,27 @@ static uint32_t ref_pc() {
     return *reinterpret_cast<uint32_t*>(proxy.cpu + kRefPcOffset);
 }
 
+static bool is_mmio_addr(uint32_t addr) {
+    return (addr & 0xffff0000u) == 0xbfaf0000u;
+}
+
+static bool decode_mmio_load_addr(const CommitInfo& c, uint32_t* addr_out) {
+    uint32_t op_31_26 = (c.inst >> 26) & 0x3f;
+    uint32_t op_25_22 = (c.inst >> 22) & 0xf;
+    if (!(op_31_26 == 0x0a && op_25_22 == 0x2)) {  // ld.w
+        return false;
+    }
+
+    uint32_t rj = (c.inst >> 5) & 0x1f;
+    int32_t imm12 = (int32_t)((int32_t)(c.inst << 10) >> 20);
+    uint32_t addr = dut_shadow.gpr[rj] + (uint32_t)imm12;
+    if (!is_mmio_addr(addr)) {
+        return false;
+    }
+    *addr_out = addr;
+    return true;
+}
+
 static void apply_commit(const CommitInfo& c) {
     dut_shadow.pc = c.pc;
     if (c.wen && c.wnum != 0) {
@@ -293,10 +314,21 @@ static StepResult difftest_step() {
                c.wen ? 1u : 0u, c.wnum, c.wdata);
     }
 
+    uint32_t mmio_load_addr = 0;
+    bool mmio_load = decode_mmio_load_addr(c, &mmio_load_addr);
+
     apply_commit(c);
     uint32_t ref_pc_before_exec = ref_pc();
 
     proxy.exec(1);
+
+    if (mmio_load && c.wen && c.wnum != 0) {
+        reinterpret_cast<uint32_t*>(proxy.cpu)[c.wnum] = c.wdata;
+        if (verbose_commit) {
+            printf("  sync mmio load: addr=0x%08x, gpr[%u]=0x%08x\n",
+                   mmio_load_addr, c.wnum, c.wdata);
+        }
+    }
 
     if (!compare_with_ref(c, ref_pc_before_exec)) {
         return StepResult::kMismatch;
