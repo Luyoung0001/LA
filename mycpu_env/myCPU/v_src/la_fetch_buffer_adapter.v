@@ -1,1 +1,0 @@
-../../../rtl/la_fetch_buffer_adapter.v
