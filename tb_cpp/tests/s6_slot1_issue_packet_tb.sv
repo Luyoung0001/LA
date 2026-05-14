@@ -1,0 +1,205 @@
+`timescale 1ns / 1ps
+
+module s6_slot1_issue_packet_tb;
+    logic clk;
+    logic rst_n;
+    integer checks;
+    integer failures;
+    `include "tb_common.svh"
+
+    logic [31:0] slot1_pc;
+    logic [31:0] instr1;
+    logic        slot1_valid;
+    logic [6:0]  slot1_opcode;
+    logic [2:0]  slot1_funct3;
+    logic [6:0]  slot1_funct7;
+    logic [4:0]  slot1_op_19_15;
+    logic [4:0]  slot1_rs1;
+    logic [4:0]  slot1_rs2;
+    logic [4:0]  slot1_rd;
+    logic [31:0] slot1_imm;
+    logic        slot1_is_branch;
+    logic        slot1_is_jal;
+    logic        slot1_is_jalr;
+    logic        slot1_is_load;
+    logic        slot1_is_store;
+    logic        slot1_is_lui;
+    logic        slot1_is_auipc;
+    logic        slot1_unknown_inst;
+    logic        slot1_wb_en;
+    logic        slot1_uses_rs1;
+    logic        slot1_uses_rs2;
+    logic [1:0]  slot1_src_a_sel;
+    logic [1:0]  slot1_src_b_sel;
+    logic [3:0]  slot1_alu_op;
+    logic [31:0] slot1_rs1_val;
+    logic [31:0] slot1_rs2_val;
+    logic        slot1_issue_valid;
+    logic [3:0]  slot1_issue_class;
+
+    logic [31:0] slot1_pc_o;
+    logic [31:0] instr1_o;
+    logic        slot1_valid_o;
+    logic [6:0]  slot1_opcode_o;
+    logic [2:0]  slot1_funct3_o;
+    logic [6:0]  slot1_funct7_o;
+    logic [4:0]  slot1_op_19_15_o;
+    logic [4:0]  slot1_rs1_o;
+    logic [4:0]  slot1_rs2_o;
+    logic [4:0]  slot1_rd_o;
+    logic [31:0] slot1_imm_o;
+    logic        slot1_is_branch_o;
+    logic        slot1_is_jal_o;
+    logic        slot1_is_jalr_o;
+    logic        slot1_is_load_o;
+    logic        slot1_is_store_o;
+    logic        slot1_is_lui_o;
+    logic        slot1_is_auipc_o;
+    logic        slot1_unknown_inst_o;
+    logic        slot1_wb_en_o;
+    logic        slot1_uses_rs1_o;
+    logic        slot1_uses_rs2_o;
+    logic [1:0]  slot1_src_a_sel_o;
+    logic [1:0]  slot1_src_b_sel_o;
+    logic [3:0]  slot1_alu_op_o;
+    logic [31:0] slot1_rs1_val_o;
+    logic [31:0] slot1_rs2_val_o;
+    logic        slot1_issue_valid_o;
+    logic [3:0]  slot1_issue_class_o;
+
+    s6_slot1_issue_packet u_dut (
+        .slot1_pc_i(slot1_pc),
+        .instr1_i(instr1),
+        .slot1_valid_i(slot1_valid),
+        .slot1_opcode_i(slot1_opcode),
+        .slot1_funct3_i(slot1_funct3),
+        .slot1_funct7_i(slot1_funct7),
+        .slot1_op_19_15_i(slot1_op_19_15),
+        .slot1_rs1_i(slot1_rs1),
+        .slot1_rs2_i(slot1_rs2),
+        .slot1_rd_i(slot1_rd),
+        .slot1_imm_i(slot1_imm),
+        .slot1_is_branch_i(slot1_is_branch),
+        .slot1_is_jal_i(slot1_is_jal),
+        .slot1_is_jalr_i(slot1_is_jalr),
+        .slot1_is_load_i(slot1_is_load),
+        .slot1_is_store_i(slot1_is_store),
+        .slot1_is_lui_i(slot1_is_lui),
+        .slot1_is_auipc_i(slot1_is_auipc),
+        .slot1_unknown_inst_i(slot1_unknown_inst),
+        .slot1_wb_en_i(slot1_wb_en),
+        .slot1_uses_rs1_i(slot1_uses_rs1),
+        .slot1_uses_rs2_i(slot1_uses_rs2),
+        .slot1_src_a_sel_i(slot1_src_a_sel),
+        .slot1_src_b_sel_i(slot1_src_b_sel),
+        .slot1_alu_op_i(slot1_alu_op),
+        .slot1_rs1_val_i(slot1_rs1_val),
+        .slot1_rs2_val_i(slot1_rs2_val),
+        .slot1_issue_valid_i(slot1_issue_valid),
+        .slot1_issue_class_i(slot1_issue_class),
+        .slot1_pc_o(slot1_pc_o),
+        .instr1_o(instr1_o),
+        .slot1_valid_o(slot1_valid_o),
+        .slot1_opcode_o(slot1_opcode_o),
+        .slot1_funct3_o(slot1_funct3_o),
+        .slot1_funct7_o(slot1_funct7_o),
+        .slot1_op_19_15_o(slot1_op_19_15_o),
+        .slot1_rs1_o(slot1_rs1_o),
+        .slot1_rs2_o(slot1_rs2_o),
+        .slot1_rd_o(slot1_rd_o),
+        .slot1_imm_o(slot1_imm_o),
+        .slot1_is_branch_o(slot1_is_branch_o),
+        .slot1_is_jal_o(slot1_is_jal_o),
+        .slot1_is_jalr_o(slot1_is_jalr_o),
+        .slot1_is_load_o(slot1_is_load_o),
+        .slot1_is_store_o(slot1_is_store_o),
+        .slot1_is_lui_o(slot1_is_lui_o),
+        .slot1_is_auipc_o(slot1_is_auipc_o),
+        .slot1_unknown_inst_o(slot1_unknown_inst_o),
+        .slot1_wb_en_o(slot1_wb_en_o),
+        .slot1_uses_rs1_o(slot1_uses_rs1_o),
+        .slot1_uses_rs2_o(slot1_uses_rs2_o),
+        .slot1_src_a_sel_o(slot1_src_a_sel_o),
+        .slot1_src_b_sel_o(slot1_src_b_sel_o),
+        .slot1_alu_op_o(slot1_alu_op_o),
+        .slot1_rs1_val_o(slot1_rs1_val_o),
+        .slot1_rs2_val_o(slot1_rs2_val_o),
+        .slot1_issue_valid_o(slot1_issue_valid_o),
+        .slot1_issue_class_o(slot1_issue_class_o)
+    );
+
+    task automatic drive_payload(input logic valid, input logic issue_valid);
+        begin
+            slot1_pc = 32'h1c00_3004;
+            instr1 = 32'h0280_0806;
+            slot1_valid = valid;
+            slot1_opcode = 7'h25;
+            slot1_funct3 = 3'h2;
+            slot1_funct7 = 7'h34;
+            slot1_op_19_15 = 5'h12;
+            slot1_rs1 = 5'd6;
+            slot1_rs2 = 5'd7;
+            slot1_rd = 5'd8;
+            slot1_imm = 32'h0000_0456;
+            slot1_is_branch = 1'b0;
+            slot1_is_jal = 1'b0;
+            slot1_is_jalr = 1'b0;
+            slot1_is_load = 1'b1;
+            slot1_is_store = 1'b0;
+            slot1_is_lui = 1'b0;
+            slot1_is_auipc = 1'b0;
+            slot1_unknown_inst = 1'b0;
+            slot1_wb_en = 1'b1;
+            slot1_uses_rs1 = 1'b1;
+            slot1_uses_rs2 = 1'b0;
+            slot1_src_a_sel = 2'd0;
+            slot1_src_b_sel = 2'd1;
+            slot1_alu_op = 4'h0;
+            slot1_rs1_val = 32'haaaa_0006;
+            slot1_rs2_val = 32'hbbbb_0007;
+            slot1_issue_valid = issue_valid;
+            slot1_issue_class = 4'b0100;
+        end
+    endtask
+
+    initial begin
+        tb_start();
+        clk = 1'b0;
+        rst_n = 1'b1;
+
+        drive_payload(1'b0, 1'b1);
+        #1;
+        `check32("PKT invalid still passes pc for debug", slot1_pc_o, 32'h1c00_3004);
+        `check32("PKT invalid still passes instr for debug", instr1_o, 32'h0280_0806);
+        `check("PKT invalid clears valid and issue", !slot1_valid_o && !slot1_issue_valid_o);
+        `check("PKT invalid clears control bits",
+               !slot1_is_load_o && !slot1_wb_en_o && !slot1_uses_rs1_o && !slot1_uses_rs2_o);
+        `check32("PKT invalid clears opcode", {25'd0, slot1_opcode_o}, 32'd0);
+        `check32("PKT invalid clears registers", {17'd0, slot1_rs1_o, slot1_rs2_o, slot1_rd_o}, 32'd0);
+        `check32("PKT invalid clears imm", slot1_imm_o, 32'd0);
+        `check32("PKT invalid clears selectors", {26'd0, slot1_src_a_sel_o, slot1_src_b_sel_o, slot1_alu_op_o}, 32'd0);
+        `check32("PKT invalid clears rs1 value", slot1_rs1_val_o, 32'd0);
+        `check32("PKT invalid clears rs2 value", slot1_rs2_val_o, 32'd0);
+        `check32("PKT invalid clears issue class", {28'd0, slot1_issue_class_o}, 32'd0);
+
+        drive_payload(1'b1, 1'b0);
+        #1;
+        `check("PKT valid without issue keeps issue low", slot1_valid_o && !slot1_issue_valid_o);
+        `check32("PKT valid without issue clears issue class", {28'd0, slot1_issue_class_o}, 32'd0);
+        `check("PKT valid keeps load and source usage", slot1_is_load_o && slot1_wb_en_o && slot1_uses_rs1_o && !slot1_uses_rs2_o);
+        `check32("PKT valid opcode", {25'd0, slot1_opcode_o}, {25'd0, 7'h25});
+        `check32("PKT valid funct bundle", {17'd0, slot1_funct3_o, slot1_funct7_o, slot1_op_19_15_o}, {17'd0, 3'h2, 7'h34, 5'h12});
+        `check32("PKT valid registers", {17'd0, slot1_rs1_o, slot1_rs2_o, slot1_rd_o}, {17'd0, 5'd6, 5'd7, 5'd8});
+        `check32("PKT valid imm", slot1_imm_o, 32'h0000_0456);
+        `check32("PKT valid selectors", {26'd0, slot1_src_a_sel_o, slot1_src_b_sel_o, slot1_alu_op_o}, {26'd0, 2'd0, 2'd1, 4'h0});
+        `check32("PKT valid rs1 value", slot1_rs1_val_o, 32'haaaa_0006);
+        `check32("PKT valid rs2 value", slot1_rs2_val_o, 32'hbbbb_0007);
+
+        drive_payload(1'b1, 1'b1);
+        #1;
+        `check("PKT valid and issue emits issue", slot1_valid_o && slot1_issue_valid_o);
+        `check32("PKT valid and issue preserves issue class", {28'd0, slot1_issue_class_o}, {28'd0, 4'b0100});
+
+        finish_tb();
+    end
+endmodule

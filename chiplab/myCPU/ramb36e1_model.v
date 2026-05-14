@@ -1,0 +1,1 @@
+../../mycpu_env/myCPU/sim/ramb36e1_model.v
