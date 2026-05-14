@@ -160,6 +160,9 @@ module core_top #(
     wire [31:0] ertn_redirect_pc_w;
     wire refetch_redirect_valid_w;
     wire [31:0] refetch_redirect_pc_w;
+    wire icacop_valid_w;
+    wire [1:0] icacop_mode_w;
+    wire [31:0] icacop_addr_w;
 
     assign issue_fire_w = ifu_out_valid_w && (~issue_busy_r);
     // Advance IFU PC only when the current fetch entry is really issued.
@@ -271,6 +274,9 @@ module core_top #(
         .ertn_redirect_pc   (ertn_redirect_pc_w),
         .refetch_redirect_valid(refetch_redirect_valid_w),
         .refetch_redirect_pc(refetch_redirect_pc_w),
+        .icacop_valid       (icacop_valid_w),
+        .icacop_mode        (icacop_mode_w),
+        .icacop_addr        (icacop_addr_w),
 `ifdef PERF_MONI
         .bpu_perf_valid     (bpu_perf_valid),
         .bpu_perf_is_branch (bpu_perf_is_branch),
@@ -313,6 +319,9 @@ module core_top #(
         .clk               (aclk),
         .reset             (reset),
         .ifetch_flush      (branch_redirect_valid_w),
+        .icacop_valid      (icacop_valid_w),
+        .icacop_mode       (icacop_mode_w),
+        .icacop_addr       (icacop_addr_w),
 
         .ifetch_req_valid  (if1_icache_req_valid_w),
         .ifetch_req_addr   (if1_icache_req_addr_w),

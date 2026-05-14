@@ -44,6 +44,9 @@ module backend_top #(
     output wire [31:0] ertn_redirect_pc,
     output wire        refetch_redirect_valid,
     output wire [31:0] refetch_redirect_pc,
+    output wire        icacop_valid,
+    output wire [1:0]  icacop_mode,
+    output wire [31:0] icacop_addr,
 `ifdef PERF_MONI
     output wire        bpu_perf_valid,
     output wire        bpu_perf_is_branch,
@@ -434,6 +437,10 @@ module backend_top #(
     assign refetch_redirect_valid = mem1_out_valid_w && !mem1_exception_w &&
                                     !mem1_is_ertn_w && mem1_needs_refetch_w;
     assign refetch_redirect_pc = mem1_out_pc_w + 32'd4;
+    assign icacop_valid = mem1_out_valid_w && !mem1_exception_w &&
+                          !mem1_is_ertn_w && mem1_is_icacop_w;
+    assign icacop_mode  = mem1_out_inst_w[4:3];
+    assign icacop_addr  = mem1_out_wb_data_w;
 
     s3_d1 u_s3_d1 (
         .clk          (clk),
