@@ -5,7 +5,7 @@
 
 ## 1. 编译连接关系
 - 顶层 `Makefile` 会把以下源一起交给 Verilator：
-  - Verilog：`mycpu_env/myCPU/v_src/*.v`
+  - Verilog：`rtl/*.v`，其中 `rtl/verilator_top*.v` 是仿真 shell
   - SystemVerilog：`mycpu_env/myCPU/DPIC/*.sv`
   - DPI C++：`mycpu_env/myCPU/DPIC_C/src/*.cpp`
   - Memory C：`mycpu_env/myCPU/memory/src/*.c`
@@ -38,7 +38,7 @@ flowchart LR
 
 ## 5. 与差分测试的耦合
 - `Verilator/main.cpp` 每周期读取 `verilator_top` 对外公开的 `debug_wb_*`。
-- 这些信号来自 `core_top -> stage8_wbu` 的提交信息。
+- 这些信号来自 `core_top -> s6_wb` 的提交信息。
 - 主程序把提交流与 `golden_trace.txt` 对齐比较，形成软件 SoC 的正确性闭环。
 
 ## 6. 当前框架特性

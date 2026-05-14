@@ -3,7 +3,7 @@
 ## 总览
 - [系统总拓扑与模块连接图](./00_system_topology.md)
 
-## 硬件模块（mycpu_env/myCPU/v_src + DPIC）
+## 硬件模块（rtl + DPIC）
 - [core_top](./hardware/core_top.md)
 - [mycpu_top](./hardware/mycpu_top.md)
 - [verilator_top](./hardware/verilator_top.md)

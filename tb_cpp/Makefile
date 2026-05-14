@@ -478,7 +478,7 @@ SRC_s10_commit_event_packet_tb := $(RTL_DIR)/s10_commit_event_packet.v
 SRC_s10_commit_output_packet_tb := $(RTL_DIR)/s10_commit_output_packet.v
 SRC_s10_backend_wb_tb         := $(RTL_DIR)/backend_slot1_activity.v $(RTL_DIR)/s10_load_data_format.v $(RTL_DIR)/s10_slot0_pipe_regs.v $(RTL_DIR)/s10_slot0_wb_packet.v $(RTL_DIR)/s10_slot1_commit_packet.v $(RTL_DIR)/backend_slot1_result_pipe_regs.v $(RTL_DIR)/s10_slot1_pipe_regs.v $(RTL_DIR)/s10_slot1_wb_packet.v $(RTL_DIR)/s10_slot1_mem_ctrl.v $(RTL_DIR)/s10_dcache_resp_owner.v $(RTL_DIR)/s10_shared_mem_outcome.v $(RTL_DIR)/s10_shared_mem_pipe_regs.v $(RTL_DIR)/s10_wb_stage_ctrl.v $(RTL_DIR)/s10_feedback_packet.v $(RTL_DIR)/s10_raw_mem_event_select.v $(RTL_DIR)/s10_difftest_mem_select.v $(RTL_DIR)/s10_commit_select.v $(RTL_DIR)/s10_wb_select.v $(RTL_DIR)/s10_ordered_commit_bank.v $(RTL_DIR)/s10_commit_event_packet.v $(RTL_DIR)/s10_commit_output_packet.v $(RTL_DIR)/s10_backend_wb.v
 SRC_sram_wrap_tb              := $(LA_DIR)/DPIC/sram_wrap.v
-SRC_verilator_top_tb          := $(PIPELINE_RTL) $(LA_DIR)/v_src/verilator_top.v
+SRC_verilator_top_tb          := $(PIPELINE_RTL) $(RTL_DIR)/verilator_top.v
 
 BUILD_TARGETS := $(foreach test,$(TESTS),$(OBJ_DIR)/$(test)/V$(test))
 RUN_TARGETS   := $(addprefix run-,$(CASES))

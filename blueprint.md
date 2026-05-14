@@ -86,7 +86,7 @@ cache/tag/data/BTB/PHT 等存储单元优先使用 FPGA 友好的 BRAM/原语封
 `fpga-pipeline-cpu` 值得学习的不只是 RTL，而是它把 CPU 工程拆成了四层稳定入口：
 
 - RTL 核心层：`rtl/fpga_pipeline_cpu_core.v` 和 `rtl/*.v`，提供统一 AXI master、commit/debug、可选 `DIFFTEST_EN` 观察总线。
-- 动态 difftest 层：`mycpu_env/myCPU/v_src/verilator_top.v`、`verilator_top_la500.v` 和根 Makefile 的 `make all EXP=23 PERF_MONI=1`。
+- 动态 difftest 层：`rtl/verilator_top.v`、`rtl/verilator_top_la500.v` 和根 Makefile 的 `make all EXP=23 PERF_MONI=1`。
 - Chiplab 层：根 Makefile 的 `make configure RUN=...`、`chiplab-sync-rtl`、`chiplab/myCPU/core_top.v`，把项目 core 包成 Chiplab 期待的 AXI/debug/difftest 接口。
 - 模块级验证层：`tb_cpp/Makefile` 和大量 `*_tb.sv`，先测 BPU/L1/L2/AXI/fetch buffer，再跑整机。
 
@@ -134,7 +134,7 @@ cache/tag/data/BTB/PHT 等存储单元优先使用 FPGA 友好的 BRAM/原语封
 
 ### 1.1.1 当前 RTL 命名约定
 
-流水级源码统一放在 `/home/luyoung/LA/rtl`，按级号命名，`mycpu_env/myCPU/v_src` 和 `chiplab/myCPU` 只保留符号链接视图。
+流水级源码统一放在 `/home/luyoung/LA/rtl`，按级号命名。`mycpu_env/myCPU/v_src` 已废弃，不再放源码或软链接；`chiplab/myCPU` 只保留 Chiplab 兼容符号链接视图。
 
 | 流水级 | RTL 文件 | 模块名 | 当前职责 |
 | --- | --- | --- | --- |
@@ -497,11 +497,9 @@ make -C tb_cpp run CASE=cpu_l1_icache
 ```text
 LA/
   rtl/                         // 唯一 RTL 源目录：当前 core、目标 6 级 core、copied RTL
-  mycpu_env/myCPU/sim/         // sim-only primitive model，例如 ramb36e1_model.v
-  mycpu_env/myCPU/v_src/
     verilator_top.v            // 动态 difftest shell
     verilator_top_la500.v      // 可选 reference_cpu 对照 shell
-    *.v/*.vh -> ../../../rtl/*  // RTL 软链接镜像，不在这里直接改 RTL
+  mycpu_env/myCPU/sim/         // sim-only primitive model，例如 ramb36e1_model.v
   chiplab/
     myCPU/core_top.v -> ../../rtl/mycpu_top.v
     myCPU/*.v/*.vh -> ../../rtl/*
@@ -514,9 +512,9 @@ LA/
 规则：
 
 - `rtl/` 是本项目 RTL 的唯一实体源目录。
-- `mycpu_env/myCPU/v_src/` 只保留 Verilator shell 实体文件，其余 RTL 用软链接指向 `rtl/`。
+- `mycpu_env/myCPU/v_src/` 是废弃目录，不再使用；如果历史脚本生成了它，运行 `make mycpu-sync-rtl` 会删除。
 - `chiplab/myCPU/` 只作为 Chiplab 源入口，用软链接指向 `rtl/` 和 sim-only 模型。
-- 新增或修改 RTL 时只改 `rtl/`，然后运行 `make mycpu-sync-rtl` 或 `make chiplab-sync-rtl` 刷新链接。
+- 新增或修改 RTL 时只改 `rtl/`；需要刷新 Chiplab 视图时运行 `make chiplab-sync-rtl`。
 - `mycpu_env/myCPU/sim/` 放 `RAMB36E1` 等仿真模型；这些文件只进仿真/Chiplab 源列表，不作为综合 RTL 主源。
 
 ### 5.2 根 Makefile 要学习的能力

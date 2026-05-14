@@ -55,8 +55,8 @@
 
 | 模块 | 文件 | 当前定位 |
 | --- | --- | --- |
-| 顶层核心 | `mycpu_env/myCPU/v_src/mycpu_top.v` 中的 `core_top` | 串接流水线、AXI 仲裁、调试接口。 |
-| 兼容包装 | `mycpu_env/myCPU/v_src/mycpu_top.v` 中的 `mycpu_top` | 对接 SoC/仿真外壳。 |
+| 顶层核心 | `rtl/mycpu_top.v` 中的 `core_top` | 串接流水线、AXI 仲裁、调试接口。 |
+| 兼容包装 | `rtl/mycpu_top.v` 中的 `mycpu_top` | 对接 SoC/仿真外壳。 |
 | 取指 PC | `stage0_ifu.v` | PC 生成、预测响应使用、重定向。 |
 | 取指请求 | `stage1_if1.v` | 产生 ICache 请求。 |
 | 取指返回 | `stage2_if2.v` | 等待指令返回并输出。 |
@@ -1137,4 +1137,3 @@ core_top
 7. 再补全访存 byte/halfword 和更多 LA32 指令。
 
 这条路线能最大程度复用当前已经跑通的 Verilator/difftest 链路，同时把 `plan.md` 中的高性能目标拆成可验证、可回退、可度量的小步。
-
