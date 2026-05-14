@@ -479,7 +479,7 @@ module cpu_l1_dcache #(
                         // 因此保留 1 拍 store-forward 数据。
                         resp_valid_q   <= 1'b1;
                         store_issued_q <= 1'b0;
-                        store_fwd_valid_q <= cache_hit;
+                        store_fwd_valid_q <= 1'b1;
                         store_fwd_addr_q  <= req_addr_q;
                         store_fwd_data_q  <= merge_store_word(hit_data, store_data, store_strb);
                         if (req_valid_i) begin
