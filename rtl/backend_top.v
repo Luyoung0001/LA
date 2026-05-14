@@ -11,6 +11,8 @@ module backend_top #(
     input  wire        fetch_valid,
     input  wire [31:0] fetch_pc,
     input  wire [31:0] fetch_inst,
+    input  wire        fetch_pred_taken,
+    input  wire [31:0] fetch_pred_target,
     input  wire        fetch_exception_valid,
     input  wire [5:0]  fetch_exception_ecode,
     input  wire [8:0]  fetch_exception_esubcode,
@@ -42,6 +44,18 @@ module backend_top #(
     output wire [31:0] ertn_redirect_pc,
     output wire        refetch_redirect_valid,
     output wire [31:0] refetch_redirect_pc,
+`ifdef PERF_MONI
+    output wire        bpu_perf_valid,
+    output wire        bpu_perf_is_branch,
+    output wire        bpu_perf_is_jump,
+    output wire [31:0] bpu_perf_pc,
+    output wire        bpu_perf_pred_taken,
+    output wire        bpu_perf_actual_taken,
+    output wire        bpu_perf_correct,
+    output wire        bpu_perf_direction_miss,
+    output wire        bpu_perf_target_miss,
+    output wire        bpu_perf_exu_flush,
+`endif
 
     input  wire [4:0]  dbg_reg_num,
     output wire [31:0] dbg_rf_rdata,
@@ -70,6 +84,8 @@ module backend_top #(
     wire rrd_out_valid_w;
     wire [31:0] rrd_out_pc_w;
     wire [31:0] rrd_out_inst_w;
+    wire rrd_out_pred_taken_w;
+    wire [31:0] rrd_out_pred_target_w;
     wire [4:0] rrd_out_rd_w;
     wire [31:0] rrd_out_op1_w;
     wire [31:0] rrd_out_op2_w;
@@ -425,6 +441,8 @@ module backend_top #(
         .in_valid     (fetch_valid),
         .in_pc        (fetch_pc),
         .in_inst      (fetch_inst),
+        .in_pred_taken(fetch_pred_taken),
+        .in_pred_target(fetch_pred_target),
         .in_exception_valid(fetch_exception_valid),
         .in_exception_ecode(fetch_exception_ecode),
         .in_exception_esubcode(fetch_exception_esubcode),
@@ -438,6 +456,8 @@ module backend_top #(
         .out_valid    (rrd_out_valid_w),
         .out_pc       (rrd_out_pc_w),
         .out_inst     (rrd_out_inst_w),
+        .out_pred_taken(rrd_out_pred_taken_w),
+        .out_pred_target(rrd_out_pred_target_w),
         .out_rd       (rrd_out_rd_w),
         .out_op1      (rrd_out_op1_w),
         .out_op2      (rrd_out_op2_w),
@@ -511,6 +531,8 @@ module backend_top #(
         .in_valid      (rrd_out_valid_w),
         .in_pc         (rrd_out_pc_w),
         .in_inst       (rrd_out_inst_w),
+        .in_pred_taken (rrd_out_pred_taken_w),
+        .in_pred_target(rrd_out_pred_target_w),
         .in_rd         (rrd_out_rd_w),
         .in_op1        (rrd_out_op1_w),
         .in_op2        (rrd_out_op2_w),
@@ -546,6 +568,18 @@ module backend_top #(
         .branch_update_valid(branch_update_valid),
         .branch_taken   (branch_taken),
         .branch_target  (branch_target),
+`ifdef PERF_MONI
+        .bpu_perf_valid (bpu_perf_valid),
+        .bpu_perf_is_branch(bpu_perf_is_branch),
+        .bpu_perf_is_jump(bpu_perf_is_jump),
+        .bpu_perf_pc(bpu_perf_pc),
+        .bpu_perf_pred_taken(bpu_perf_pred_taken),
+        .bpu_perf_actual_taken(bpu_perf_actual_taken),
+        .bpu_perf_correct(bpu_perf_correct),
+        .bpu_perf_direction_miss(bpu_perf_direction_miss),
+        .bpu_perf_target_miss(bpu_perf_target_miss),
+        .bpu_perf_exu_flush(bpu_perf_exu_flush),
+`endif
         .out_valid     (ex1_out_valid_w),
         .out_pc        (ex1_out_pc_w),
         .out_inst      (ex1_out_inst_w),

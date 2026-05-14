@@ -71,6 +71,18 @@ module core_top #(
     output wire [5:0]  debug0_excp_ecode,
     output wire [10:0] debug0_intr_no,
     output wire        debug0_ertn_valid,
+`ifdef PERF_MONI
+    output wire        bpu_perf_valid,
+    output wire        bpu_perf_is_branch,
+    output wire        bpu_perf_is_jump,
+    output wire [31:0] bpu_perf_pc,
+    output wire        bpu_perf_pred_taken,
+    output wire        bpu_perf_actual_taken,
+    output wire        bpu_perf_correct,
+    output wire        bpu_perf_direction_miss,
+    output wire        bpu_perf_target_miss,
+    output wire        bpu_perf_exu_flush,
+`endif
 
     output wire [31:0] debug1_wb_pc,
     output wire [3:0]  debug1_wb_rf_wen,
@@ -105,6 +117,8 @@ module core_top #(
     wire if2_out_valid_w;
     wire [31:0] if2_out_pc_w;
     wire [31:0] if2_out_inst_w;
+    wire if2_out_pred_taken_w;
+    wire [31:0] if2_out_pred_target_w;
     wire if2_out_exception_valid_w;
     wire [5:0] if2_out_exception_ecode_w;
     wire [8:0] if2_out_exception_esubcode_w;
@@ -211,6 +225,8 @@ module core_top #(
         .fetch_valid         (if2_out_valid_w),
         .fetch_pc            (if2_out_pc_w),
         .fetch_inst          (if2_out_inst_w),
+        .fetch_pred_taken    (if2_out_pred_taken_w),
+        .fetch_pred_target   (if2_out_pred_target_w),
         .fetch_exception_valid(if2_out_exception_valid_w),
         .fetch_exception_ecode(if2_out_exception_ecode_w),
         .fetch_exception_esubcode(if2_out_exception_esubcode_w),
@@ -230,6 +246,8 @@ module core_top #(
         .fetch_valid        (if2_out_valid_w),
         .fetch_pc           (if2_out_pc_w),
         .fetch_inst         (if2_out_inst_w),
+        .fetch_pred_taken   (if2_out_pred_taken_w),
+        .fetch_pred_target  (if2_out_pred_target_w),
         .fetch_exception_valid(if2_out_exception_valid_w),
         .fetch_exception_ecode(if2_out_exception_ecode_w),
         .fetch_exception_esubcode(if2_out_exception_esubcode_w),
@@ -253,6 +271,18 @@ module core_top #(
         .ertn_redirect_pc   (ertn_redirect_pc_w),
         .refetch_redirect_valid(refetch_redirect_valid_w),
         .refetch_redirect_pc(refetch_redirect_pc_w),
+`ifdef PERF_MONI
+        .bpu_perf_valid     (bpu_perf_valid),
+        .bpu_perf_is_branch (bpu_perf_is_branch),
+        .bpu_perf_is_jump   (bpu_perf_is_jump),
+        .bpu_perf_pc        (bpu_perf_pc),
+        .bpu_perf_pred_taken(bpu_perf_pred_taken),
+        .bpu_perf_actual_taken(bpu_perf_actual_taken),
+        .bpu_perf_correct   (bpu_perf_correct),
+        .bpu_perf_direction_miss(bpu_perf_direction_miss),
+        .bpu_perf_target_miss(bpu_perf_target_miss),
+        .bpu_perf_exu_flush (bpu_perf_exu_flush),
+`endif
         .i_tlb_query_valid  (i_tlb_query_valid_w),
         .i_tlb_query_write  (i_tlb_query_write_w),
         .i_tlb_query_vaddr  (i_tlb_query_vaddr_w),
@@ -410,6 +440,18 @@ module mycpu_top (
     wire [5:0] debug_excp_ecode_unused;
     wire [10:0] debug_intr_no_unused;
     wire debug_ertn_valid_unused;
+`ifdef PERF_MONI
+    wire bpu_perf_valid_unused;
+    wire bpu_perf_is_branch_unused;
+    wire bpu_perf_is_jump_unused;
+    wire [31:0] bpu_perf_pc_unused;
+    wire bpu_perf_pred_taken_unused;
+    wire bpu_perf_actual_taken_unused;
+    wire bpu_perf_correct_unused;
+    wire bpu_perf_direction_miss_unused;
+    wire bpu_perf_target_miss_unused;
+    wire bpu_perf_exu_flush_unused;
+`endif
 
     core_top u_core_top (
         .aclk               (aclk),
@@ -465,6 +507,18 @@ module mycpu_top (
         .debug0_excp_ecode  (debug_excp_ecode_unused),
         .debug0_intr_no     (debug_intr_no_unused),
         .debug0_ertn_valid  (debug_ertn_valid_unused),
+`ifdef PERF_MONI
+        .bpu_perf_valid     (bpu_perf_valid_unused),
+        .bpu_perf_is_branch (bpu_perf_is_branch_unused),
+        .bpu_perf_is_jump   (bpu_perf_is_jump_unused),
+        .bpu_perf_pc        (bpu_perf_pc_unused),
+        .bpu_perf_pred_taken(bpu_perf_pred_taken_unused),
+        .bpu_perf_actual_taken(bpu_perf_actual_taken_unused),
+        .bpu_perf_correct   (bpu_perf_correct_unused),
+        .bpu_perf_direction_miss(bpu_perf_direction_miss_unused),
+        .bpu_perf_target_miss(bpu_perf_target_miss_unused),
+        .bpu_perf_exu_flush (bpu_perf_exu_flush_unused),
+`endif
         .debug1_wb_pc       (debug1_wb_pc),
         .debug1_wb_rf_wen   (debug1_wb_rf_we),
         .debug1_wb_rf_wnum  (debug1_wb_rf_wnum),

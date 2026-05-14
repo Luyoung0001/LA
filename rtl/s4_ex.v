@@ -4,6 +4,8 @@ module s4_ex (
     input  wire        in_valid,
     input  wire [31:0] in_pc,
     input  wire [31:0] in_inst,
+    input  wire        in_pred_taken,
+    input  wire [31:0] in_pred_target,
     input  wire [4:0]  in_rd,
     input  wire [31:0] in_op1,
     input  wire [31:0] in_op2,
@@ -39,6 +41,18 @@ module s4_ex (
     output reg         branch_update_valid,
     output reg         branch_taken,
     output reg  [31:0] branch_target,
+`ifdef PERF_MONI
+    output reg         bpu_perf_valid,
+    output reg         bpu_perf_is_branch,
+    output reg         bpu_perf_is_jump,
+    output reg  [31:0] bpu_perf_pc,
+    output reg         bpu_perf_pred_taken,
+    output reg         bpu_perf_actual_taken,
+    output reg         bpu_perf_correct,
+    output reg         bpu_perf_direction_miss,
+    output reg         bpu_perf_target_miss,
+    output reg         bpu_perf_exu_flush,
+`endif
     output reg         out_valid,
     output reg  [31:0] out_pc,
     output reg  [31:0] out_inst,
@@ -142,6 +156,13 @@ module s4_ex (
     wire        unused_timer_64;
     wire        branch_take_w;
     wire [31:0] branch_target_w;
+    wire        control_flow_w;
+    wire        actual_taken_w;
+    wire [31:0] actual_next_pc_w;
+    wire [31:0] predicted_next_pc_w;
+    wire        direction_miss_w;
+    wire        target_miss_w;
+    wire        redirect_miss_w;
 
     reg [31:0] ex_result;
 
@@ -256,6 +277,15 @@ module s4_ex (
                            (inst_bltu && (op1_forwarded < op2_forwarded)) |
                            (inst_bgeu && (op1_forwarded >= op2_forwarded));
     assign branch_target_w = inst_jirl ? (op1_forwarded + in_imm) : (in_pc + in_imm);
+    assign control_flow_w = in_valid && in_is_branch;
+    assign actual_taken_w = branch_take_w;
+    assign actual_next_pc_w = actual_taken_w ? branch_target_w : (in_pc + 32'd4);
+    assign predicted_next_pc_w = in_pred_taken ? in_pred_target : (in_pc + 32'd4);
+    assign direction_miss_w = control_flow_w && (in_pred_taken != actual_taken_w);
+    assign target_miss_w =
+        control_flow_w && actual_taken_w && in_pred_taken &&
+        (in_pred_target != branch_target_w);
+    assign redirect_miss_w = control_flow_w && (predicted_next_pc_w != actual_next_pc_w);
 
     always @(*) begin
         ex_result = 32'b0;
@@ -336,6 +366,18 @@ module s4_ex (
             branch_update_valid <= 1'b0;
             branch_taken        <= 1'b0;
             branch_target       <= 32'b0;
+`ifdef PERF_MONI
+            bpu_perf_valid          <= 1'b0;
+            bpu_perf_is_branch      <= 1'b0;
+            bpu_perf_is_jump        <= 1'b0;
+            bpu_perf_pc             <= 32'b0;
+            bpu_perf_pred_taken     <= 1'b0;
+            bpu_perf_actual_taken   <= 1'b0;
+            bpu_perf_correct        <= 1'b0;
+            bpu_perf_direction_miss <= 1'b0;
+            bpu_perf_target_miss    <= 1'b0;
+            bpu_perf_exu_flush      <= 1'b0;
+`endif
             out_valid      <= 1'b0;
             out_pc         <= 32'b0;
             out_inst       <= 32'b0;
@@ -359,6 +401,18 @@ module s4_ex (
             branch_update_valid <= in_valid && in_is_branch;
             branch_taken        <= in_valid && branch_take_w;
             branch_target       <= branch_target_w;
+`ifdef PERF_MONI
+            bpu_perf_valid          <= control_flow_w;
+            bpu_perf_is_branch      <= control_flow_w && !(inst_b || inst_bl || inst_jirl);
+            bpu_perf_is_jump        <= control_flow_w && (inst_b || inst_bl || inst_jirl);
+            bpu_perf_pc             <= in_pc;
+            bpu_perf_pred_taken     <= in_pred_taken;
+            bpu_perf_actual_taken   <= actual_taken_w;
+            bpu_perf_correct        <= control_flow_w && !redirect_miss_w;
+            bpu_perf_direction_miss <= direction_miss_w;
+            bpu_perf_target_miss    <= target_miss_w;
+            bpu_perf_exu_flush      <= redirect_miss_w;
+`endif
             out_valid      <= in_valid;
             out_pc         <= in_pc;
             out_inst       <= in_inst;

@@ -13,6 +13,8 @@ module la_fetch_buffer_adapter #(
     input  wire            in_valid,
     input  wire [XLEN-1:0] in_pc,
     input  wire [ILEN-1:0] in_inst,
+    input  wire            in_pred_taken,
+    input  wire [XLEN-1:0] in_pred_target,
     input  wire            in_exception_valid,
     input  wire [5:0]      in_exception_ecode,
     input  wire [XLEN-1:0] in_exception_badv,
@@ -20,6 +22,8 @@ module la_fetch_buffer_adapter #(
     output wire            out_valid,
     output wire [XLEN-1:0] out_pc,
     output wire [ILEN-1:0] out_inst,
+    output wire            out_pred_taken,
+    output wire [XLEN-1:0] out_pred_target,
     output wire            out_exception_valid,
     output wire [5:0]      out_exception_ecode,
     output wire [XLEN-1:0] out_exception_badv
@@ -49,10 +53,12 @@ module la_fetch_buffer_adapter #(
     assign unused_status = &{1'b0, wr_fire_w, bypass_w, rd_fire_w, empty_w,
                              nonempty_w, full_w, level_w, rd_pc1_w,
                              rd_slot0_valid_w, rd_instr1_w, rd_slot1_valid_w,
-                             rd_epoch_w, rd_pred_taken_w, rd_pred_target_w,
+                             rd_epoch_w,
                              rd_ras_valid_w, rd_ras_target_w, rd_fault_w,
                              rd_fault_ecode_w, rd_fault_badv_w};
 
+    assign out_pred_taken = rd_pred_taken_w;
+    assign out_pred_target = rd_pred_target_w;
     assign out_exception_valid = rd_fault_w;
     assign out_exception_ecode = rd_fault_ecode_w;
     assign out_exception_badv = rd_fault_badv_w;
@@ -77,8 +83,8 @@ module la_fetch_buffer_adapter #(
         .wr_instr1_i        ({ILEN{1'b0}}),
         .wr_slot1_valid_i   (1'b0),
         .wr_epoch_i         ({EPOCH_WIDTH{1'b0}}),
-        .wr_pred_taken_i    (1'b0),
-        .wr_pred_target_i   ({XLEN{1'b0}}),
+        .wr_pred_taken_i    (in_pred_taken),
+        .wr_pred_target_i   (in_pred_target),
         .wr_ras_valid_i     (1'b0),
         .wr_ras_target_i    ({XLEN{1'b0}}),
         .wr_fault_i         (in_exception_valid),

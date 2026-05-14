@@ -36,7 +36,6 @@ CONFIG_FLAGS = \
 	-DLA_CACHE_OP_STRICT_ENABLE=$(CACHE_OP_STRICT_ENABLE)
 
 # mycpu
-SIM_TOP_DIR = $(CPU_HOME)/mycpu_env/myCPU/v_src
 RTL_DIR = $(CPU_HOME)/rtl
 VSRC_project_la_rtl_all = $(wildcard $(RTL_DIR)/*.v)
 VSRC_project_la_rtl = $(filter-out $(RTL_DIR)/verilator_top.v $(RTL_DIR)/verilator_top_la500.v,$(VSRC_project_la_rtl_all))
@@ -46,15 +45,15 @@ LA500_DIR = $(CPU_HOME)/reference_cpu/open-la500
 
 ifeq ($(CPU_SELECT),LA500)
 VSRC_project_rtl = $(wildcard $(LA500_DIR)/*.v)
-VSRC_sim_top = $(SIM_TOP_DIR)/verilator_top_la500.v
+VSRC_sim_top = $(RTL_DIR)/verilator_top_la500.v
 SIM_MODELS =
-SV_FLAGS = -I$(VSRC_dpic) -I$(SIM_TOP_DIR) -I$(LA500_DIR) -DCPU_LA500 -DSIMU
+SV_FLAGS = -I$(VSRC_dpic) -I$(RTL_DIR) -I$(LA500_DIR) -DCPU_LA500 -DSIMU
 CPP_DEFINES = -DCPU_LA500 $(TRACE_CPP_FLAGS)
 else
 VSRC_project_rtl = $(VSRC_project_la_rtl)
-VSRC_sim_top = $(SIM_TOP_DIR)/verilator_top.v
+VSRC_sim_top = $(RTL_DIR)/verilator_top.v
 SIM_MODELS = $(VSRC_mycpu_env_sim)
-SV_FLAGS = -I$(VSRC_dpic) -I$(SIM_TOP_DIR) -I$(RTL_DIR) $(PERF_MONI_FLAGS) $(L2_PREFETCH_FLAGS) $(CONFIG_FLAGS)
+SV_FLAGS = -I$(VSRC_dpic) -I$(RTL_DIR) $(PERF_MONI_FLAGS) $(L2_PREFETCH_FLAGS) $(CONFIG_FLAGS)
 CPP_DEFINES = $(PERF_MONI_FLAGS) $(TRACE_CPP_FLAGS)
 endif
 
@@ -149,16 +148,13 @@ docs:
 	@echo "Docs index: $(CPU_HOME)/docs/README.md"
 
 mycpu-sync-rtl:
-	@mkdir -p $(SIM_TOP_DIR)
-	@find $(SIM_TOP_DIR) -maxdepth 1 -type l -delete
-	@for src in $(wildcard $(RTL_DIR)/*.v $(RTL_DIR)/*.vh); do \
-		ln -sf ../../../rtl/$$(basename "$$src") $(SIM_TOP_DIR)/$$(basename "$$src"); \
-	done
+	@rm -rf $(CPU_HOME)/mycpu_env/myCPU/v_src
+	@echo "RTL is sourced directly from $(RTL_DIR); removed obsolete mycpu_env/myCPU/v_src."
 
 chiplab-list:
 	@printf '%s\n' $(CHIPLAB_AVAILABLE_SOFTWARE)
 
-chiplab-sync-rtl: mycpu-sync-rtl
+chiplab-sync-rtl:
 	@mkdir -p $(CHIPLAB_HOME)/myCPU
 	@find $(CHIPLAB_HOME)/myCPU -maxdepth 1 -type l -delete
 	@ln -sf ../../rtl/mycpu_top.v $(CHIPLAB_HOME)/myCPU/core_top.v
@@ -208,7 +204,7 @@ help:
 	@echo "Usage:"
 	@echo "  make all EXP=6      # run test + dynamic difftest simulation"
 	@echo "  make all EXP=6 CPU=LA500 # run dynamic difftest with reference openLA500"
-	@echo "  make all EXP=23 PERF_MONI=1 # enable performance observation macros"
+	@echo "  make all EXP=23 PERF_MONI=1 # print IPC and BPU accuracy/miss statistics"
 	@echo "  make all EXP=6 BPU_ENABLE=1 FETCH_BUFFER_ENABLE=1"
 	@echo "                      # enable copied BPU/fetch-buffer adapters"
 	@echo "  make test EXP=6     # build func test program"

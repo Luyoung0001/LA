@@ -35,6 +35,8 @@ module frontend_top #(
     output wire        fetch_valid,
     output wire [31:0] fetch_pc,
     output wire [31:0] fetch_inst,
+    output wire        fetch_pred_taken,
+    output wire [31:0] fetch_pred_target,
     output wire        fetch_exception_valid,
     output wire [5:0]  fetch_exception_ecode,
     output wire [8:0]  fetch_exception_esubcode,
@@ -50,10 +52,14 @@ module frontend_top #(
     wire bp_resp_valid_w;
     wire bp_pred_taken_w;
     wire [31:0] bp_pred_target_w;
+    wire ifu_pred_taken_w;
+    wire [31:0] ifu_pred_target_w;
 
     wire if2_out_valid_w;
     wire [31:0] if2_out_pc_w;
     wire [31:0] if2_out_inst_w;
+    wire if2_out_pred_taken_w;
+    wire [31:0] if2_out_pred_target_w;
     wire if2_out_exception_valid_w;
     wire [5:0] if2_out_exception_ecode_w;
     wire [8:0] if2_out_exception_esubcode_w;
@@ -106,7 +112,9 @@ module frontend_top #(
         .bp_req_valid  (bp_req_valid_w),
         .bp_req_pc     (bp_req_pc_w),
         .out_valid     (pc_valid),
-        .out_pc        (pc)
+        .out_pc        (pc),
+        .out_pred_taken(ifu_pred_taken_w),
+        .out_pred_target(ifu_pred_target_w)
     );
 
     s2_f2 u_s2_f2 (
@@ -114,6 +122,8 @@ module frontend_top #(
         .reset             (reset),
         .in_valid          (pc_valid && !hold_fetch),
         .in_pc             (pc),
+        .in_pred_taken     (ifu_pred_taken_w),
+        .in_pred_target    (ifu_pred_target_w),
         .tlb_query_valid   (i_tlb_query_valid),
         .tlb_query_write   (i_tlb_query_write),
         .tlb_query_vaddr   (i_tlb_query_vaddr),
@@ -127,6 +137,8 @@ module frontend_top #(
         .out_valid         (if2_out_valid_w),
         .out_pc            (if2_out_pc_w),
         .out_inst          (if2_out_inst_w),
+        .out_pred_taken    (if2_out_pred_taken_w),
+        .out_pred_target   (if2_out_pred_target_w),
         .out_exception_valid(if2_out_exception_valid_w),
         .out_exception_ecode(if2_out_exception_ecode_w),
         .out_exception_esubcode(if2_out_exception_esubcode_w),
@@ -143,12 +155,16 @@ module frontend_top #(
                 .in_valid   (if2_out_valid_w),
                 .in_pc      (if2_out_pc_w),
                 .in_inst    (if2_out_inst_w),
+                .in_pred_taken(if2_out_pred_taken_w),
+                .in_pred_target(if2_out_pred_target_w),
                 .in_exception_valid(if2_out_exception_valid_w),
                 .in_exception_ecode(if2_out_exception_ecode_w),
                 .in_exception_badv(if2_out_exception_badv_w),
                 .out_valid  (fetch_valid),
                 .out_pc     (fetch_pc),
                 .out_inst   (fetch_inst),
+                .out_pred_taken(fetch_pred_taken),
+                .out_pred_target(fetch_pred_target),
                 .out_exception_valid(fetch_exception_valid),
                 .out_exception_ecode(fetch_exception_ecode),
                 .out_exception_badv(fetch_exception_badv)
@@ -159,6 +175,8 @@ module frontend_top #(
             assign fetch_valid                = if2_out_valid_w;
             assign fetch_pc                   = if2_out_pc_w;
             assign fetch_inst                 = if2_out_inst_w;
+            assign fetch_pred_taken           = if2_out_pred_taken_w;
+            assign fetch_pred_target          = if2_out_pred_target_w;
             assign fetch_exception_valid      = if2_out_exception_valid_w;
             assign fetch_exception_ecode      = if2_out_exception_ecode_w;
             assign fetch_exception_esubcode   = if2_out_exception_esubcode_w;

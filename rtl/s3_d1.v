@@ -4,6 +4,8 @@ module s3_d1 (
     input  wire        in_valid,
     input  wire [31:0] in_pc,
     input  wire [31:0] in_inst,
+    input  wire        in_pred_taken,
+    input  wire [31:0] in_pred_target,
     input  wire        in_exception_valid,
     input  wire [5:0]  in_exception_ecode,
     input  wire [8:0]  in_exception_esubcode,
@@ -17,6 +19,8 @@ module s3_d1 (
     output reg         out_valid,
     output reg  [31:0] out_pc,
     output reg  [31:0] out_inst,
+    output reg         out_pred_taken,
+    output reg  [31:0] out_pred_target,
     output reg  [4:0]  out_rd,
     output reg  [31:0] out_op1,
     output reg  [31:0] out_op2,
@@ -319,6 +323,8 @@ module s3_d1 (
             out_valid      <= 1'b0;
             out_pc         <= 32'b0;
             out_inst       <= 32'b0;
+            out_pred_taken <= 1'b0;
+            out_pred_target <= 32'b0;
             out_rd         <= 5'b0;
             out_op1        <= 32'b0;
             out_op2        <= 32'b0;
@@ -345,6 +351,8 @@ module s3_d1 (
             out_valid      <= in_valid;
             out_pc         <= in_pc;
             out_inst       <= in_inst;
+            out_pred_taken <= in_pred_taken;
+            out_pred_target <= in_pred_target;
             out_rd         <= out_rd_w;
             out_op1        <= rf_rdata1_w;
             out_op2        <= rf_rdata2_w;

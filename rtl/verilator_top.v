@@ -30,6 +30,18 @@ module verilator_top(
     wire [5:0]  debug_excp_ecode/* verilator public */;
     wire [10:0] debug_intr_no/* verilator public */;
     wire        debug_ertn_valid/* verilator public */;
+`ifdef PERF_MONI
+    wire        bpu_perf_valid/* verilator public */;
+    wire        bpu_perf_is_branch/* verilator public */;
+    wire        bpu_perf_is_jump/* verilator public */;
+    wire [31:0] bpu_perf_pc/* verilator public */;
+    wire        bpu_perf_pred_taken/* verilator public */;
+    wire        bpu_perf_actual_taken/* verilator public */;
+    wire        bpu_perf_correct/* verilator public */;
+    wire        bpu_perf_direction_miss/* verilator public */;
+    wire        bpu_perf_target_miss/* verilator public */;
+    wire        bpu_perf_exu_flush/* verilator public */;
+`endif
     // wire debug_wb_is_csr_wr_o/* verilator public */;
     // wire debug_has_refetch_excp_o/* verilator public */;
     // wire [31:0] csr_crmd_diff/* verilator public */;
@@ -195,6 +207,19 @@ module verilator_top(
 	                  .debug0_excp_ecode (debug_excp_ecode),
 	                  .debug0_intr_no    (debug_intr_no),
 	                  .debug0_ertn_valid (debug_ertn_valid)
+`ifdef PERF_MONI
+                      ,
+                      .bpu_perf_valid     (bpu_perf_valid),
+                      .bpu_perf_is_branch (bpu_perf_is_branch),
+                      .bpu_perf_is_jump   (bpu_perf_is_jump),
+                      .bpu_perf_pc        (bpu_perf_pc),
+                      .bpu_perf_pred_taken(bpu_perf_pred_taken),
+                      .bpu_perf_actual_taken(bpu_perf_actual_taken),
+                      .bpu_perf_correct   (bpu_perf_correct),
+                      .bpu_perf_direction_miss(bpu_perf_direction_miss),
+                      .bpu_perf_target_miss(bpu_perf_target_miss),
+                      .bpu_perf_exu_flush (bpu_perf_exu_flush)
+`endif
 	                //   .debug_wb_is_csr_wr_o (debug_wb_is_csr_wr_o),
                 //   .debug_has_refetch_excp_o(debug_has_refetch_excp_o),
                 //   .csr_crmd_diff      (csr_crmd_diff    ),

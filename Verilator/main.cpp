@@ -82,6 +82,79 @@ uint32_t stop_pc = kDefaultStopPc;
 bool difftest_failed = false;
 bool pending_interrupt_entry = false;
 
+#ifdef PERF_MONI
+struct BpuPerfCounters {
+    uint64_t resolve = 0;
+    uint64_t branch = 0;
+    uint64_t jump = 0;
+    uint64_t pred_taken = 0;
+    uint64_t actual_taken = 0;
+    uint64_t correct = 0;
+    uint64_t direction_miss = 0;
+    uint64_t target_miss = 0;
+    uint64_t exu_flush = 0;
+};
+
+BpuPerfCounters bpu_perf = {};
+
+static void sample_bpu_perf() {
+    auto* vt = top->rootp->verilator_top;
+    if (!vt->bpu_perf_valid) {
+        return;
+    }
+
+    bpu_perf.resolve++;
+    if (vt->bpu_perf_is_branch) {
+        bpu_perf.branch++;
+    }
+    if (vt->bpu_perf_is_jump) {
+        bpu_perf.jump++;
+    }
+    if (vt->bpu_perf_pred_taken) {
+        bpu_perf.pred_taken++;
+    }
+    if (vt->bpu_perf_actual_taken) {
+        bpu_perf.actual_taken++;
+    }
+    if (vt->bpu_perf_correct) {
+        bpu_perf.correct++;
+    }
+    if (vt->bpu_perf_direction_miss) {
+        bpu_perf.direction_miss++;
+    }
+    if (vt->bpu_perf_target_miss) {
+        bpu_perf.target_miss++;
+    }
+    if (vt->bpu_perf_exu_flush) {
+        bpu_perf.exu_flush++;
+    }
+}
+
+static void print_bpu_perf() {
+    const uint64_t wrong = bpu_perf.resolve - bpu_perf.correct;
+    const double accuracy = bpu_perf.resolve == 0 ? 0.0 :
+        100.0 * (double)bpu_perf.correct / (double)bpu_perf.resolve;
+    const double miss_rate = bpu_perf.resolve == 0 ? 0.0 :
+        100.0 * (double)wrong / (double)bpu_perf.resolve;
+
+    printf("BPU resolve: %llu\n", (unsigned long long)bpu_perf.resolve);
+    printf("BPU branch/jump: %llu / %llu\n",
+           (unsigned long long)bpu_perf.branch,
+           (unsigned long long)bpu_perf.jump);
+    printf("BPU pred_taken/actual_taken: %llu / %llu\n",
+           (unsigned long long)bpu_perf.pred_taken,
+           (unsigned long long)bpu_perf.actual_taken);
+    printf("BPU correct/wrong: %llu / %llu\n",
+           (unsigned long long)bpu_perf.correct,
+           (unsigned long long)wrong);
+    printf("BPU direction_miss/target_miss/exu_flush: %llu / %llu / %llu\n",
+           (unsigned long long)bpu_perf.direction_miss,
+           (unsigned long long)bpu_perf.target_miss,
+           (unsigned long long)bpu_perf.exu_flush);
+    printf("BPU accuracy: %.2f%% (miss %.2f%%)\n", accuracy, miss_rate);
+}
+#endif
+
 static bool try_file(const char* path) {
     return (path != NULL && path[0] != '\0' && access(path, F_OK) == 0);
 }
@@ -408,6 +481,9 @@ void step() {
 
     top->clk = 1;
     top->eval();
+#ifdef PERF_MONI
+    sample_bpu_perf();
+#endif
 #ifdef CPU_SIM_TRACE
     tfp->dump(main_time);
 #endif
@@ -459,6 +535,9 @@ void cpu_exec(uint64_t n) {
     printf("Total cycles: %llu\n", (unsigned long long)cycle_count);
     printf("IPC: %.6f\n", ipc);
     printf("CPI: %.6f\n", cpi);
+#ifdef PERF_MONI
+    print_bpu_perf();
+#endif
 
     top->final();
 #ifdef CPU_SIM_TRACE

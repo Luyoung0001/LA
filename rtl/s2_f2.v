@@ -3,6 +3,8 @@ module s2_f2 (
     input  wire        reset,
     input  wire        in_valid,
     input  wire [31:0] in_pc,
+    input  wire        in_pred_taken,
+    input  wire [31:0] in_pred_target,
     output wire        tlb_query_valid,
     output wire        tlb_query_write,
     output wire [31:0] tlb_query_vaddr,
@@ -16,6 +18,8 @@ module s2_f2 (
     output reg         out_valid,
     output reg  [31:0] out_pc,
     output reg  [31:0] out_inst,
+    output reg         out_pred_taken,
+    output reg  [31:0] out_pred_target,
     output reg         out_exception_valid,
     output reg  [5:0]  out_exception_ecode,
     output reg  [8:0]  out_exception_esubcode,
@@ -25,6 +29,8 @@ module s2_f2 (
 
     reg        pend_valid;
     reg [31:0] pend_pc;
+    reg        pend_pred_taken;
+    reg [31:0] pend_pred_target;
     reg        pend_exception_valid;
     reg [5:0]  pend_exception_ecode;
     reg [8:0]  pend_exception_esubcode;
@@ -50,6 +56,8 @@ module s2_f2 (
         if (reset) begin
             pend_valid                <= 1'b0;
             pend_pc                   <= 32'b0;
+            pend_pred_taken           <= 1'b0;
+            pend_pred_target          <= 32'b0;
             pend_exception_valid      <= 1'b0;
             pend_exception_ecode      <= 6'b0;
             pend_exception_esubcode   <= 9'b0;
@@ -58,6 +66,8 @@ module s2_f2 (
             out_valid                 <= 1'b0;
             out_pc                    <= 32'b0;
             out_inst                  <= 32'h03400000;
+            out_pred_taken            <= 1'b0;
+            out_pred_target           <= 32'b0;
             out_exception_valid       <= 1'b0;
             out_exception_ecode       <= 6'b0;
             out_exception_esubcode    <= 9'b0;
@@ -77,6 +87,8 @@ module s2_f2 (
             if (in_valid && !pend_valid) begin
                 pend_valid                <= 1'b1;
                 pend_pc                   <= in_pc;
+                pend_pred_taken           <= in_pred_taken;
+                pend_pred_target          <= in_pred_target;
                 pend_exception_valid      <= req_exception_valid_w;
                 pend_exception_ecode      <= req_exception_ecode_w;
                 pend_exception_esubcode   <= req_exception_esubcode_w;
@@ -92,6 +104,8 @@ module s2_f2 (
                 out_valid                <= 1'b1;
                 out_pc                   <= pend_pc;
                 out_inst                 <= pend_exception_valid ? 32'h03400000 : icache_resp_data;
+                out_pred_taken           <= pend_pred_taken;
+                out_pred_target          <= pend_pred_target;
                 out_exception_valid      <= pend_exception_valid;
                 out_exception_ecode      <= pend_exception_ecode;
                 out_exception_esubcode   <= pend_exception_esubcode;
