@@ -11,4 +11,37 @@ logs
 vivado_timing
 .Xil
 hs_err_pid*.log
+simu_trace.txt
+uart_output.txt
+*.vcd
+*.fst
+*.v.out
 
+# Chiplab generated outputs
+chiplab/myCPU/*
+chiplab/IP/myCPU/
+chiplab/sims/verilator/run_prog/log/
+chiplab/sims/verilator/run_prog/obj/
+chiplab/sims/verilator/run_prog/obj_dir/
+chiplab/sims/verilator/run_prog/tmp/
+chiplab/sims/verilator/run_prog/tmp_*/
+chiplab/sims/verilator/run_prog/config-software.mak
+chiplab/sims/verilator/run_prog/config-generator.mak
+chiplab/sims/verilator/run_prog/config.log
+chiplab/sims/verilator/run_prog/output
+chiplab/sims/verilator/run_prog/*.log
+chiplab/sims/verilator/run_random/log/
+chiplab/sims/verilator/run_random/config-generator.mak
+chiplab/software/random_res
+chiplab/software/examples/random_res
+chiplab/fpga/nscscc-team/run_vivado/*.dmp
+chiplab/fpga/nscscc-team/run_vivado/*.log
+chiplab/fpga/nscscc-team/run_vivado/*.jou
+chiplab/fpga/nscscc-team/run_vivado/nohup.out
+chiplab/fpga/nscscc-team/run_vivado/project
+chiplab/fpga/nscscc-team/run_vivado/project_synth
+
+# tb_cpp generated outputs
+tb_cpp/obj_dir/
+tb_cpp/obj_dir_sv/
+tb_cpp/output/

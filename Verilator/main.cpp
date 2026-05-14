@@ -12,10 +12,15 @@
 #include "Vverilator_top.h"
 #include "Vverilator_top___024root.h"
 #include "Vverilator_top_verilator_top.h"
+#ifdef CPU_SIM_TRACE
 #include "verilated_fst_c.h"
+#endif
 
+#ifdef CPU_SIM_TRACE
 VerilatedFstC* tfp = new VerilatedFstC;
+#endif
 vluint64_t main_time = 0;
+uint64_t cycle_count = 0;
 Vverilator_top* top = new Vverilator_top;
 
 namespace {
@@ -28,6 +33,7 @@ using difftest_init_t = void (*)();
 using difftest_memcpy_t = void (*)(uint64_t addr, void* buf, size_t n,
                                    bool direction);
 using difftest_exec_t = void (*)(uint64_t n);
+using difftest_raise_intr_t = void (*)(uint64_t no);
 using isa_reg_display_t = void (*)();
 
 static constexpr size_t kRefPcOffset = 0x100;
@@ -40,10 +46,14 @@ struct ShadowState {
 struct CommitInfo {
     bool valid;
     bool wen;
+    bool excp_valid;
+    bool ertn_valid;
     uint32_t pc;
     uint32_t inst;
     uint32_t wnum;
     uint32_t wdata;
+    uint32_t excp_ecode;
+    uint32_t intr_no;
 };
 
 struct DifftestProxy {
@@ -52,6 +62,7 @@ struct DifftestProxy {
     difftest_init_t init = NULL;
     difftest_memcpy_t memcpy = NULL;
     difftest_exec_t exec = NULL;
+    difftest_raise_intr_t raise_intr = NULL;
     uint8_t* cpu = NULL;
     isa_reg_display_t isa_reg_display = NULL;
 
@@ -69,6 +80,7 @@ uint64_t commit_cnt = 0;
 bool verbose_commit = false;
 uint32_t stop_pc = kDefaultStopPc;
 bool difftest_failed = false;
+bool pending_interrupt_entry = false;
 
 static bool try_file(const char* path) {
     return (path != NULL && path[0] != '\0' && access(path, F_OK) == 0);
@@ -156,6 +168,7 @@ static bool init_difftest() {
     if (!must_dlsym((void**)&proxy.init, "difftest_init") ||
         !must_dlsym((void**)&proxy.memcpy, "difftest_memcpy") ||
         !must_dlsym((void**)&proxy.exec, "difftest_exec") ||
+        !must_dlsym((void**)&proxy.raise_intr, "difftest_raise_intr") ||
         !must_dlsym((void**)&proxy.cpu, "cpu")) {
         proxy.close();
         return false;
@@ -196,6 +209,10 @@ static CommitInfo sample_commit() {
     info.wen = (top->rootp->verilator_top->debug_wb_rf_wen == 0xf);
     info.wnum = top->rootp->verilator_top->debug_wb_rf_wnum;
     info.wdata = top->rootp->verilator_top->debug_wb_rf_wdata;
+    info.excp_valid = top->rootp->verilator_top->debug_excp_valid;
+    info.excp_ecode = top->rootp->verilator_top->debug_excp_ecode;
+    info.intr_no = top->rootp->verilator_top->debug_intr_no;
+    info.ertn_valid = top->rootp->verilator_top->debug_ertn_valid;
     return info;
 }
 
@@ -226,6 +243,17 @@ static bool decode_mmio_load_addr(const CommitInfo& c, uint32_t* addr_out) {
     }
     *addr_out = addr;
     return true;
+}
+
+static bool is_rdcnt_inst(uint32_t inst) {
+    uint32_t op_31_26 = (inst >> 26) & 0x3f;
+    uint32_t op_25_22 = (inst >> 22) & 0xf;
+    uint32_t op_21_20 = (inst >> 20) & 0x3;
+    uint32_t op_19_15 = (inst >> 15) & 0x1f;
+    uint32_t rk = (inst >> 10) & 0x1f;
+
+    return op_31_26 == 0x00 && op_25_22 == 0x0 && op_21_20 == 0x0 &&
+           op_19_15 == 0x00 && (rk == 0x18 || rk == 0x19);
 }
 
 static void apply_commit(const CommitInfo& c) {
@@ -310,9 +338,12 @@ static StepResult difftest_step() {
     commit_cnt++;
 
     if (verbose_commit) {
-        printf("[commit %llu] pc=0x%08x inst=0x%08x wen=%u wnum=%u wdata=0x%08x\n",
+        printf("[commit %llu] pc=0x%08x inst=0x%08x wen=%u wnum=%u "
+               "wdata=0x%08x excp=%u ecode=0x%x intr=0x%x ertn=%u\n",
                (unsigned long long)commit_cnt, c.pc, c.inst,
-               c.wen ? 1u : 0u, c.wnum, c.wdata);
+               c.wen ? 1u : 0u, c.wnum, c.wdata,
+               c.excp_valid ? 1u : 0u, c.excp_ecode, c.intr_no,
+               c.ertn_valid ? 1u : 0u);
     }
 
     uint32_t mmio_load_addr = 0;
@@ -320,6 +351,15 @@ static StepResult difftest_step() {
 
     apply_commit(c);
     uint32_t ref_pc_before_exec = ref_pc();
+
+    if (c.excp_valid && c.excp_ecode == 0) {
+        proxy.raise_intr(c.intr_no);
+        pending_interrupt_entry = true;
+        if (verbose_commit) {
+            printf("  sync INT event: intr=0x%03x\n", c.intr_no);
+        }
+        return StepResult::kContinue;
+    }
 
     proxy.exec(1);
 
@@ -331,9 +371,21 @@ static StepResult difftest_step() {
         }
     }
 
-    print_ref_dut_compare(c, ref_pc_before_exec);
+    if (is_rdcnt_inst(c.inst) && c.wen && c.wnum != 0) {
+        reinterpret_cast<uint32_t*>(proxy.cpu)[c.wnum] = c.wdata;
+        if (verbose_commit) {
+            printf("  sync rdcnt: gpr[%u]=0x%08x\n", c.wnum, c.wdata);
+        }
+    }
 
-    if (!compare_with_ref(c, ref_pc_before_exec)) {
+    uint32_t compare_ref_pc = pending_interrupt_entry ? c.pc : ref_pc_before_exec;
+    pending_interrupt_entry = false;
+
+    if (verbose_commit) {
+        print_ref_dut_compare(c, compare_ref_pc);
+    }
+
+    if (!compare_with_ref(c, compare_ref_pc)) {
         return StepResult::kMismatch;
     }
 
@@ -349,13 +401,18 @@ static StepResult difftest_step() {
 void step() {
     top->clk = 0;
     top->eval();
+#ifdef CPU_SIM_TRACE
     tfp->dump(main_time);
+#endif
     main_time++;
 
     top->clk = 1;
     top->eval();
+#ifdef CPU_SIM_TRACE
     tfp->dump(main_time);
+#endif
     main_time++;
+    cycle_count++;
 }
 
 void reset(int n) {
@@ -371,6 +428,8 @@ void stepi() {
 }
 
 void cpu_exec(uint64_t n) {
+    uint64_t exec_start_cycle = cycle_count;
+
     while (n) {
         StepResult result = difftest_step();
         if (result == StepResult::kMismatch) {
@@ -389,10 +448,22 @@ void cpu_exec(uint64_t n) {
         n--;
     }
 
+    uint64_t exec_cycles = cycle_count - exec_start_cycle;
+    double ipc = exec_cycles == 0 ? 0.0 :
+                 (double)commit_cnt / (double)exec_cycles;
+    double cpi = commit_cnt == 0 ? 0.0 :
+                 (double)exec_cycles / (double)commit_cnt;
+
     printf("Committed instructions: %llu\n", (unsigned long long)commit_cnt);
+    printf("Execution cycles: %llu\n", (unsigned long long)exec_cycles);
+    printf("Total cycles: %llu\n", (unsigned long long)cycle_count);
+    printf("IPC: %.6f\n", ipc);
+    printf("CPI: %.6f\n", cpi);
 
     top->final();
+#ifdef CPU_SIM_TRACE
     tfp->close();
+#endif
     proxy.close();
 }
 
@@ -411,10 +482,13 @@ void init_system() {
 }
 
 int main(int argc, char* argv[]) {
+    Verilated::commandArgs(argc, argv);
     init_system();
+#ifdef CPU_SIM_TRACE
     Verilated::traceEverOn(true);
     top->trace(tfp, 99);
-    tfp->open("wave.vcd");
+    tfp->open("wave.fst");
+#endif
     reset(1);
     cpu_exec((uint64_t)-1);
     return difftest_failed ? 1 : 0;
