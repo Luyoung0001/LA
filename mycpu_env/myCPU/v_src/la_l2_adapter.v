@@ -1,0 +1,1 @@
+../../../rtl/la_l2_adapter.v

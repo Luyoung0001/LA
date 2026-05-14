@@ -1,4 +1,4 @@
-module stage0_ifu #(
+module s1_f1 #(
     parameter RESET_PC = 32'h1c000000
 ) (
     input  wire        clk,

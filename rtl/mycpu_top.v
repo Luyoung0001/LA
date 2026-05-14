@@ -1,0 +1,474 @@
+`include "la_core_defs.vh"
+
+module core_top #(
+    parameter TLBNUM = 32,
+    parameter TLB_ENABLE = `LA_TLB_ENABLE,
+    parameter L1I_ENABLE = `LA_L1I_ENABLE,
+    parameter L1D_ENABLE = `LA_L1D_ENABLE,
+    parameter L2_ENABLE = `LA_L2_ENABLE,
+    parameter BPU_ENABLE = `LA_BPU_ENABLE,
+    parameter FETCH_BUFFER_ENABLE = `LA_FETCH_BUFFER_ENABLE,
+    parameter ITCM_ENABLE = `LA_ITCM_ENABLE,
+    parameter CACHE_OP_STRICT_ENABLE = `LA_CACHE_OP_STRICT_ENABLE
+) (
+    input  wire        aclk,
+    input  wire        aresetn,
+    input  wire [7:0]  intrpt,
+
+    output wire [3:0]  arid,
+    output wire [31:0] araddr,
+    output wire [7:0]  arlen,
+    output wire [2:0]  arsize,
+    output wire [1:0]  arburst,
+    output wire [1:0]  arlock,
+    output wire [3:0]  arcache,
+    output wire [2:0]  arprot,
+    output wire        arvalid,
+    input  wire        arready,
+
+    input  wire [3:0]  rid,
+    input  wire [31:0] rdata,
+    input  wire [1:0]  rresp,
+    input  wire        rlast,
+    input  wire        rvalid,
+    output wire        rready,
+
+    output wire [3:0]  awid,
+    output wire [31:0] awaddr,
+    output wire [7:0]  awlen,
+    output wire [2:0]  awsize,
+    output wire [1:0]  awburst,
+    output wire [1:0]  awlock,
+    output wire [3:0]  awcache,
+    output wire [2:0]  awprot,
+    output wire        awvalid,
+    input  wire        awready,
+
+    output wire [3:0]  wid,
+    output wire [31:0] wdata,
+    output wire [3:0]  wstrb,
+    output wire        wlast,
+    output wire        wvalid,
+    input  wire        wready,
+
+    input  wire [3:0]  bid,
+    input  wire [1:0]  bresp,
+    input  wire        bvalid,
+    output wire        bready,
+
+    input  wire        break_point,
+    input  wire        infor_flag,
+    input  wire [4:0]  reg_num,
+    output wire        ws_valid,
+    output wire [31:0] rf_rdata,
+
+    output wire [31:0] debug0_wb_pc,
+    output wire [3:0]  debug0_wb_rf_wen,
+    output wire [4:0]  debug0_wb_rf_wnum,
+    output wire [31:0] debug0_wb_rf_wdata,
+    output wire [31:0] debug0_wb_inst,
+    output wire        debug0_excp_valid,
+    output wire [5:0]  debug0_excp_ecode,
+    output wire [10:0] debug0_intr_no,
+    output wire        debug0_ertn_valid,
+
+    output wire [31:0] debug1_wb_pc,
+    output wire [3:0]  debug1_wb_rf_wen,
+    output wire [4:0]  debug1_wb_rf_wnum,
+    output wire [31:0] debug1_wb_rf_wdata
+);
+
+    wire reset;
+    assign reset = ~aresetn;
+
+    wire unused_inputs;
+    assign unused_inputs = &{1'b0, break_point, infor_flag, TLBNUM[0]};
+
+    reg        issue_busy_r;
+
+    wire ifu_out_valid_w;
+    wire [31:0] ifu_out_pc_w;
+
+    wire i_tlb_query_valid_w;
+    wire i_tlb_query_write_w;
+    wire [31:0] i_tlb_query_vaddr_w;
+    wire [31:0] i_tlb_query_paddr_w;
+    wire i_tlb_exception_valid_w;
+    wire [5:0] i_tlb_exception_ecode_w;
+
+    wire if1_icache_req_valid_w;
+    wire [31:0] if1_icache_req_addr_w;
+    wire if2_icache_resp_valid_w;
+    wire [31:0] if2_icache_resp_data_w;
+    wire ifetch_req_ready_w;
+
+    wire if2_out_valid_w;
+    wire [31:0] if2_out_pc_w;
+    wire [31:0] if2_out_inst_w;
+    wire if2_out_exception_valid_w;
+    wire [5:0] if2_out_exception_ecode_w;
+    wire [8:0] if2_out_exception_esubcode_w;
+    wire if2_out_exception_badv_valid_w;
+    wire [31:0] if2_out_exception_badv_w;
+
+    wire ex_branch_update_valid_w;
+    wire ex_branch_taken_w;
+    wire [31:0] ex_branch_target_w;
+    wire [31:0] ex_branch_pc_w;
+
+    wire mem1_dcache_req_valid_w;
+    wire mem1_dcache_req_write_w;
+    wire [31:0] mem1_dcache_req_addr_w;
+    wire [31:0] mem1_dcache_req_wdata_w;
+    wire [3:0] mem1_dcache_req_wstrb_w;
+    wire dcache_mem_resp_valid_w;
+    wire [31:0] dcache_mem_resp_data_w;
+    wire dmem_req_ready_w;
+
+    wire commit_ws_valid_w;
+    wire [31:0] commit_debug_wb_pc_w;
+    wire [3:0] commit_debug_wb_rf_wen_w;
+    wire [4:0] commit_debug_wb_rf_wnum_w;
+    wire [31:0] commit_debug_wb_rf_wdata_w;
+    wire [31:0] commit_debug_wb_inst_w;
+    wire commit_debug_excp_valid_w;
+    wire [5:0] commit_debug_excp_ecode_w;
+    wire [10:0] commit_debug_intr_no_w;
+    wire commit_debug_ertn_valid_w;
+
+    wire issue_fire_w;
+    wire hold_fetch_w;
+    wire branch_redirect_valid_w;
+    wire [31:0] branch_redirect_pc_w;
+    wire exception_redirect_valid_w;
+    wire [31:0] exception_redirect_pc_w;
+    wire ertn_redirect_valid_w;
+    wire [31:0] ertn_redirect_pc_w;
+    wire refetch_redirect_valid_w;
+    wire [31:0] refetch_redirect_pc_w;
+
+    assign issue_fire_w = ifu_out_valid_w && (~issue_busy_r);
+    // Advance IFU PC only when the current fetch entry is really issued.
+    // This avoids skipping one sequential instruction while issue_busy_r is
+    // being raised in the same cycle.
+    assign hold_fetch_w = ~issue_fire_w;
+
+    redirect_ctrl u_redirect_ctrl (
+        .branch_valid    (ex_branch_update_valid_w),
+        .branch_pc       (ex_branch_pc_w),
+        .branch_taken    (ex_branch_taken_w),
+        .branch_target   (ex_branch_target_w),
+        .exception_valid (exception_redirect_valid_w),
+        .exception_target(exception_redirect_pc_w),
+        .ertn_valid      (ertn_redirect_valid_w),
+        .ertn_target     (ertn_redirect_pc_w),
+        .refetch_valid   (refetch_redirect_valid_w),
+        .refetch_target  (refetch_redirect_pc_w),
+        .redirect_valid  (branch_redirect_valid_w),
+        .redirect_pc     (branch_redirect_pc_w)
+    );
+
+    always @(posedge aclk) begin
+        if (reset) begin
+            issue_busy_r <= 1'b0;
+        end else begin
+            if (issue_fire_w) begin
+                issue_busy_r <= 1'b1;
+            end
+            if (commit_ws_valid_w) begin
+                issue_busy_r <= 1'b0;
+            end
+        end
+    end
+
+    frontend_top #(
+        .RESET_PC(32'h1c000000),
+        .BPU_ENABLE(BPU_ENABLE),
+        .FETCH_BUFFER_ENABLE(FETCH_BUFFER_ENABLE),
+        .ITCM_ENABLE(ITCM_ENABLE),
+        .L1I_ENABLE(L1I_ENABLE)
+    ) u_frontend_top (
+        .clk                 (aclk),
+        .reset               (reset),
+        .hold_fetch          (hold_fetch_w),
+        .redirect_valid      (branch_redirect_valid_w),
+        .redirect_pc         (branch_redirect_pc_w),
+        .branch_update_valid (ex_branch_update_valid_w),
+        .branch_update_taken (ex_branch_taken_w),
+        .branch_update_pc    (ex_branch_pc_w),
+        .branch_update_target(ex_branch_target_w),
+        .i_tlb_query_valid   (i_tlb_query_valid_w),
+        .i_tlb_query_write   (i_tlb_query_write_w),
+        .i_tlb_query_vaddr   (i_tlb_query_vaddr_w),
+        .i_tlb_query_paddr   (i_tlb_query_paddr_w),
+        .i_tlb_exception_valid(i_tlb_exception_valid_w),
+        .i_tlb_exception_ecode(i_tlb_exception_ecode_w),
+        .ifetch_req_valid    (if1_icache_req_valid_w),
+        .ifetch_req_addr     (if1_icache_req_addr_w),
+        .ifetch_req_ready    (ifetch_req_ready_w),
+        .ifetch_resp_valid   (if2_icache_resp_valid_w),
+        .ifetch_resp_data    (if2_icache_resp_data_w),
+        .fetch_valid         (if2_out_valid_w),
+        .fetch_pc            (if2_out_pc_w),
+        .fetch_inst          (if2_out_inst_w),
+        .fetch_exception_valid(if2_out_exception_valid_w),
+        .fetch_exception_ecode(if2_out_exception_ecode_w),
+        .fetch_exception_esubcode(if2_out_exception_esubcode_w),
+        .fetch_exception_badv_valid(if2_out_exception_badv_valid_w),
+        .fetch_exception_badv(if2_out_exception_badv_w),
+        .pc_valid            (ifu_out_valid_w),
+        .pc                  (ifu_out_pc_w)
+    );
+
+    backend_top #(
+        .TLB_ENABLE(TLB_ENABLE),
+        .CACHE_OP_STRICT_ENABLE(CACHE_OP_STRICT_ENABLE)
+    ) u_backend_top (
+        .clk                (aclk),
+        .reset              (reset),
+        .interrupt          (intrpt),
+        .fetch_valid        (if2_out_valid_w),
+        .fetch_pc           (if2_out_pc_w),
+        .fetch_inst         (if2_out_inst_w),
+        .fetch_exception_valid(if2_out_exception_valid_w),
+        .fetch_exception_ecode(if2_out_exception_ecode_w),
+        .fetch_exception_esubcode(if2_out_exception_esubcode_w),
+        .fetch_exception_badv_valid(if2_out_exception_badv_valid_w),
+        .fetch_exception_badv(if2_out_exception_badv_w),
+        .dmem_req_valid     (mem1_dcache_req_valid_w),
+        .dmem_req_write     (mem1_dcache_req_write_w),
+        .dmem_req_addr      (mem1_dcache_req_addr_w),
+        .dmem_req_wdata     (mem1_dcache_req_wdata_w),
+        .dmem_req_wstrb     (mem1_dcache_req_wstrb_w),
+        .dmem_req_ready     (dmem_req_ready_w),
+        .dmem_resp_valid    (dcache_mem_resp_valid_w),
+        .dmem_resp_rdata    (dcache_mem_resp_data_w),
+        .branch_update_valid(ex_branch_update_valid_w),
+        .branch_taken       (ex_branch_taken_w),
+        .branch_pc          (ex_branch_pc_w),
+        .branch_target      (ex_branch_target_w),
+        .exception_redirect_valid(exception_redirect_valid_w),
+        .exception_redirect_pc(exception_redirect_pc_w),
+        .ertn_redirect_valid(ertn_redirect_valid_w),
+        .ertn_redirect_pc   (ertn_redirect_pc_w),
+        .refetch_redirect_valid(refetch_redirect_valid_w),
+        .refetch_redirect_pc(refetch_redirect_pc_w),
+        .i_tlb_query_valid  (i_tlb_query_valid_w),
+        .i_tlb_query_write  (i_tlb_query_write_w),
+        .i_tlb_query_vaddr  (i_tlb_query_vaddr_w),
+        .i_tlb_query_paddr  (i_tlb_query_paddr_w),
+        .i_tlb_exception_valid(i_tlb_exception_valid_w),
+        .i_tlb_exception_ecode(i_tlb_exception_ecode_w),
+        .dbg_reg_num        (reg_num),
+        .dbg_rf_rdata       (rf_rdata),
+        .ws_valid           (commit_ws_valid_w),
+        .debug_wb_pc        (commit_debug_wb_pc_w),
+        .debug_wb_rf_wen    (commit_debug_wb_rf_wen_w),
+        .debug_wb_rf_wnum   (commit_debug_wb_rf_wnum_w),
+        .debug_wb_rf_wdata  (commit_debug_wb_rf_wdata_w),
+        .debug_wb_inst      (commit_debug_wb_inst_w),
+        .debug_excp_valid   (commit_debug_excp_valid_w),
+        .debug_excp_ecode   (commit_debug_excp_ecode_w),
+        .debug_intr_no      (commit_debug_intr_no_w),
+        .debug_ertn_valid   (commit_debug_ertn_valid_w)
+    );
+
+    memsys_top #(
+        .ITCM_ENABLE(ITCM_ENABLE),
+        .L1I_ENABLE(L1I_ENABLE),
+        .L1D_ENABLE(L1D_ENABLE),
+        .L2_ENABLE(L2_ENABLE),
+        .CACHE_OP_STRICT_ENABLE(CACHE_OP_STRICT_ENABLE)
+    ) u_memsys_top (
+        .clk               (aclk),
+        .reset             (reset),
+        .ifetch_flush      (branch_redirect_valid_w),
+
+        .ifetch_req_valid  (if1_icache_req_valid_w),
+        .ifetch_req_addr   (if1_icache_req_addr_w),
+        .ifetch_req_ready  (ifetch_req_ready_w),
+        .ifetch_resp_valid (if2_icache_resp_valid_w),
+        .ifetch_resp_data  (if2_icache_resp_data_w),
+
+        .dmem_req_valid    (mem1_dcache_req_valid_w),
+        .dmem_req_write    (mem1_dcache_req_write_w),
+        .dmem_req_addr     (mem1_dcache_req_addr_w),
+        .dmem_req_wdata    (mem1_dcache_req_wdata_w),
+        .dmem_req_wstrb    (mem1_dcache_req_wstrb_w),
+        .dmem_req_ready    (dmem_req_ready_w),
+        .dmem_resp_valid   (dcache_mem_resp_valid_w),
+        .dmem_resp_rdata   (dcache_mem_resp_data_w),
+
+        .arid              (arid),
+        .araddr            (araddr),
+        .arlen             (arlen),
+        .arsize            (arsize),
+        .arburst           (arburst),
+        .arlock            (arlock),
+        .arcache           (arcache),
+        .arprot            (arprot),
+        .arvalid           (arvalid),
+        .arready           (arready),
+        .rid               (rid),
+        .rdata             (rdata),
+        .rresp             (rresp),
+        .rlast             (rlast),
+        .rvalid            (rvalid),
+        .rready            (rready),
+
+        .awid              (awid),
+        .awaddr            (awaddr),
+        .awlen             (awlen),
+        .awsize            (awsize),
+        .awburst           (awburst),
+        .awlock            (awlock),
+        .awcache           (awcache),
+        .awprot            (awprot),
+        .awvalid           (awvalid),
+        .awready           (awready),
+
+        .wid               (wid),
+        .wdata             (wdata),
+        .wstrb             (wstrb),
+        .wlast             (wlast),
+        .wvalid            (wvalid),
+        .wready            (wready),
+        .bid               (bid),
+        .bresp             (bresp),
+        .bvalid            (bvalid),
+        .bready            (bready)
+    );
+
+    assign ws_valid           = commit_ws_valid_w;
+    assign debug0_wb_pc       = commit_debug_wb_pc_w;
+    assign debug0_wb_rf_wen   = commit_debug_wb_rf_wen_w;
+    assign debug0_wb_rf_wnum  = commit_debug_wb_rf_wnum_w;
+    assign debug0_wb_rf_wdata = commit_debug_wb_rf_wdata_w;
+    assign debug0_wb_inst     = commit_debug_wb_inst_w;
+    assign debug0_excp_valid  = commit_debug_excp_valid_w;
+    assign debug0_excp_ecode  = commit_debug_excp_ecode_w;
+    assign debug0_intr_no     = commit_debug_intr_no_w;
+    assign debug0_ertn_valid  = commit_debug_ertn_valid_w;
+    assign debug1_wb_pc       = 32'b0;
+    assign debug1_wb_rf_wen   = 4'b0;
+    assign debug1_wb_rf_wnum  = 5'b0;
+    assign debug1_wb_rf_wdata = 32'b0;
+
+endmodule
+
+module mycpu_top (
+    input  wire        aclk,
+    input  wire        aresetn,
+    output wire [3:0]  arid,
+    output wire [31:0] araddr,
+    output wire [7:0]  arlen,
+    output wire [2:0]  arsize,
+    output wire [1:0]  arburst,
+    output wire [1:0]  arlock,
+    output wire [3:0]  arcache,
+    output wire [2:0]  arprot,
+    output wire        arvalid,
+    input  wire        arready,
+    input  wire [3:0]  rid,
+    input  wire [31:0] rdata,
+    input  wire [1:0]  rresp,
+    input  wire        rlast,
+    input  wire        rvalid,
+    output wire        rready,
+    output wire [3:0]  awid,
+    output wire [31:0] awaddr,
+    output wire [7:0]  awlen,
+    output wire [2:0]  awsize,
+    output wire [1:0]  awburst,
+    output wire [1:0]  awlock,
+    output wire [3:0]  awcache,
+    output wire [2:0]  awprot,
+    output wire        awvalid,
+    input  wire        awready,
+    output wire [3:0]  wid,
+    output wire [31:0] wdata,
+    output wire [3:0]  wstrb,
+    output wire        wlast,
+    output wire        wvalid,
+    input  wire        wready,
+    input  wire [3:0]  bid,
+    input  wire [1:0]  bresp,
+    input  wire        bvalid,
+    output wire        bready,
+    output wire [31:0] debug_wb_pc,
+    output wire [3:0]  debug_wb_rf_we,
+    output wire [4:0]  debug_wb_rf_wnum,
+    output wire [31:0] debug_wb_rf_wdata,
+    output wire [31:0] debug1_wb_pc,
+    output wire [3:0]  debug1_wb_rf_we,
+    output wire [4:0]  debug1_wb_rf_wnum,
+    output wire [31:0] debug1_wb_rf_wdata
+);
+
+    wire [31:0] debug_wb_inst_unused;
+    wire debug_excp_valid_unused;
+    wire [5:0] debug_excp_ecode_unused;
+    wire [10:0] debug_intr_no_unused;
+    wire debug_ertn_valid_unused;
+
+    core_top u_core_top (
+        .aclk               (aclk),
+        .aresetn            (aresetn),
+        .intrpt             (8'b0),
+        .arid               (arid),
+        .araddr             (araddr),
+        .arlen              (arlen),
+        .arsize             (arsize),
+        .arburst            (arburst),
+        .arlock             (arlock),
+        .arcache            (arcache),
+        .arprot             (arprot),
+        .arvalid            (arvalid),
+        .arready            (arready),
+        .rid                (rid),
+        .rdata              (rdata),
+        .rresp              (rresp),
+        .rlast              (rlast),
+        .rvalid             (rvalid),
+        .rready             (rready),
+        .awid               (awid),
+        .awaddr             (awaddr),
+        .awlen              (awlen),
+        .awsize             (awsize),
+        .awburst            (awburst),
+        .awlock             (awlock),
+        .awcache            (awcache),
+        .awprot             (awprot),
+        .awvalid            (awvalid),
+        .awready            (awready),
+        .wid                (wid),
+        .wdata              (wdata),
+        .wstrb              (wstrb),
+        .wlast              (wlast),
+        .wvalid             (wvalid),
+        .wready             (wready),
+        .bid                (bid),
+        .bresp              (bresp),
+        .bvalid             (bvalid),
+        .bready             (bready),
+        .break_point        (1'b0),
+        .infor_flag         (1'b0),
+        .reg_num            (5'b0),
+        .ws_valid           (),
+        .rf_rdata           (),
+        .debug0_wb_pc       (debug_wb_pc),
+        .debug0_wb_rf_wen   (debug_wb_rf_we),
+        .debug0_wb_rf_wnum  (debug_wb_rf_wnum),
+        .debug0_wb_rf_wdata (debug_wb_rf_wdata),
+        .debug0_wb_inst     (debug_wb_inst_unused),
+        .debug0_excp_valid  (debug_excp_valid_unused),
+        .debug0_excp_ecode  (debug_excp_ecode_unused),
+        .debug0_intr_no     (debug_intr_no_unused),
+        .debug0_ertn_valid  (debug_ertn_valid_unused),
+        .debug1_wb_pc       (debug1_wb_pc),
+        .debug1_wb_rf_wen   (debug1_wb_rf_we),
+        .debug1_wb_rf_wnum  (debug1_wb_rf_wnum),
+        .debug1_wb_rf_wdata (debug1_wb_rf_wdata)
+    );
+
+endmodule

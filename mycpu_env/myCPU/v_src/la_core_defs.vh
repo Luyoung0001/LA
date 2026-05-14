@@ -1,0 +1,1 @@
+../../../rtl/la_core_defs.vh
