@@ -96,6 +96,7 @@ module fetch_buffer #(
 
     wire empty  = (count_q == 0);
     wire full   = (count_q == DEPTH);
+    wire active_w = rst_n && !flush;
 
     wire wr_epoch_match_w = (wr_epoch_i == current_epoch_i);
     wire stored_head_epoch_match_w = (buf_epoch[rd_ptr_q] == current_epoch_i);
@@ -109,10 +110,10 @@ module fetch_buffer #(
         empty && wr_valid_i && wr_epoch_match_w && skip_epoch_match_w &&
         (wr_epoch_i == skip_epoch_q) && (wr_pc_i == skip_pc_q);
     wire stale_head_w = !empty && !stored_head_epoch_match_w;
-    wire do_rd      = (rd_allowin_i || stale_head_w || stored_head_skip_w) && !empty;
-    wire bypass_w   = empty && wr_valid_i && wr_epoch_match_w && !wr_skip_w;
+    wire do_rd      = active_w && (rd_allowin_i || stale_head_w || stored_head_skip_w) && !empty;
+    wire bypass_w   = active_w && empty && wr_valid_i && wr_epoch_match_w && !wr_skip_w;
     wire do_bypass  = bypass_w && rd_allowin_i;
-    wire do_wr = wr_valid_i && wr_epoch_match_w && not_full_o && !do_bypass && !wr_skip_w;
+    wire do_wr = active_w && wr_valid_i && wr_epoch_match_w && not_full_o && !do_bypass && !wr_skip_w;
     wire rd_real_accept_w = rd_allowin_i && rd_valid_o;
     wire rd_consumes_slot1_w = dual_slot_consume_i && rd_real_accept_w && rd_slot1_valid_o;
     wire rd_misses_pending_skip_w =
@@ -120,8 +121,8 @@ module fetch_buffer #(
         !((rd_epoch_o == skip_epoch_q) && (rd_pc_o == skip_pc_q));
 
     // 满 FIFO 如果本拍同时读出，就可以接受一个新写入，避免多打一拍反压。
-    assign not_full_o = !full || do_rd;
-    assign rd_valid_o = (!empty && stored_head_epoch_match_w && !stored_head_skip_w) || bypass_w;
+    assign not_full_o = !active_w || !full || do_rd;
+    assign rd_valid_o = active_w && ((!empty && stored_head_epoch_match_w && !stored_head_skip_w) || bypass_w);
     assign wr_fire_o  = do_wr;
     assign rd_fire_o  = do_rd;
     assign bypass_o   = do_bypass;

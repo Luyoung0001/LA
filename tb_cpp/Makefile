@@ -42,6 +42,7 @@ TESTS := \
 	cpu_regfile_tb \
 	cpu_tlb_tb \
 	fetch_buffer_tb \
+	la_fetch_buffer_adapter_tb \
 	frontend_icache_request_boundary_tb \
 	frontend_lookup_packet_tb \
 	frontend_lookup_request_boundary_tb \
@@ -361,6 +362,7 @@ SRC_cpu_regfile_2w_tb         := $(RTL_DIR)/cpu_regfile_2w.v
 SRC_cpu_regfile_tb            := $(SIM_DIR)/ramb36e1_model.v $(RTL_DIR)/cpu_regfile.v
 SRC_cpu_tlb_tb                := $(RTL_DIR)/cpu_tlb.v
 SRC_fetch_buffer_tb           := $(RTL_DIR)/fetch_buffer.v
+SRC_la_fetch_buffer_adapter_tb := $(RTL_DIR)/fetch_buffer.v $(RTL_DIR)/la_fetch_buffer_adapter.v
 SRC_frontend_icache_request_boundary_tb := $(RTL_DIR)/frontend_icache_request_boundary.v
 SRC_frontend_lookup_packet_tb := $(RTL_DIR)/frontend_lookup_packet.v
 SRC_frontend_lookup_request_boundary_tb := $(RTL_DIR)/frontend_lookup_request_boundary.v
