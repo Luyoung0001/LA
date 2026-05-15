@@ -1,6 +1,7 @@
 module icache_stub (
     input  wire        clk,
     input  wire        reset,
+    input  wire        flush,
     input  wire        req_valid,
     input  wire [31:0] req_addr,
     output wire        req_ready,
@@ -15,12 +16,14 @@ module icache_stub (
 );
 
     reg waiting_resp;
+    reg drop_resp;
 
-    assign req_ready = ~axi_req_valid & ~waiting_resp;
+    assign req_ready = ~axi_req_valid & ~waiting_resp & ~drop_resp;
 
     always @(posedge clk) begin
         if (reset) begin
             waiting_resp <= 1'b0;
+            drop_resp    <= 1'b0;
             resp_valid   <= 1'b0;
             resp_data    <= 32'b0;
             axi_req_valid <= 1'b0;
@@ -28,21 +31,33 @@ module icache_stub (
         end else begin
             resp_valid <= 1'b0;
 
-            // Accept one outstanding fetch request and forward to AXI.
-            if (req_valid && req_ready) begin
-                axi_req_valid <= 1'b1;
-                axi_req_addr  <= req_addr;
-            end
-
-            if (axi_req_valid && axi_req_ready) begin
+            if (flush) begin
                 axi_req_valid <= 1'b0;
-                waiting_resp  <= 1'b1;
-            end
+                waiting_resp  <= 1'b0;
+                drop_resp     <= (drop_resp && !axi_resp_valid) ||
+                                 (waiting_resp && !axi_resp_valid) ||
+                                 (axi_req_valid && axi_req_ready);
+            end else if (drop_resp) begin
+                if (axi_resp_valid) begin
+                    drop_resp <= 1'b0;
+                end
+            end else begin
+            // Accept one outstanding fetch request and forward to AXI.
+                if (req_valid && req_ready) begin
+                    axi_req_valid <= 1'b1;
+                    axi_req_addr  <= req_addr;
+                end
 
-            if (waiting_resp && axi_resp_valid) begin
-                waiting_resp <= 1'b0;
-                resp_valid   <= 1'b1;
-                resp_data    <= axi_resp_data;
+                if (axi_req_valid && axi_req_ready) begin
+                    axi_req_valid <= 1'b0;
+                    waiting_resp  <= 1'b1;
+                end
+
+                if (waiting_resp && axi_resp_valid) begin
+                    waiting_resp <= 1'b0;
+                    resp_valid   <= 1'b1;
+                    resp_data    <= axi_resp_data;
+                end
             end
         end
     end

@@ -87,7 +87,7 @@ module la_l1i_adapter (
     reg [31:0] pend_req_addr_r;
     wire       icache_req_ready_w;
 
-    assign req_ready = 1'b1;
+    assign req_ready = !pend_req_valid_r || icache_req_ready_w;
     wire       cache_req_valid_w = pend_req_valid_r;
     wire [31:0] cache_req_addr_w = pend_req_addr_r;
 

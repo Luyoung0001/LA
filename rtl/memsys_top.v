@@ -92,7 +92,6 @@ module memsys_top #(
     wire        icache_axi_req_ready_w;
     wire        icache_axi_resp_valid_w;
     wire [31:0] icache_axi_resp_data_w;
-    reg         icache_axi_req_ready_r;
     reg         icache_axi_resp_valid_r;
     reg  [31:0] icache_axi_resp_data_r;
 
@@ -104,7 +103,6 @@ module memsys_top #(
     wire        dcache_axi_req_ready_w;
     wire        dcache_axi_resp_valid_w;
     wire [31:0] dcache_axi_resp_data_w;
-    reg         dcache_axi_req_ready_r;
     reg         dcache_axi_resp_valid_r;
     reg  [31:0] dcache_axi_resp_data_r;
 
@@ -196,6 +194,7 @@ module memsys_top #(
             icache_stub u_icache_stub (
                 .clk           (clk),
                 .reset         (reset),
+                .flush         (ifetch_flush),
                 .req_valid     (ifetch_req_valid),
                 .req_addr      (ifetch_req_addr),
                 .req_ready     (ifetch_req_ready),
@@ -257,14 +256,15 @@ module memsys_top #(
     endgenerate
 
     assign icache_axi_req_ready_w  =
-        (L2_ENABLE != 0) ? l2_icache_req_ready_w : icache_axi_req_ready_r;
+        (L2_ENABLE != 0) ? l2_icache_req_ready_w : (axi_state_r == AXI_IDLE);
     assign icache_axi_resp_valid_w =
         (L2_ENABLE != 0) ? l2_icache_resp_valid_w : icache_axi_resp_valid_r;
     assign icache_axi_resp_data_w  =
         (L2_ENABLE != 0) ? l2_icache_resp_data_w : icache_axi_resp_data_r;
 
     assign dcache_axi_req_ready_w  =
-        (L2_ENABLE != 0) ? l2_dcache_req_ready_w : dcache_axi_req_ready_r;
+        (L2_ENABLE != 0) ? l2_dcache_req_ready_w :
+                           ((axi_state_r == AXI_IDLE) && !icache_axi_req_valid_w);
     assign dcache_axi_resp_valid_w =
         (L2_ENABLE != 0) ? l2_dcache_resp_valid_w : dcache_axi_resp_valid_r;
     assign dcache_axi_resp_data_w  =
@@ -425,16 +425,12 @@ module memsys_top #(
             dwr_wdata_r <= 32'b0;
             dwr_wstrb_r <= 4'b0;
 
-            icache_axi_req_ready_r  <= 1'b0;
             icache_axi_resp_valid_r <= 1'b0;
             icache_axi_resp_data_r  <= 32'b0;
-            dcache_axi_req_ready_r  <= 1'b0;
             dcache_axi_resp_valid_r <= 1'b0;
             dcache_axi_resp_data_r  <= 32'b0;
         end else begin
-            icache_axi_req_ready_r  <= 1'b0;
             icache_axi_resp_valid_r <= 1'b0;
-            dcache_axi_req_ready_r  <= 1'b0;
             dcache_axi_resp_valid_r <= 1'b0;
 
             case (axi_state_r)
@@ -489,7 +485,6 @@ module memsys_top #(
                     if (arvalid_r && arready) begin
                         arvalid_r <= 1'b0;
                         rready_r  <= 1'b1;
-                        icache_axi_req_ready_r <= 1'b1;
                         axi_state_r <= AXI_I_R;
                     end
                 end
@@ -507,7 +502,6 @@ module memsys_top #(
                     if (arvalid_r && arready) begin
                         arvalid_r <= 1'b0;
                         rready_r  <= 1'b1;
-                        dcache_axi_req_ready_r <= 1'b1;
                         axi_state_r <= AXI_D_R;
                     end
                 end
@@ -524,8 +518,6 @@ module memsys_top #(
                 AXI_D_AW: begin
                     if (awvalid_r && awready) begin
                         awvalid_r <= 1'b0;
-                        dcache_axi_req_ready_r <= 1'b1;
-
                         wid_r    <= 4'h1;
                         wdata_r  <= dwr_wdata_r;
                         wstrb_r  <= dwr_wstrb_r;
