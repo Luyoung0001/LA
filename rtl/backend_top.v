@@ -176,6 +176,7 @@ module backend_top #(
     wire mem1_is_syscall_w;
     wire mem1_is_break_w;
     wire mem1_is_ertn_w;
+    wire mem1_is_tlbsrch_w;
     wire mem1_is_tlbrd_w;
     wire mem1_is_tlbwr_w;
     wire mem1_is_tlbfill_w;
@@ -391,6 +392,13 @@ module backend_top #(
                             (mem1_out_inst_w[14:10] == 5'h0e) &&
                             (mem1_out_inst_w[9:5] == 5'h00) &&
                             (mem1_out_inst_w[4:0] == 5'h00);
+    assign mem1_is_tlbsrch_w = (mem1_out_inst_w[31:26] == 6'h01) &&
+                               (mem1_out_inst_w[25:22] == 4'h9) &&
+                               (mem1_out_inst_w[21:20] == 2'h0) &&
+                               (mem1_out_inst_w[19:15] == 5'h10) &&
+                               (mem1_out_inst_w[14:10] == 5'h0a) &&
+                               (mem1_out_inst_w[9:5] == 5'h00) &&
+                               (mem1_out_inst_w[4:0] == 5'h00);
     assign mem1_is_tlbrd_w = (mem1_out_inst_w[31:26] == 6'h01) &&
                              (mem1_out_inst_w[25:22] == 4'h9) &&
                              (mem1_out_inst_w[21:20] == 2'h0) &&
@@ -438,7 +446,8 @@ module backend_top #(
     assign exception_redirect_pc = csr_exception_entry_w;
     assign ertn_redirect_valid = mem1_out_valid_w && mem1_is_ertn_w;
     assign ertn_redirect_pc = csr_ertn_pc_w;
-    assign mem1_needs_refetch_w = mem1_out_csr_we_w || mem1_is_tlbrd_w ||
+    assign mem1_needs_refetch_w = mem1_out_csr_we_w || mem1_is_tlbsrch_w ||
+                                  mem1_is_tlbrd_w ||
                                   mem1_is_tlbwr_w || mem1_is_tlbfill_w ||
                                   mem1_is_invtlb_w || mem1_is_ibar_w ||
                                   mem1_is_icacop_w;
