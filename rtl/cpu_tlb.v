@@ -82,6 +82,13 @@ module cpu_tlb (
     reg        i_tlb_req_pg_mode_r;
     reg [31:0] i_tlb_req_dmw0_r;
     reg [31:0] i_tlb_req_dmw1_r;
+    reg        i_tlb_match_valid_r;
+    reg [31:0] i_tlb_match_vaddr_r;
+    reg [1:0]  i_tlb_match_req_plv_r;
+    reg        i_tlb_match_translate_r;
+    reg [31:0] i_tlb_match_dmw_paddr_r;
+    reg        i_tlb_match_found_r;
+    reg [4:0]  i_tlb_match_index_r;
     reg        i_tlb_xlate_valid_r;
     reg [31:0] i_tlb_xlate_vaddr_r;
     reg [1:0]  i_tlb_xlate_req_plv_r;
@@ -102,6 +109,14 @@ module cpu_tlb (
     reg        d_tlb_req_pg_mode_r;
     reg [31:0] d_tlb_req_dmw0_r;
     reg [31:0] d_tlb_req_dmw1_r;
+    reg        d_tlb_match_valid_r;
+    reg        d_tlb_match_write_r;
+    reg [31:0] d_tlb_match_vaddr_r;
+    reg [1:0]  d_tlb_match_req_plv_r;
+    reg        d_tlb_match_translate_r;
+    reg [31:0] d_tlb_match_dmw_paddr_r;
+    reg        d_tlb_match_found_r;
+    reg [4:0]  d_tlb_match_index_r;
     reg        d_tlb_xlate_valid_r;
     reg        d_tlb_xlate_write_r;
     reg [31:0] d_tlb_xlate_vaddr_r;
@@ -135,6 +150,8 @@ module cpu_tlb (
     wire [31:0] i_tlb_query_paddr_w;
     wire        i_tlb_exception_valid_w;
     wire [5:0]  i_tlb_exception_ecode_w;
+    wire        i_tlb_fast_direct_w;
+    wire        i_tlb_match_stage_valid_w;
 
     wire        d_dmw0_hit;
     wire        d_dmw1_hit;
@@ -150,6 +167,8 @@ module cpu_tlb (
     wire [31:0] d_tlb_query_paddr_w;
     wire        d_tlb_exception_valid_w;
     wire [5:0]  d_tlb_exception_ecode_w;
+    wire        d_tlb_fast_direct_w;
+    wire        d_tlb_match_stage_valid_w;
 
     assign pg_mode = !csr_crmd[3] && csr_crmd[4];
     assign tlb_write_index = commit_tlbfill ? 5'b0 : csr_tlbidx[4:0];
@@ -195,11 +214,11 @@ module cpu_tlb (
                           (i_tlb_req_dmw1_r[3] && (i_tlb_req_plv_r == 2'd3))) &&
                          (i_tlb_req_vaddr_r[31:29] == i_tlb_req_dmw1_r[31:29]));
     assign i_tlb_translate = i_tlb_req_valid_r && i_tlb_req_pg_mode_r && !i_dmw0_hit && !i_dmw1_hit;
-    assign i_tlb_ps = tlb_ps[i_tlb_index_r];
-    assign i_tlb_odd_page = (i_tlb_ps == 6'd12) ? i_tlb_req_vaddr_r[12] : i_tlb_req_vaddr_r[21];
-    assign i_tlb_ppn = i_tlb_odd_page ? tlb_ppn1[i_tlb_index_r] : tlb_ppn0[i_tlb_index_r];
-    assign i_tlb_v   = i_tlb_odd_page ? tlb_v1[i_tlb_index_r]   : tlb_v0[i_tlb_index_r];
-    assign i_tlb_plv = i_tlb_odd_page ? tlb_plv1[i_tlb_index_r] : tlb_plv0[i_tlb_index_r];
+    assign i_tlb_ps = tlb_ps[i_tlb_match_index_r];
+    assign i_tlb_odd_page = (i_tlb_ps == 6'd12) ? i_tlb_match_vaddr_r[12] : i_tlb_match_vaddr_r[21];
+    assign i_tlb_ppn = i_tlb_odd_page ? tlb_ppn1[i_tlb_match_index_r] : tlb_ppn0[i_tlb_match_index_r];
+    assign i_tlb_v   = i_tlb_odd_page ? tlb_v1[i_tlb_match_index_r]   : tlb_v0[i_tlb_match_index_r];
+    assign i_tlb_plv = i_tlb_odd_page ? tlb_plv1[i_tlb_match_index_r] : tlb_plv0[i_tlb_match_index_r];
     assign i_tlb_trans_paddr = (i_tlb_xlate_ps_r == 6'd12) ?
                                {i_tlb_xlate_ppn_r, i_tlb_xlate_vaddr_r[11:0]} :
                                {i_tlb_xlate_ppn_r[19:10], i_tlb_xlate_vaddr_r[21:0]};
@@ -214,6 +233,10 @@ module cpu_tlb (
     assign i_tlb_exception_ecode_w = !i_tlb_xlate_found_r ? 6'h3f :
                                      !i_tlb_xlate_v_r ? 6'h03 :
                                      6'h07;
+    assign i_tlb_fast_direct_w = i_tlb_req_valid_r &&
+                                 !i_tlb_req_pg_mode_r &&
+                                 !i_tlb_match_valid_r;
+    assign i_tlb_match_stage_valid_w = i_tlb_req_valid_r && !i_tlb_fast_direct_w;
 
     always @(*) begin
         i_tlb_found_r = 1'b0;
@@ -239,12 +262,12 @@ module cpu_tlb (
                           (d_tlb_req_dmw1_r[3] && (d_tlb_req_plv_r == 2'd3))) &&
                          (d_tlb_req_vaddr_r[31:29] == d_tlb_req_dmw1_r[31:29]));
     assign d_tlb_translate = d_tlb_req_valid_r && d_tlb_req_pg_mode_r && !d_dmw0_hit && !d_dmw1_hit;
-    assign d_tlb_ps = tlb_ps[d_tlb_index_r];
-    assign d_tlb_odd_page = (d_tlb_ps == 6'd12) ? d_tlb_req_vaddr_r[12] : d_tlb_req_vaddr_r[21];
-    assign d_tlb_ppn = d_tlb_odd_page ? tlb_ppn1[d_tlb_index_r] : tlb_ppn0[d_tlb_index_r];
-    assign d_tlb_v   = d_tlb_odd_page ? tlb_v1[d_tlb_index_r]   : tlb_v0[d_tlb_index_r];
-    assign d_tlb_d   = d_tlb_odd_page ? tlb_d1[d_tlb_index_r]   : tlb_d0[d_tlb_index_r];
-    assign d_tlb_plv = d_tlb_odd_page ? tlb_plv1[d_tlb_index_r] : tlb_plv0[d_tlb_index_r];
+    assign d_tlb_ps = tlb_ps[d_tlb_match_index_r];
+    assign d_tlb_odd_page = (d_tlb_ps == 6'd12) ? d_tlb_match_vaddr_r[12] : d_tlb_match_vaddr_r[21];
+    assign d_tlb_ppn = d_tlb_odd_page ? tlb_ppn1[d_tlb_match_index_r] : tlb_ppn0[d_tlb_match_index_r];
+    assign d_tlb_v   = d_tlb_odd_page ? tlb_v1[d_tlb_match_index_r]   : tlb_v0[d_tlb_match_index_r];
+    assign d_tlb_d   = d_tlb_odd_page ? tlb_d1[d_tlb_match_index_r]   : tlb_d0[d_tlb_match_index_r];
+    assign d_tlb_plv = d_tlb_odd_page ? tlb_plv1[d_tlb_match_index_r] : tlb_plv0[d_tlb_match_index_r];
     assign d_tlb_trans_paddr = (d_tlb_xlate_ps_r == 6'd12) ?
                                {d_tlb_xlate_ppn_r, d_tlb_xlate_vaddr_r[11:0]} :
                                {d_tlb_xlate_ppn_r[19:10], d_tlb_xlate_vaddr_r[21:0]};
@@ -261,6 +284,10 @@ module cpu_tlb (
                                      !d_tlb_xlate_v_r ? (d_tlb_xlate_write_r ? 6'h02 : 6'h01) :
                                      (d_tlb_xlate_req_plv_r > d_tlb_xlate_plv_r) ? 6'h07 :
                                      6'h04;
+    assign d_tlb_fast_direct_w = d_tlb_req_valid_r &&
+                                 !d_tlb_req_pg_mode_r &&
+                                 !d_tlb_match_valid_r;
+    assign d_tlb_match_stage_valid_w = d_tlb_req_valid_r && !d_tlb_fast_direct_w;
 
     always @(*) begin
         d_tlb_found_r = 1'b0;
@@ -291,6 +318,13 @@ module cpu_tlb (
             i_tlb_req_pg_mode_r   <= 1'b0;
             i_tlb_req_dmw0_r      <= 32'b0;
             i_tlb_req_dmw1_r      <= 32'b0;
+            i_tlb_match_valid_r   <= 1'b0;
+            i_tlb_match_vaddr_r   <= 32'b0;
+            i_tlb_match_req_plv_r <= 2'b0;
+            i_tlb_match_translate_r <= 1'b0;
+            i_tlb_match_dmw_paddr_r <= 32'b0;
+            i_tlb_match_found_r   <= 1'b0;
+            i_tlb_match_index_r   <= 5'b0;
             i_tlb_xlate_valid_r   <= 1'b0;
             i_tlb_xlate_vaddr_r   <= 32'b0;
             i_tlb_xlate_req_plv_r <= 2'b0;
@@ -309,6 +343,14 @@ module cpu_tlb (
             d_tlb_req_pg_mode_r   <= 1'b0;
             d_tlb_req_dmw0_r      <= 32'b0;
             d_tlb_req_dmw1_r      <= 32'b0;
+            d_tlb_match_valid_r   <= 1'b0;
+            d_tlb_match_write_r   <= 1'b0;
+            d_tlb_match_vaddr_r   <= 32'b0;
+            d_tlb_match_req_plv_r <= 2'b0;
+            d_tlb_match_translate_r <= 1'b0;
+            d_tlb_match_dmw_paddr_r <= 32'b0;
+            d_tlb_match_found_r   <= 1'b0;
+            d_tlb_match_index_r   <= 5'b0;
             d_tlb_xlate_valid_r   <= 1'b0;
             d_tlb_xlate_write_r   <= 1'b0;
             d_tlb_xlate_vaddr_r   <= 32'b0;
@@ -352,16 +394,37 @@ module cpu_tlb (
             i_tlb_req_dmw0_r      <= csr_dmw0;
             i_tlb_req_dmw1_r      <= csr_dmw1;
 
-            i_tlb_xlate_valid_r     <= i_tlb_req_valid_r;
-            i_tlb_xlate_vaddr_r     <= i_tlb_req_vaddr_r;
-            i_tlb_xlate_req_plv_r   <= i_tlb_req_plv_r;
-            i_tlb_xlate_translate_r <= i_tlb_translate;
-            i_tlb_xlate_dmw_paddr_r <= i_dmw_paddr;
-            i_tlb_xlate_found_r     <= i_tlb_found_r;
-            i_tlb_xlate_ps_r        <= i_tlb_ps;
-            i_tlb_xlate_ppn_r       <= i_tlb_ppn;
-            i_tlb_xlate_v_r         <= i_tlb_v;
-            i_tlb_xlate_plv_r       <= i_tlb_plv;
+            i_tlb_match_valid_r     <= i_tlb_match_stage_valid_w;
+            i_tlb_match_vaddr_r     <= i_tlb_req_vaddr_r;
+            i_tlb_match_req_plv_r   <= i_tlb_req_plv_r;
+            i_tlb_match_translate_r <= i_tlb_translate;
+            i_tlb_match_dmw_paddr_r <= i_dmw_paddr;
+            i_tlb_match_found_r     <= i_tlb_found_r;
+            i_tlb_match_index_r     <= i_tlb_index_r;
+
+            if (i_tlb_fast_direct_w) begin
+                i_tlb_xlate_valid_r     <= 1'b1;
+                i_tlb_xlate_vaddr_r     <= i_tlb_req_vaddr_r;
+                i_tlb_xlate_req_plv_r   <= i_tlb_req_plv_r;
+                i_tlb_xlate_translate_r <= 1'b0;
+                i_tlb_xlate_dmw_paddr_r <= i_dmw_paddr;
+                i_tlb_xlate_found_r     <= 1'b0;
+                i_tlb_xlate_ps_r        <= 6'b0;
+                i_tlb_xlate_ppn_r       <= 20'b0;
+                i_tlb_xlate_v_r         <= 1'b0;
+                i_tlb_xlate_plv_r       <= 2'b0;
+            end else begin
+                i_tlb_xlate_valid_r     <= i_tlb_match_valid_r;
+                i_tlb_xlate_vaddr_r     <= i_tlb_match_vaddr_r;
+                i_tlb_xlate_req_plv_r   <= i_tlb_match_req_plv_r;
+                i_tlb_xlate_translate_r <= i_tlb_match_translate_r;
+                i_tlb_xlate_dmw_paddr_r <= i_tlb_match_dmw_paddr_r;
+                i_tlb_xlate_found_r     <= i_tlb_match_found_r;
+                i_tlb_xlate_ps_r        <= i_tlb_ps;
+                i_tlb_xlate_ppn_r       <= i_tlb_ppn;
+                i_tlb_xlate_v_r         <= i_tlb_v;
+                i_tlb_xlate_plv_r       <= i_tlb_plv;
+            end
 
             i_tlb_resp_valid      <= i_tlb_xlate_valid_r;
             i_tlb_resp_vaddr      <= i_tlb_xlate_vaddr_r;
@@ -378,18 +441,42 @@ module cpu_tlb (
             d_tlb_req_dmw0_r      <= csr_dmw0;
             d_tlb_req_dmw1_r      <= csr_dmw1;
 
-            d_tlb_xlate_valid_r     <= d_tlb_req_valid_r;
-            d_tlb_xlate_write_r     <= d_tlb_req_write_r;
-            d_tlb_xlate_vaddr_r     <= d_tlb_req_vaddr_r;
-            d_tlb_xlate_req_plv_r   <= d_tlb_req_plv_r;
-            d_tlb_xlate_translate_r <= d_tlb_translate;
-            d_tlb_xlate_dmw_paddr_r <= d_dmw_paddr;
-            d_tlb_xlate_found_r     <= d_tlb_found_r;
-            d_tlb_xlate_ps_r        <= d_tlb_ps;
-            d_tlb_xlate_ppn_r       <= d_tlb_ppn;
-            d_tlb_xlate_v_r         <= d_tlb_v;
-            d_tlb_xlate_d_r         <= d_tlb_d;
-            d_tlb_xlate_plv_r       <= d_tlb_plv;
+            d_tlb_match_valid_r     <= d_tlb_match_stage_valid_w;
+            d_tlb_match_write_r     <= d_tlb_req_write_r;
+            d_tlb_match_vaddr_r     <= d_tlb_req_vaddr_r;
+            d_tlb_match_req_plv_r   <= d_tlb_req_plv_r;
+            d_tlb_match_translate_r <= d_tlb_translate;
+            d_tlb_match_dmw_paddr_r <= d_dmw_paddr;
+            d_tlb_match_found_r     <= d_tlb_found_r;
+            d_tlb_match_index_r     <= d_tlb_index_r;
+
+            if (d_tlb_fast_direct_w) begin
+                d_tlb_xlate_valid_r     <= 1'b1;
+                d_tlb_xlate_write_r     <= d_tlb_req_write_r;
+                d_tlb_xlate_vaddr_r     <= d_tlb_req_vaddr_r;
+                d_tlb_xlate_req_plv_r   <= d_tlb_req_plv_r;
+                d_tlb_xlate_translate_r <= 1'b0;
+                d_tlb_xlate_dmw_paddr_r <= d_dmw_paddr;
+                d_tlb_xlate_found_r     <= 1'b0;
+                d_tlb_xlate_ps_r        <= 6'b0;
+                d_tlb_xlate_ppn_r       <= 20'b0;
+                d_tlb_xlate_v_r         <= 1'b0;
+                d_tlb_xlate_d_r         <= 1'b0;
+                d_tlb_xlate_plv_r       <= 2'b0;
+            end else begin
+                d_tlb_xlate_valid_r     <= d_tlb_match_valid_r;
+                d_tlb_xlate_write_r     <= d_tlb_match_write_r;
+                d_tlb_xlate_vaddr_r     <= d_tlb_match_vaddr_r;
+                d_tlb_xlate_req_plv_r   <= d_tlb_match_req_plv_r;
+                d_tlb_xlate_translate_r <= d_tlb_match_translate_r;
+                d_tlb_xlate_dmw_paddr_r <= d_tlb_match_dmw_paddr_r;
+                d_tlb_xlate_found_r     <= d_tlb_match_found_r;
+                d_tlb_xlate_ps_r        <= d_tlb_ps;
+                d_tlb_xlate_ppn_r       <= d_tlb_ppn;
+                d_tlb_xlate_v_r         <= d_tlb_v;
+                d_tlb_xlate_d_r         <= d_tlb_d;
+                d_tlb_xlate_plv_r       <= d_tlb_plv;
+            end
 
             d_tlb_resp_valid      <= d_tlb_xlate_valid_r;
             d_tlb_resp_vaddr      <= d_tlb_xlate_vaddr_r;
