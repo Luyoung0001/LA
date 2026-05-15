@@ -90,9 +90,31 @@ struct BpuPerfCounters {
     uint64_t pred_taken = 0;
     uint64_t actual_taken = 0;
     uint64_t correct = 0;
+    uint64_t branch_correct = 0;
+    uint64_t jump_correct = 0;
     uint64_t direction_miss = 0;
     uint64_t target_miss = 0;
     uint64_t exu_flush = 0;
+    uint64_t branch_direction_miss = 0;
+    uint64_t jump_direction_miss = 0;
+    uint64_t branch_target_miss = 0;
+    uint64_t jump_target_miss = 0;
+    uint64_t direct_jump = 0;
+    uint64_t jirl = 0;
+    uint64_t ret_jirl = 0;
+    uint64_t indirect_jirl = 0;
+    uint64_t direct_jump_correct = 0;
+    uint64_t jirl_correct = 0;
+    uint64_t ret_jirl_correct = 0;
+    uint64_t indirect_jirl_correct = 0;
+    uint64_t direct_jump_direction_miss = 0;
+    uint64_t jirl_direction_miss = 0;
+    uint64_t ret_jirl_direction_miss = 0;
+    uint64_t indirect_jirl_direction_miss = 0;
+    uint64_t direct_jump_target_miss = 0;
+    uint64_t jirl_target_miss = 0;
+    uint64_t ret_jirl_target_miss = 0;
+    uint64_t indirect_jirl_target_miss = 0;
 };
 
 BpuPerfCounters bpu_perf = {};
@@ -106,27 +128,55 @@ static void sample_bpu_perf() {
     bpu_perf.resolve++;
     if (vt->bpu_perf_is_branch) {
         bpu_perf.branch++;
+        if (vt->bpu_perf_correct) bpu_perf.branch_correct++;
+        if (vt->bpu_perf_direction_miss) bpu_perf.branch_direction_miss++;
+        if (vt->bpu_perf_target_miss) bpu_perf.branch_target_miss++;
     }
     if (vt->bpu_perf_is_jump) {
         bpu_perf.jump++;
+        if (vt->bpu_perf_correct) bpu_perf.jump_correct++;
+        if (vt->bpu_perf_direction_miss) bpu_perf.jump_direction_miss++;
+        if (vt->bpu_perf_target_miss) bpu_perf.jump_target_miss++;
     }
-    if (vt->bpu_perf_pred_taken) {
-        bpu_perf.pred_taken++;
+    if (vt->bpu_perf_is_direct_jump) {
+        bpu_perf.direct_jump++;
+        if (vt->bpu_perf_correct) bpu_perf.direct_jump_correct++;
+        if (vt->bpu_perf_direction_miss) bpu_perf.direct_jump_direction_miss++;
+        if (vt->bpu_perf_target_miss) bpu_perf.direct_jump_target_miss++;
     }
-    if (vt->bpu_perf_actual_taken) {
-        bpu_perf.actual_taken++;
+    if (vt->bpu_perf_is_jirl) {
+        bpu_perf.jirl++;
+        if (vt->bpu_perf_correct) bpu_perf.jirl_correct++;
+        if (vt->bpu_perf_direction_miss) bpu_perf.jirl_direction_miss++;
+        if (vt->bpu_perf_target_miss) bpu_perf.jirl_target_miss++;
     }
-    if (vt->bpu_perf_correct) {
-        bpu_perf.correct++;
+    if (vt->bpu_perf_is_ret_jirl) {
+        bpu_perf.ret_jirl++;
+        if (vt->bpu_perf_correct) bpu_perf.ret_jirl_correct++;
+        if (vt->bpu_perf_direction_miss) bpu_perf.ret_jirl_direction_miss++;
+        if (vt->bpu_perf_target_miss) bpu_perf.ret_jirl_target_miss++;
     }
-    if (vt->bpu_perf_direction_miss) {
-        bpu_perf.direction_miss++;
+    if (vt->bpu_perf_is_indirect_jirl) {
+        bpu_perf.indirect_jirl++;
+        if (vt->bpu_perf_correct) bpu_perf.indirect_jirl_correct++;
+        if (vt->bpu_perf_direction_miss) bpu_perf.indirect_jirl_direction_miss++;
+        if (vt->bpu_perf_target_miss) bpu_perf.indirect_jirl_target_miss++;
     }
-    if (vt->bpu_perf_target_miss) {
-        bpu_perf.target_miss++;
-    }
-    if (vt->bpu_perf_exu_flush) {
-        bpu_perf.exu_flush++;
+    if (vt->bpu_perf_pred_taken) bpu_perf.pred_taken++;
+    if (vt->bpu_perf_actual_taken) bpu_perf.actual_taken++;
+    if (vt->bpu_perf_correct) bpu_perf.correct++;
+    if (vt->bpu_perf_direction_miss) bpu_perf.direction_miss++;
+    if (vt->bpu_perf_target_miss) bpu_perf.target_miss++;
+    if (vt->bpu_perf_exu_flush) bpu_perf.exu_flush++;
+}
+
+static void print_ratio_pct(const char* name, uint64_t num, uint64_t den) {
+    if (den == 0) {
+        printf("BPU %s: n/a (0/0)\n", name);
+    } else {
+        printf("BPU %s: %.2f%% (%llu/%llu)\n", name,
+               100.0 * (double)num / (double)den,
+               (unsigned long long)num, (unsigned long long)den);
     }
 }
 
@@ -152,6 +202,40 @@ static void print_bpu_perf() {
            (unsigned long long)bpu_perf.target_miss,
            (unsigned long long)bpu_perf.exu_flush);
     printf("BPU accuracy: %.2f%% (miss %.2f%%)\n", accuracy, miss_rate);
+    print_ratio_pct("branch_accuracy", bpu_perf.branch_correct, bpu_perf.branch);
+    print_ratio_pct("jump_accuracy", bpu_perf.jump_correct, bpu_perf.jump);
+    print_ratio_pct("direction_miss_rate", bpu_perf.direction_miss, bpu_perf.resolve);
+    print_ratio_pct("target_miss_rate", bpu_perf.target_miss, bpu_perf.resolve);
+    print_ratio_pct("branch_direction_miss",
+                    bpu_perf.branch_direction_miss, bpu_perf.branch);
+    print_ratio_pct("jump_direction_miss",
+                    bpu_perf.jump_direction_miss, bpu_perf.jump);
+    print_ratio_pct("branch_target_miss",
+                    bpu_perf.branch_target_miss, bpu_perf.branch);
+    print_ratio_pct("jump_target_miss",
+                    bpu_perf.jump_target_miss, bpu_perf.jump);
+    printf("BPU jump breakdown:\n");
+    printf("  direct_jump=%llu  jirl=%llu  ret_jirl=%llu  indirect_jirl=%llu\n",
+           (unsigned long long)bpu_perf.direct_jump,
+           (unsigned long long)bpu_perf.jirl,
+           (unsigned long long)bpu_perf.ret_jirl,
+           (unsigned long long)bpu_perf.indirect_jirl);
+    print_ratio_pct("direct_jump_accuracy",
+                    bpu_perf.direct_jump_correct, bpu_perf.direct_jump);
+    print_ratio_pct("jirl_accuracy",
+                    bpu_perf.jirl_correct, bpu_perf.jirl);
+    print_ratio_pct("ret_jirl_accuracy",
+                    bpu_perf.ret_jirl_correct, bpu_perf.ret_jirl);
+    print_ratio_pct("indirect_jirl_accuracy",
+                    bpu_perf.indirect_jirl_correct, bpu_perf.indirect_jirl);
+    print_ratio_pct("direct_jump_target_miss",
+                    bpu_perf.direct_jump_target_miss, bpu_perf.direct_jump);
+    print_ratio_pct("jirl_target_miss",
+                    bpu_perf.jirl_target_miss, bpu_perf.jirl);
+    print_ratio_pct("ret_jirl_target_miss",
+                    bpu_perf.ret_jirl_target_miss, bpu_perf.ret_jirl);
+    print_ratio_pct("indirect_jirl_target_miss",
+                    bpu_perf.indirect_jirl_target_miss, bpu_perf.indirect_jirl);
 }
 #endif
 
