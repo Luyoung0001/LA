@@ -23,6 +23,7 @@ module s5_m1 (
     output wire        d_tlb_query_valid,
     output wire        d_tlb_query_write,
     output wire [31:0] d_tlb_query_vaddr,
+    input  wire        d_tlb_resp_valid,
     input  wire [31:0] d_tlb_query_paddr,
     input  wire        d_tlb_exception_valid,
     input  wire [5:0]  d_tlb_exception_ecode,
@@ -87,9 +88,11 @@ module s5_m1 (
     wire [7:0] load_byte_w;
     wire [15:0] load_half_w;
     wire [31:0] load_result_w;
+    wire        d_tlb_needs_query_w;
 
     reg        pend_valid;
     reg        pend_req_sent;
+    reg        pend_tlb_wait;
     reg [31:0] pend_pc;
     reg [31:0] pend_inst;
     reg [4:0]  pend_rd;
@@ -141,9 +144,10 @@ module s5_m1 (
 
     assign pend_aligned_addr = {pend_result[31:2], 2'b0};
     assign pend_aligned_paddr = {d_tlb_query_paddr[31:2], 2'b0};
-    assign d_tlb_query_valid = pend_valid && !pend_req_sent && !pend_exception_valid &&
-                               ((pend_is_load && !pend_inst_cacop) || pend_is_store ||
-                                pend_cacop_needs_translate);
+    assign d_tlb_needs_query_w = pend_valid && !pend_req_sent && !pend_exception_valid &&
+                                 ((pend_is_load && !pend_inst_cacop) || pend_is_store ||
+                                  pend_cacop_needs_translate);
+    assign d_tlb_query_valid = d_tlb_needs_query_w && !pend_tlb_wait;
     assign d_tlb_query_write = pend_is_store && !pend_inst_cacop;
     assign d_tlb_query_vaddr = pend_result;
     assign store_wstrb_w = pend_inst_st_b ? (4'b0001 << pend_result[1:0]) :
@@ -167,6 +171,7 @@ module s5_m1 (
         if (reset) begin
             pend_valid       <= 1'b0;
             pend_req_sent    <= 1'b0;
+            pend_tlb_wait    <= 1'b0;
             pend_pc          <= 32'b0;
             pend_inst        <= 32'b0;
             pend_rd          <= 5'b0;
@@ -226,6 +231,7 @@ module s5_m1 (
                 if (in_is_load || in_is_store) begin
                     pend_valid      <= 1'b1;
                     pend_req_sent   <= 1'b0;
+                    pend_tlb_wait   <= 1'b0;
                     pend_pc         <= in_pc;
                     pend_inst       <= in_inst;
                     pend_rd         <= in_rd;
@@ -278,24 +284,56 @@ module s5_m1 (
 
                     pend_valid    <= 1'b0;
                     pend_req_sent <= 1'b0;
+                    pend_tlb_wait <= 1'b0;
                 end else if (!pend_req_sent) begin
-                    if (d_tlb_exception_valid) begin
-                        out_valid                <= 1'b1;
-                        out_pc                   <= pend_pc;
-                        out_inst                 <= pend_inst;
-                        out_rd                   <= pend_rd;
-                        out_wb_data              <= pend_result;
-                        out_op1                  <= pend_op1;
-                        out_op2                  <= pend_op2;
-                        out_wen                  <= 1'b0;
-                        out_exception_valid      <= 1'b1;
-                        out_exception_ecode      <= d_tlb_exception_ecode;
-                        out_exception_esubcode   <= 9'b0;
-                        out_exception_badv_valid <= 1'b1;
-                        out_exception_badv       <= pend_result;
+                    if (pend_tlb_wait) begin
+                        if (d_tlb_resp_valid) begin
+                            pend_tlb_wait <= 1'b0;
+                            if (d_tlb_exception_valid) begin
+                                out_valid                <= 1'b1;
+                                out_pc                   <= pend_pc;
+                                out_inst                 <= pend_inst;
+                                out_rd                   <= pend_rd;
+                                out_wb_data              <= pend_result;
+                                out_op1                  <= pend_op1;
+                                out_op2                  <= pend_op2;
+                                out_wen                  <= 1'b0;
+                                out_exception_valid      <= 1'b1;
+                                out_exception_ecode      <= d_tlb_exception_ecode;
+                                out_exception_esubcode   <= 9'b0;
+                                out_exception_badv_valid <= 1'b1;
+                                out_exception_badv       <= pend_result;
 
-                        pend_valid    <= 1'b0;
-                        pend_req_sent <= 1'b0;
+                                pend_valid    <= 1'b0;
+                                pend_req_sent <= 1'b0;
+                            end else if (pend_inst_cacop) begin
+                                out_valid                <= 1'b1;
+                                out_pc                   <= pend_pc;
+                                out_inst                 <= pend_inst;
+                                out_rd                   <= pend_rd;
+                                out_wb_data              <= pend_result;
+                                out_op1                  <= pend_op1;
+                                out_op2                  <= pend_op2;
+                                out_wen                  <= 1'b0;
+                                out_exception_valid      <= 1'b0;
+                                out_exception_ecode      <= 6'b0;
+                                out_exception_esubcode   <= 9'b0;
+                                out_exception_badv_valid <= 1'b0;
+                                out_exception_badv       <= 32'b0;
+
+                                pend_valid    <= 1'b0;
+                                pend_req_sent <= 1'b0;
+                            end else begin
+                                dcache_req_valid <= 1'b1;
+                                dcache_req_write <= pend_is_store;
+                                dcache_req_addr  <= pend_aligned_paddr;
+                                dcache_req_wdata <= store_wdata_w;
+                                dcache_req_wstrb <= pend_is_store ? store_wstrb_w : 4'h0;
+                                pend_req_sent    <= 1'b1;
+                            end
+                        end
+                    end else if (d_tlb_needs_query_w) begin
+                        pend_tlb_wait <= 1'b1;
                     end else begin
                         if (pend_inst_cacop) begin
                             out_valid                <= 1'b1;
@@ -314,6 +352,7 @@ module s5_m1 (
 
                             pend_valid    <= 1'b0;
                             pend_req_sent <= 1'b0;
+                            pend_tlb_wait <= 1'b0;
                         end else begin
                             dcache_req_valid <= 1'b1;
                             dcache_req_write <= pend_is_store;
@@ -342,6 +381,7 @@ module s5_m1 (
 
                     pend_valid    <= 1'b0;
                     pend_req_sent <= 1'b0;
+                    pend_tlb_wait <= 1'b0;
                 end
             end
         end

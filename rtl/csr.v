@@ -22,6 +22,7 @@ module csr_stub (
     input  wire        d_tlb_query_valid,
     input  wire        d_tlb_query_write,
     input  wire [31:0] d_tlb_query_vaddr,
+    output wire        d_tlb_resp_valid,
     output wire [31:0] d_tlb_query_paddr,
     output wire        d_tlb_exception_valid,
     output wire [5:0]  d_tlb_exception_ecode,
@@ -113,31 +114,6 @@ module csr_stub (
     reg        timer_en;
     reg [63:0] timer_64;
 
-    reg [18:0] tlb_vppn [0:31];
-    reg [9:0]  tlb_asid [0:31];
-    reg        tlb_g    [0:31];
-    reg [5:0]  tlb_ps   [0:31];
-    reg        tlb_e    [0:31];
-    reg [19:0] tlb_ppn0 [0:31];
-    reg [1:0]  tlb_plv0 [0:31];
-    reg [1:0]  tlb_mat0 [0:31];
-    reg        tlb_d0   [0:31];
-    reg        tlb_v0   [0:31];
-    reg [19:0] tlb_ppn1 [0:31];
-    reg [1:0]  tlb_plv1 [0:31];
-    reg [1:0]  tlb_mat1 [0:31];
-    reg        tlb_d1   [0:31];
-    reg        tlb_v1   [0:31];
-
-    integer reset_i;
-    integer search_i;
-    integer inv_i;
-    integer d_search_i;
-    reg        tlbsrch_found_r;
-    reg [4:0]  tlbsrch_index_r;
-    reg        d_tlb_found_r;
-    reg [4:0]  d_tlb_index_r;
-
     wire [31:0] csr_pgd;
     wire [5:0]  commit_op_31_26;
     wire [3:0]  commit_op_25_22;
@@ -151,37 +127,14 @@ module csr_stub (
     wire        commit_tlbwr;
     wire        commit_tlbfill;
     wire        commit_invtlb;
-    wire [4:0]  tlb_write_index;
-    wire        tlb_write_enable_value;
-    wire [31:0] tlbelo0_packed;
-    wire [31:0] tlbelo1_packed;
-    wire        d_pg_mode;
-    wire        d_dmw0_hit;
-    wire        d_dmw1_hit;
-    wire        d_tlb_translate;
-    wire        d_tlb_odd_page;
-    wire [19:0] d_tlb_ppn;
-    wire        d_tlb_v;
-    wire        d_tlb_d;
-    wire [1:0]  d_tlb_plv;
-    wire [5:0]  d_tlb_ps;
-    wire [31:0] d_tlb_trans_paddr;
-    wire [31:0] d_dmw_paddr;
-    wire        i_pg_mode;
-    wire        i_dmw0_hit;
-    wire        i_dmw1_hit;
-    wire        i_tlb_translate;
-    integer     i_search_i;
-    reg         i_tlb_found_r;
-    reg [4:0]   i_tlb_index_r;
-    wire        i_tlb_odd_page;
-    wire [19:0] i_tlb_ppn;
-    wire        i_tlb_v;
-    wire        i_tlb_d;
-    wire [1:0]  i_tlb_plv;
-    wire [5:0]  i_tlb_ps;
-    wire [31:0]  i_tlb_trans_paddr;
-    wire [31:0]  i_dmw_paddr;
+    wire        tlbsrch_found_w;
+    wire [4:0]  tlbsrch_index_w;
+    wire        tlbrd_found_w;
+    wire [31:0] tlbrd_tlbidx_w;
+    wire [31:0] tlbrd_tlbehi_w;
+    wire [31:0] tlbrd_tlbelo0_w;
+    wire [31:0] tlbrd_tlbelo1_w;
+    wire [31:0] tlbrd_asid_w;
 
     assign csr_pgd = csr_badv[31] ? csr_pgdh : csr_pgdl;
     assign exception_entry = (exception_valid && (exception_ecode == 6'h3f)) ? csr_tlbrentry : csr_eentry;
@@ -216,107 +169,48 @@ module csr_stub (
     assign commit_invtlb   = tlb_commit_valid && (commit_op_31_26 == 6'h01) &&
                              (commit_op_25_22 == 4'h9) && (commit_op_21_20 == 2'h0) &&
                              (commit_op_19_15 == 5'h13) && (commit_rd <= 5'd6);
-    assign tlb_write_index = commit_tlbfill ? 5'b0 : csr_tlbidx[4:0];
-    assign tlb_write_enable_value = (csr_estat[21:16] == 6'h3f) ? 1'b1 : ~csr_tlbidx[31];
-    assign tlbelo0_packed = {4'b0, tlb_ppn0[csr_tlbidx[4:0]], 1'b0, tlb_g[csr_tlbidx[4:0]],
-                             tlb_mat0[csr_tlbidx[4:0]], tlb_plv0[csr_tlbidx[4:0]],
-                             tlb_d0[csr_tlbidx[4:0]], tlb_v0[csr_tlbidx[4:0]]};
-    assign tlbelo1_packed = {4'b0, tlb_ppn1[csr_tlbidx[4:0]], 1'b0, tlb_g[csr_tlbidx[4:0]],
-                             tlb_mat1[csr_tlbidx[4:0]], tlb_plv1[csr_tlbidx[4:0]],
-                             tlb_d1[csr_tlbidx[4:0]], tlb_v1[csr_tlbidx[4:0]]};
-    assign d_pg_mode = !csr_crmd[3] && csr_crmd[4];
-    assign d_dmw0_hit = d_pg_mode &&
-                        (((csr_dmw0[0] && (csr_crmd[1:0] == 2'd0)) ||
-                          (csr_dmw0[3] && (csr_crmd[1:0] == 2'd3))) &&
-                         (d_tlb_query_vaddr[31:29] == csr_dmw0[31:29]));
-    assign d_dmw1_hit = d_pg_mode &&
-                        (((csr_dmw1[0] && (csr_crmd[1:0] == 2'd0)) ||
-                          (csr_dmw1[3] && (csr_crmd[1:0] == 2'd3))) &&
-                         (d_tlb_query_vaddr[31:29] == csr_dmw1[31:29]));
-    assign d_tlb_translate = d_tlb_query_valid && d_pg_mode && !d_dmw0_hit && !d_dmw1_hit;
-    assign d_tlb_ps = tlb_ps[d_tlb_index_r];
-    assign d_tlb_odd_page = (d_tlb_ps == 6'd12) ? d_tlb_query_vaddr[12] : d_tlb_query_vaddr[21];
-    assign d_tlb_ppn = d_tlb_odd_page ? tlb_ppn1[d_tlb_index_r] : tlb_ppn0[d_tlb_index_r];
-    assign d_tlb_v   = d_tlb_odd_page ? tlb_v1[d_tlb_index_r]   : tlb_v0[d_tlb_index_r];
-    assign d_tlb_d   = d_tlb_odd_page ? tlb_d1[d_tlb_index_r]   : tlb_d0[d_tlb_index_r];
-    assign d_tlb_plv = d_tlb_odd_page ? tlb_plv1[d_tlb_index_r] : tlb_plv0[d_tlb_index_r];
-    assign d_tlb_trans_paddr = (d_tlb_ps == 6'd12) ?
-                               {d_tlb_ppn, d_tlb_query_vaddr[11:0]} :
-                               {d_tlb_ppn[19:10], d_tlb_query_vaddr[21:0]};
-    assign d_dmw_paddr = d_dmw0_hit ? {csr_dmw0[27:25], d_tlb_query_vaddr[28:0]} :
-                         d_dmw1_hit ? {csr_dmw1[27:25], d_tlb_query_vaddr[28:0]} :
-                                      d_tlb_query_vaddr;
-    assign d_tlb_query_paddr = d_tlb_translate ? d_tlb_trans_paddr : d_dmw_paddr;
-    assign d_tlb_exception_valid = d_tlb_translate &&
-                                   (!d_tlb_found_r ||
-                                    !d_tlb_v ||
-                                    (csr_crmd[1:0] > d_tlb_plv) ||
-                                    (d_tlb_query_write && !d_tlb_d));
-    assign d_tlb_exception_ecode = !d_tlb_found_r ? 6'h3f :
-                                   !d_tlb_v ? (d_tlb_query_write ? 6'h02 : 6'h01) :
-                                   (csr_crmd[1:0] > d_tlb_plv) ? 6'h07 :
-                                   6'h04;
-
-    assign i_pg_mode = d_pg_mode;
-    assign i_dmw0_hit = i_pg_mode &&
-                        (((csr_dmw0[0] && (csr_crmd[1:0] == 2'd0)) ||
-                          (csr_dmw0[3] && (csr_crmd[1:0] == 2'd3))) &&
-                         (i_tlb_query_vaddr[31:29] == csr_dmw0[31:29]));
-    assign i_dmw1_hit = i_pg_mode &&
-                        (((csr_dmw1[0] && (csr_crmd[1:0] == 2'd0)) ||
-                          (csr_dmw1[3] && (csr_crmd[1:0] == 2'd3))) &&
-                         (i_tlb_query_vaddr[31:29] == csr_dmw1[31:29]));
-    assign i_tlb_translate = i_tlb_query_valid && i_pg_mode && !i_dmw0_hit && !i_dmw1_hit;
-    assign i_tlb_ps = tlb_ps[i_tlb_index_r];
-    assign i_tlb_odd_page = (i_tlb_ps == 6'd12) ? i_tlb_query_vaddr[12] : i_tlb_query_vaddr[21];
-    assign i_tlb_ppn = i_tlb_odd_page ? tlb_ppn1[i_tlb_index_r] : tlb_ppn0[i_tlb_index_r];
-    assign i_tlb_v   = i_tlb_odd_page ? tlb_v1[i_tlb_index_r]   : tlb_v0[i_tlb_index_r];
-    assign i_tlb_d   = i_tlb_odd_page ? tlb_d1[i_tlb_index_r]   : tlb_d0[i_tlb_index_r];
-    assign i_tlb_plv = i_tlb_odd_page ? tlb_plv1[i_tlb_index_r] : tlb_plv0[i_tlb_index_r];
-    assign i_tlb_trans_paddr = (i_tlb_ps == 6'd12) ?
-                               {i_tlb_ppn, i_tlb_query_vaddr[11:0]} :
-                               {i_tlb_ppn[19:10], i_tlb_query_vaddr[21:0]};
-    assign i_dmw_paddr = i_dmw0_hit ? {csr_dmw0[27:25], i_tlb_query_vaddr[28:0]} :
-                         i_dmw1_hit ? {csr_dmw1[27:25], i_tlb_query_vaddr[28:0]} :
-                                      i_tlb_query_vaddr;
-    assign i_tlb_query_paddr = i_tlb_translate ? i_tlb_trans_paddr : i_dmw_paddr;
-    assign i_tlb_exception_valid = i_tlb_translate &&
-                                   (!i_tlb_found_r ||
-                                    !i_tlb_v ||
-                                    (csr_crmd[1:0] > i_tlb_plv));
-    assign i_tlb_exception_ecode = !i_tlb_found_r ? 6'h3f :
-                                   !i_tlb_v ? 6'h03 :
-                                   6'h07;
-
-    always @(*) begin
-        d_tlb_found_r = 1'b0;
-        d_tlb_index_r = 5'b0;
-        for (d_search_i = 0; d_search_i < 32; d_search_i = d_search_i + 1) begin
-            if (!d_tlb_found_r && tlb_e[d_search_i] &&
-                ((tlb_ps[d_search_i] == 6'd12) ?
-                 (tlb_vppn[d_search_i] == d_tlb_query_vaddr[31:13]) :
-                 (tlb_vppn[d_search_i][18:9] == d_tlb_query_vaddr[31:22])) &&
-                ((tlb_asid[d_search_i] == csr_asid[9:0]) || tlb_g[d_search_i])) begin
-                d_tlb_found_r = 1'b1;
-                d_tlb_index_r = d_search_i[4:0];
-            end
-        end
-    end
-
-    always @(*) begin
-        i_tlb_found_r = 1'b0;
-        i_tlb_index_r = 5'b0;
-        for (i_search_i = 0; i_search_i < 32; i_search_i = i_search_i + 1) begin
-            if (!i_tlb_found_r && tlb_e[i_search_i] &&
-                ((tlb_ps[i_search_i] == 6'd12) ?
-                 (tlb_vppn[i_search_i] == i_tlb_query_vaddr[31:13]) :
-                 (tlb_vppn[i_search_i][18:9] == i_tlb_query_vaddr[31:22])) &&
-                ((tlb_asid[i_search_i] == csr_asid[9:0]) || tlb_g[i_search_i])) begin
-                i_tlb_found_r = 1'b1;
-                i_tlb_index_r = i_search_i[4:0];
-            end
-        end
-    end
+    cpu_tlb u_cpu_tlb (
+        .clk                  (clk),
+        .reset                (reset),
+        .csr_crmd             (csr_crmd),
+        .csr_asid             (csr_asid),
+        .csr_dmw0             (csr_dmw0),
+        .csr_dmw1             (csr_dmw1),
+        .csr_tlbidx           (csr_tlbidx),
+        .csr_tlbehi           (csr_tlbehi),
+        .csr_tlbelo0          (csr_tlbelo0),
+        .csr_tlbelo1          (csr_tlbelo1),
+        .csr_estat            (csr_estat),
+        .commit_tlbsrch       (commit_tlbsrch),
+        .commit_tlbrd         (commit_tlbrd),
+        .commit_tlbwr         (commit_tlbwr),
+        .commit_tlbfill       (commit_tlbfill),
+        .commit_invtlb        (commit_invtlb),
+        .commit_invtlb_op     (commit_rd),
+        .commit_invtlb_asid   (tlb_commit_op1),
+        .commit_invtlb_vaddr  (tlb_commit_op2),
+        .tlbsrch_found        (tlbsrch_found_w),
+        .tlbsrch_index        (tlbsrch_index_w),
+        .tlbrd_found          (tlbrd_found_w),
+        .tlbrd_tlbidx         (tlbrd_tlbidx_w),
+        .tlbrd_tlbehi         (tlbrd_tlbehi_w),
+        .tlbrd_tlbelo0        (tlbrd_tlbelo0_w),
+        .tlbrd_tlbelo1        (tlbrd_tlbelo1_w),
+        .tlbrd_asid           (tlbrd_asid_w),
+        .i_tlb_query_valid    (i_tlb_query_valid),
+        .i_tlb_query_write    (i_tlb_query_write),
+        .i_tlb_query_vaddr    (i_tlb_query_vaddr),
+        .i_tlb_query_paddr    (i_tlb_query_paddr),
+        .i_tlb_exception_valid(i_tlb_exception_valid),
+        .i_tlb_exception_ecode(i_tlb_exception_ecode),
+        .d_tlb_query_valid    (d_tlb_query_valid),
+        .d_tlb_query_write    (d_tlb_query_write),
+        .d_tlb_query_vaddr    (d_tlb_query_vaddr),
+        .d_tlb_resp_valid     (d_tlb_resp_valid),
+        .d_tlb_query_paddr    (d_tlb_query_paddr),
+        .d_tlb_exception_valid(d_tlb_exception_valid),
+        .d_tlb_exception_ecode(d_tlb_exception_ecode)
+    );
 
     always @(*) begin
         case (read_addr)
@@ -393,23 +287,6 @@ module csr_stub (
             csr_dmw1          <= 32'b0;
             timer_en          <= 1'b0;
             timer_64          <= 64'b0;
-            for (reset_i = 0; reset_i < 32; reset_i = reset_i + 1) begin
-                tlb_vppn[reset_i] <= 19'b0;
-                tlb_asid[reset_i] <= 10'b0;
-                tlb_g[reset_i]    <= 1'b0;
-                tlb_ps[reset_i]   <= 6'b0;
-                tlb_e[reset_i]    <= 1'b0;
-                tlb_ppn0[reset_i] <= 20'b0;
-                tlb_plv0[reset_i] <= 2'b0;
-                tlb_mat0[reset_i] <= 2'b0;
-                tlb_d0[reset_i]   <= 1'b0;
-                tlb_v0[reset_i]   <= 1'b0;
-                tlb_ppn1[reset_i] <= 20'b0;
-                tlb_plv1[reset_i] <= 2'b0;
-                tlb_mat1[reset_i] <= 2'b0;
-                tlb_d1[reset_i]   <= 1'b0;
-                tlb_v1[reset_i]   <= 1'b0;
-            end
         end else begin
             if (timer_tick) begin
                 timer_64 <= timer_64 + 64'd1;
@@ -509,29 +386,13 @@ module csr_stub (
                     default: begin
                     end
                 endcase
-            end else if (commit_tlbwr || commit_tlbfill) begin
-                tlb_vppn[tlb_write_index] <= csr_tlbehi[31:13];
-                tlb_asid[tlb_write_index] <= csr_asid[9:0];
-                tlb_g[tlb_write_index]    <= csr_tlbelo0[6] & csr_tlbelo1[6];
-                tlb_ps[tlb_write_index]   <= csr_tlbidx[29:24];
-                tlb_e[tlb_write_index]    <= tlb_write_enable_value;
-                tlb_ppn0[tlb_write_index] <= csr_tlbelo0[27:8];
-                tlb_plv0[tlb_write_index] <= csr_tlbelo0[3:2];
-                tlb_mat0[tlb_write_index] <= csr_tlbelo0[5:4];
-                tlb_d0[tlb_write_index]   <= csr_tlbelo0[1];
-                tlb_v0[tlb_write_index]   <= csr_tlbelo0[0];
-                tlb_ppn1[tlb_write_index] <= csr_tlbelo1[27:8];
-                tlb_plv1[tlb_write_index] <= csr_tlbelo1[3:2];
-                tlb_mat1[tlb_write_index] <= csr_tlbelo1[5:4];
-                tlb_d1[tlb_write_index]   <= csr_tlbelo1[1];
-                tlb_v1[tlb_write_index]   <= csr_tlbelo1[0];
             end else if (commit_tlbrd) begin
-                if (tlb_e[csr_tlbidx[4:0]]) begin
-                    csr_tlbidx  <= {1'b0, 1'b0, tlb_ps[csr_tlbidx[4:0]], 19'b0, csr_tlbidx[4:0]};
-                    csr_tlbehi  <= {tlb_vppn[csr_tlbidx[4:0]], 13'b0};
-                    csr_tlbelo0 <= tlbelo0_packed;
-                    csr_tlbelo1 <= tlbelo1_packed;
-                    csr_asid    <= {22'h280, tlb_asid[csr_tlbidx[4:0]]};
+                if (tlbrd_found_w) begin
+                    csr_tlbidx  <= tlbrd_tlbidx_w;
+                    csr_tlbehi  <= tlbrd_tlbehi_w;
+                    csr_tlbelo0 <= tlbrd_tlbelo0_w;
+                    csr_tlbelo1 <= tlbrd_tlbelo1_w;
+                    csr_asid    <= tlbrd_asid_w;
                 end else begin
                     csr_tlbidx  <= {1'b1, 1'b0, 6'b0, 19'b0, csr_tlbidx[4:0]};
                     csr_tlbehi  <= 32'b0;
@@ -540,47 +401,10 @@ module csr_stub (
                     csr_asid    <= {22'h280, 10'b0};
                 end
             end else if (commit_tlbsrch) begin
-                tlbsrch_found_r = 1'b0;
-                tlbsrch_index_r = 5'b0;
-                for (search_i = 0; search_i < 32; search_i = search_i + 1) begin
-                    if (!tlbsrch_found_r && tlb_e[search_i] &&
-                        ((tlb_ps[search_i] == 6'd12) ?
-                         (tlb_vppn[search_i] == csr_tlbehi[31:13]) :
-                         (tlb_vppn[search_i][18:9] == csr_tlbehi[31:22])) &&
-                        ((tlb_asid[search_i] == csr_asid[9:0]) || tlb_g[search_i])) begin
-                        tlbsrch_found_r = 1'b1;
-                        tlbsrch_index_r = search_i[4:0];
-                    end
-                end
-                if (tlbsrch_found_r) begin
-                    csr_tlbidx <= {1'b0, csr_tlbidx[30:5], tlbsrch_index_r};
+                if (tlbsrch_found_w) begin
+                    csr_tlbidx <= {1'b0, csr_tlbidx[30:5], tlbsrch_index_w};
                 end else begin
                     csr_tlbidx <= {1'b1, csr_tlbidx[30:0]};
-                end
-            end else if (commit_invtlb) begin
-                for (inv_i = 0; inv_i < 32; inv_i = inv_i + 1) begin
-                    if ((commit_rd == 5'd0) || (commit_rd == 5'd1)) begin
-                        tlb_e[inv_i] <= 1'b0;
-                    end else if ((commit_rd == 5'd2) && tlb_g[inv_i]) begin
-                        tlb_e[inv_i] <= 1'b0;
-                    end else if ((commit_rd == 5'd3) && !tlb_g[inv_i]) begin
-                        tlb_e[inv_i] <= 1'b0;
-                    end else if ((commit_rd == 5'd4) && !tlb_g[inv_i] &&
-                                 (tlb_asid[inv_i] == tlb_commit_op1[9:0])) begin
-                        tlb_e[inv_i] <= 1'b0;
-                    end else if ((commit_rd == 5'd5) && !tlb_g[inv_i] &&
-                                 (tlb_asid[inv_i] == tlb_commit_op1[9:0]) &&
-                                 ((tlb_ps[inv_i] == 6'd12) ?
-                                  (tlb_vppn[inv_i] == tlb_commit_op2[31:13]) :
-                                  (tlb_vppn[inv_i][18:9] == tlb_commit_op2[31:22]))) begin
-                        tlb_e[inv_i] <= 1'b0;
-                    end else if ((commit_rd == 5'd6) &&
-                                 (tlb_g[inv_i] || (tlb_asid[inv_i] == tlb_commit_op1[9:0])) &&
-                                 ((tlb_ps[inv_i] == 6'd12) ?
-                                  (tlb_vppn[inv_i] == tlb_commit_op2[31:13]) :
-                                  (tlb_vppn[inv_i][18:9] == tlb_commit_op2[31:22]))) begin
-                        tlb_e[inv_i] <= 1'b0;
-                    end
                 end
             end
         end

@@ -168,6 +168,7 @@ module backend_top #(
     wire d_tlb_query_write_w;
     wire [31:0] d_tlb_query_vaddr_w;
     wire [31:0] d_tlb_query_paddr_w;
+    wire d_tlb_resp_valid_w;
     wire d_tlb_exception_valid_w;
     wire [5:0] d_tlb_exception_ecode_w;
     wire [31:0] i_tlb_query_paddr_w;
@@ -551,6 +552,7 @@ module backend_top #(
         .d_tlb_query_valid(d_tlb_query_valid_w),
         .d_tlb_query_write(d_tlb_query_write_w),
         .d_tlb_query_vaddr(d_tlb_query_vaddr_w),
+        .d_tlb_resp_valid(d_tlb_resp_valid_w),
         .d_tlb_query_paddr(d_tlb_query_paddr_w),
         .d_tlb_exception_valid(d_tlb_exception_valid_w),
         .d_tlb_exception_ecode(d_tlb_exception_ecode_w),
@@ -691,6 +693,7 @@ module backend_top #(
         .d_tlb_query_valid(d_tlb_query_valid_w),
         .d_tlb_query_write(d_tlb_query_write_w),
         .d_tlb_query_vaddr(d_tlb_query_vaddr_w),
+        .d_tlb_resp_valid(d_tlb_resp_valid_w),
         .d_tlb_query_paddr(d_tlb_query_paddr_w),
         .d_tlb_exception_valid(d_tlb_exception_valid_w),
         .d_tlb_exception_ecode(d_tlb_exception_ecode_w),
