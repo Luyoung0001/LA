@@ -21,6 +21,9 @@ BPU_ENABLE ?= 0
 FETCH_BUFFER_ENABLE ?= 0
 ITCM_ENABLE ?= 0
 CACHE_OP_STRICT_ENABLE ?= 0
+IPC_CASE ?= set1a_alu
+BENCH_REPEAT ?= 512
+BENCH_UNROLL ?= 16
 PERF_MONI_FLAGS = $(if $(filter 1 yes true on,$(PERF_MONI)),-DPERF_MONI,)
 L2_PREFETCH_FLAGS = $(if $(filter 0 no false off,$(L2_PREFETCH)),-DCPU_DISABLE_L2_PREFETCH,)
 TRACE_BUILD_FLAGS = $(if $(filter 1 yes true on,$(TRACE) $(PERF_MONI)),--trace-fst,)
@@ -84,6 +87,8 @@ V_FLAGS = --cc $(VSRC) --Wno-UNOPTFLAT --Wno-TIMESCALEMOD --Wno-PINMISSING -Wno-
 OBJ_DIR = obj_dir
 
 EXE = $(CPU_HOME)/$(OBJ_DIR)/V$(TOP)
+IPC_BENCH_DIR = $(CPU_HOME)/mycpu_env/ipc_microbench
+IPC_BENCH_OBJ = $(IPC_BENCH_DIR)/obj/repeat_$(BENCH_REPEAT)_unroll_$(BENCH_UNROLL)/$(IPC_CASE)
 
 SCRIPTS_DIR = $(CPU_HOME)/scripts
 TIMING_SCRIPT = $(SCRIPTS_DIR)/synth_timing.tcl
@@ -127,6 +132,17 @@ run: build
 	$(EXE)
 
 all: test run
+
+ipcbench:
+	$(MAKE) -C $(IPC_BENCH_DIR) CASE=$(IPC_CASE) BENCH_REPEAT=$(BENCH_REPEAT) BENCH_UNROLL=$(BENCH_UNROLL) case
+
+ipcbench-run: ipcbench build
+	LA_MAIN_BIN=$(IPC_BENCH_OBJ)/main.bin \
+	LA_STOP_PC=$$(cat $(IPC_BENCH_OBJ)/stop_pc.txt) \
+	$(EXE)
+
+ipcbench-list:
+	$(MAKE) -C $(IPC_BENCH_DIR) list
 
 fmax: synth_timing
 
@@ -207,6 +223,9 @@ help:
 	@echo "  make all EXP=23 PERF_MONI=1 # print IPC and BPU accuracy/miss statistics"
 	@echo "  make all EXP=6 BPU_ENABLE=1 FETCH_BUFFER_ENABLE=1"
 	@echo "                      # enable copied BPU/fetch-buffer adapters"
+	@echo "  make ipcbench-run IPC_CASE=set1a_alu BPU_ENABLE=1 FETCH_BUFFER_ENABLE=1"
+	@echo "                      # run standalone IPC microbenchmark"
+	@echo "  make ipcbench-list  # list standalone IPC microbenchmarks"
 	@echo "  make test EXP=6     # build func test program"
 	@echo "  make build SIM_JOBS=4 TRACE=0 # build verilator executable"
 	@echo "  make run            # run simulation"

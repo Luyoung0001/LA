@@ -4,6 +4,7 @@ wave.vcd
 wave.fst
 obj_dir
 mycpu_env/func/obj
+mycpu_env/ipc_microbench/obj
 compile_commands.json
 vivado.jou
 vivado.log

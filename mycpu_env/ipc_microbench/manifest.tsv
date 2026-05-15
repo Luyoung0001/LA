@@ -1,0 +1,20 @@
+case	set	purpose	current_expectation
+set1a_alu	Set1a	Independent ALU peak throughput	Should approach single-issue pipeline ceiling when no frontend/backend stalls exist.
+set1b_alu_load	Set1b	Independent load plus ALU throughput	Measures ideal LSU accept rate and load pipe interaction.
+set2a_raw_alu	Set2a	Adjacent ALU RAW chain	Measures EX-to-D1/EX bypass effectiveness.
+set2b_load_use	Set2b	Load-use RAW chain	Measures mandatory load-use bubbles and load result forwarding.
+set2c_mdu_alu	Set2c	MDU result consumed by ALU	Measures current mul/div latency model; current mul may be combinational.
+set3a_store_load_same	Set3a	Store then load same address	Functional ordering now; forwarding only measurable after store buffer is implemented.
+set3b_store_load_diff	Set3b	Store then independent load	LSU bandwidth and memory port pressure.
+set3c_store_merge_same	Set3c	Repeated stores to same address	Store merge pressure; currently mainly store pipe throughput.
+set4a_store_pressure	Set4a	Long consecutive store stream	Future SB full/backpressure test; current CPU measures store pipe limit.
+set4b_store_forward_hits	Set4b	Store/load same address pairs	Future SB forwarding coverage; current CPU measures ordering latency.
+set4c_uncached_store_mix	Set4c	Cached and uncached store mix	Optional MMIO/uncached stress, not an ideal-cache IPC case.
+set5a_branch_taken	Set5a	Direct taken branch chain	Measures taken redirect/direct-jump fast path.
+set5b_branch_not_taken	Set5b	Always-not-taken conditional branches	Measures branch predictor non-taken behavior without control flushes.
+set5c_branch_alternating	Set5c	One conditional branch with alternating outcomes	Measures predictor adaptation to T/N/T/N pattern.
+set5d_branch_mispredict	Set5d	Alternating branch with wrong-path work	Measures mispredict recovery penalty.
+set6a_fusion_baseline	Set6a	Unfused lu12i/addi stream	Baseline for future fusion.
+set6b_fusion_correctness	Set6b	Fusible and non-fusible lu12i/addi patterns	Correctness guard for future fusion.
+set6c_fusion_benefit	Set6c	Dense fusible stream	Benefit measurement when fusion is enabled.
+set6d_fusion_boundary	Set6d	Non-fusion and cache-line-crossing boundaries	Boundary guard; exception-on-first-half needs a separate frontend exception injection test.
