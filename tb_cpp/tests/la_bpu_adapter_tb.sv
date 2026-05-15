@@ -69,6 +69,44 @@ module la_bpu_adapter_tb;
         end
     endtask
 
+    task automatic train_and_check_update_pipe;
+        begin
+            update_valid = 1'b1;
+            update_taken = 1'b1;
+            update_pc = PC_TAKEN;
+            update_target = TARGET_TAKEN;
+            tick();
+            update_valid = 1'b0;
+            update_taken = 1'b0;
+            update_pc = 32'd0;
+            update_target = 32'd0;
+
+            req_valid = 1'b1;
+            req_pc = PC_TAKEN;
+            tick();
+            req_valid = 1'b0;
+            req_pc = 32'd0;
+            #1;
+            `check("BPU adapter registered update has no same-cycle write-read bypass",
+                   resp_valid && !pred_taken);
+            `check32("BPU adapter registered update immediate fallback target",
+                     pred_target, PC_TAKEN + 32'd4);
+            tick();
+
+            req_valid = 1'b1;
+            req_pc = PC_TAKEN;
+            tick();
+            req_valid = 1'b0;
+            req_pc = 32'd0;
+            #1;
+            `check("BPU adapter registered update becomes visible after settled write",
+                   resp_valid && pred_taken);
+            `check32("BPU adapter registered update settled target",
+                     pred_target, TARGET_TAKEN);
+            tick();
+        end
+    endtask
+
     task automatic request_and_expect_one_cycle(
         input string name,
         input [31:0] pc,
@@ -97,6 +135,8 @@ module la_bpu_adapter_tb;
         tb_start();
         clear_inputs();
         reset_dut();
+
+        train_and_check_update_pipe();
 
         train_branch(PC_TAKEN, 1'b1, TARGET_TAKEN);
         request_and_expect_one_cycle("BPU adapter trained taken",

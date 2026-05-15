@@ -22,6 +22,10 @@ module la_bpu_adapter #(
     wire [XLEN-1:0] pred_target_w;
     reg req_valid_d1;
     reg [XLEN-1:0] req_pc_d1;
+    reg update_valid_d1;
+    reg update_taken_d1;
+    reg [XLEN-1:0] update_pc_d1;
+    reg [XLEN-1:0] update_target_d1;
 
     wire unused_bpu_sideband;
     wire pred_is_call_w;
@@ -43,9 +47,17 @@ module la_bpu_adapter #(
         if (reset) begin
             req_valid_d1   <= 1'b0;
             req_pc_d1      <= {XLEN{1'b0}};
+            update_valid_d1 <= 1'b0;
+            update_taken_d1 <= 1'b0;
+            update_pc_d1    <= {XLEN{1'b0}};
+            update_target_d1 <= {XLEN{1'b0}};
         end else begin
             req_valid_d1   <= req_valid;
             req_pc_d1      <= req_pc;
+            update_valid_d1 <= update_valid;
+            update_taken_d1 <= update_taken;
+            update_pc_d1    <= update_pc;
+            update_target_d1 <= update_target;
         end
     end
 
@@ -65,13 +77,13 @@ module la_bpu_adapter #(
         .pred_ras_valid_o          (pred_ras_valid_w),
         .pred_ras_target_o         (pred_ras_target_w),
 
-        .update_valid_i            (update_valid),
-        .update_pc_i               (update_pc),
-        .update_taken_i            (update_taken),
-        .update_target_i           (update_target),
+        .update_valid_i            (update_valid_d1),
+        .update_pc_i               (update_pc_d1),
+        .update_taken_i            (update_taken_d1),
+        .update_target_i           (update_target_d1),
         .update_is_call_i          (1'b0),
         .update_is_ret_i           (1'b0),
-        .update_is_jmp_i           (update_taken),
+        .update_is_jmp_i           (update_taken_d1),
         .update_is_indirect_jmp_i  (1'b0),
 
         .ras_update_valid_i        (1'b0),
