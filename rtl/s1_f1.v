@@ -18,13 +18,12 @@ module s1_f1 #(
 );
 
     reg [31:0] pc_r;
-    // 2-cycle redirect suppression. cpu_bpu has 1 cycle of BTB/PHT read
-    // latency and la_bpu_adapter has 1 more cycle on req_valid_q, so the
-    // BPU response 1-2 cycles after a redirect still corresponds to the
-    // pre-redirect PC. Without suppression, that stale "taken" prediction
-    // can override pc_r right after an exception/interrupt redirect, which
-    // breaks EXP23 timer-interrupt cases. Keep 2 cycles, shift in 1's
-    // every non-redirect cycle.
+    // 2-cycle redirect suppression. la_bpu_adapter exposes a two-cycle
+    // response after the S1 request, so responses immediately after a
+    // redirect can still correspond to pre-redirect PCs. Without suppression,
+    // a stale taken prediction can override pc_r right after an
+    // exception/interrupt redirect, which breaks EXP23 timer-interrupt cases.
+    // Keep 2 cycles, shift in 1's every non-redirect cycle.
     reg [1:0]  pred_valid_pipe_r;
 
     wire bp_use_valid = bp_resp_valid && bp_pred_taken && (&pred_valid_pipe_r);

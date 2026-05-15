@@ -38,6 +38,7 @@ TESTS := \
 	cpu_l1_icache_tb \
 	cpu_l2_cache_tb \
 	cpu_primitives_tb \
+	la_bpu_adapter_tb \
 	cpu_regfile_2w_tb \
 	cpu_regfile_tb \
 	cpu_tlb_tb \
@@ -358,6 +359,7 @@ SRC_cpu_l1_dcache_tb          := $(SIM_DIR)/ramb36e1_model.v $(RTL_DIR)/cpu_l1_d
 SRC_cpu_l1_icache_tb          := $(SIM_DIR)/ramb36e1_model.v $(RTL_DIR)/cpu_l1_icache.v
 SRC_cpu_l2_cache_tb           := $(SIM_DIR)/ramb36e1_model.v $(RTL_DIR)/cpu_l2_cache.v
 SRC_cpu_primitives_tb         := $(RTL_DIR)/cpu_primitives.v
+SRC_la_bpu_adapter_tb         := $(RTL_DIR)/cpu_bpu.v $(RTL_DIR)/la_bpu_adapter.v
 SRC_cpu_regfile_2w_tb         := $(RTL_DIR)/cpu_regfile_2w.v
 SRC_cpu_regfile_tb            := $(SIM_DIR)/ramb36e1_model.v $(RTL_DIR)/cpu_regfile.v
 SRC_cpu_tlb_tb                := $(RTL_DIR)/cpu_tlb.v

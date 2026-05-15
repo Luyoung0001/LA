@@ -19,8 +19,13 @@ module la_bpu_adapter #(
     wire pred_valid_w;
     wire pred_taken_w;
     wire [XLEN-1:0] pred_target_w;
-    reg req_valid_q;
-    reg [XLEN-1:0] req_pc_q;
+    reg req_valid_d1;
+    reg req_valid_d2;
+    reg [XLEN-1:0] req_pc_d1;
+    reg [XLEN-1:0] req_pc_d2;
+    reg pred_valid_d1;
+    reg pred_taken_d1;
+    reg [XLEN-1:0] pred_target_d1;
 
     wire unused_bpu_sideband;
     wire pred_is_call_w;
@@ -33,17 +38,27 @@ module la_bpu_adapter #(
                                    pred_is_indirect_jmp_w, pred_ras_valid_w,
                                    pred_ras_target_w};
 
-    assign resp_valid  = req_valid_q;
-    assign pred_taken  = pred_valid_w && pred_taken_w;
-    assign pred_target = pred_taken ? pred_target_w : (req_pc_q + {{(XLEN-3){1'b0}}, 3'd4});
+    assign resp_valid  = req_valid_d2;
+    assign pred_taken  = pred_valid_d1 && pred_taken_d1;
+    assign pred_target = pred_taken ? pred_target_d1 : (req_pc_d2 + {{(XLEN-3){1'b0}}, 3'd4});
 
     always @(posedge clk) begin
         if (reset) begin
-            req_valid_q <= 1'b0;
-            req_pc_q    <= {XLEN{1'b0}};
+            req_valid_d1   <= 1'b0;
+            req_valid_d2   <= 1'b0;
+            req_pc_d1      <= {XLEN{1'b0}};
+            req_pc_d2      <= {XLEN{1'b0}};
+            pred_valid_d1  <= 1'b0;
+            pred_taken_d1  <= 1'b0;
+            pred_target_d1 <= {XLEN{1'b0}};
         end else begin
-            req_valid_q <= req_valid;
-            req_pc_q    <= req_pc;
+            req_valid_d1   <= req_valid;
+            req_valid_d2   <= req_valid_d1;
+            req_pc_d1      <= req_pc;
+            req_pc_d2      <= req_pc_d1;
+            pred_valid_d1  <= pred_valid_w;
+            pred_taken_d1  <= pred_taken_w;
+            pred_target_d1 <= pred_target_w;
         end
     end
 
