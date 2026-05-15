@@ -14,8 +14,8 @@ module s2_f2 (
     input  wire [31:0] tlb_query_paddr,
     input  wire        tlb_exception_valid,
     input  wire [5:0]  tlb_exception_ecode,
-    output reg         icache_req_valid,
-    output reg  [31:0] icache_req_addr,
+    output wire        icache_req_valid,
+    output wire [31:0] icache_req_addr,
     input  wire        icache_req_ready,
     input  wire        icache_resp_valid,
     input  wire [31:0] icache_resp_data,
@@ -31,16 +31,31 @@ module s2_f2 (
     output reg  [31:0] out_exception_badv
 );
 
-    reg        pend_valid;
-    reg        pend_req_sent;
-    reg [31:0] pend_pc;
-    reg        pend_pred_taken;
-    reg [31:0] pend_pred_target;
-    reg        pend_exception_valid;
-    reg [5:0]  pend_exception_ecode;
-    reg [8:0]  pend_exception_esubcode;
-    reg        pend_exception_badv_valid;
-    reg [31:0] pend_exception_badv;
+    localparam FIFO_DEPTH = 8;
+    localparam PTR_W = 3;
+    localparam COUNT_W = 4;
+    localparam [COUNT_W-1:0] FIFO_DEPTH_COUNT = FIFO_DEPTH[COUNT_W-1:0];
+
+    reg [PTR_W-1:0]   fifo_head_r;
+    reg [PTR_W-1:0]   fifo_tail_r;
+    reg [PTR_W-1:0]   issue_ptr_r;
+    reg [PTR_W-1:0]   resp_ptr_r;
+    reg [COUNT_W-1:0] fifo_count_r;
+    reg [COUNT_W-1:0] req_pending_count_r;
+    reg [COUNT_W-1:0] resp_pending_count_r;
+    reg               exception_pending_r;
+
+    reg        fifo_data_valid_r           [0:FIFO_DEPTH-1];
+    reg [31:0] fifo_pc_r                   [0:FIFO_DEPTH-1];
+    reg [31:0] fifo_req_addr_r             [0:FIFO_DEPTH-1];
+    reg [31:0] fifo_inst_r                 [0:FIFO_DEPTH-1];
+    reg        fifo_pred_taken_r           [0:FIFO_DEPTH-1];
+    reg [31:0] fifo_pred_target_r          [0:FIFO_DEPTH-1];
+    reg        fifo_exception_valid_r      [0:FIFO_DEPTH-1];
+    reg [5:0]  fifo_exception_ecode_r      [0:FIFO_DEPTH-1];
+    reg [8:0]  fifo_exception_esubcode_r   [0:FIFO_DEPTH-1];
+    reg        fifo_exception_badv_valid_r [0:FIFO_DEPTH-1];
+    reg [31:0] fifo_exception_badv_r       [0:FIFO_DEPTH-1];
 
     wire        pc_adef_w;
     wire        req_exception_valid_w;
@@ -49,8 +64,14 @@ module s2_f2 (
     wire [31:0] req_addr_w;
     wire        in_fire_w;
     wire        out_slot_ready_w;
-    wire        pend_ready_w;
     wire        out_fire_w;
+    wire        fifo_full_w;
+    wire        fifo_empty_w;
+    wire        head_ready_w;
+    wire        issue_fire_w;
+    wire        req_enqueue_w;
+    wire        resp_take_w;
+    integer reset_i;
 
     assign pc_adef_w = |in_pc[1:0];
     assign req_exception_valid_w = pc_adef_w || tlb_exception_valid;
@@ -58,13 +79,21 @@ module s2_f2 (
     assign req_exception_esubcode_w = 9'h0;
     assign req_addr_w = tlb_query_paddr;
 
+    assign fifo_full_w = (fifo_count_r == FIFO_DEPTH_COUNT);
+    assign fifo_empty_w = (fifo_count_r == {COUNT_W{1'b0}});
     assign out_slot_ready_w = !out_valid || next_allowin;
-    assign pend_ready_w = pend_valid &&
-                          (pend_exception_valid ||
-                           (pend_req_sent && icache_resp_valid));
-    assign out_fire_w = out_slot_ready_w && pend_ready_w;
-    assign s2_allowin = !flush && !pend_valid && out_slot_ready_w;
+    assign head_ready_w = !fifo_empty_w &&
+                          (fifo_exception_valid_r[fifo_head_r] ||
+                           fifo_data_valid_r[fifo_head_r]);
+    assign out_fire_w = out_slot_ready_w && head_ready_w;
+    assign s2_allowin = !flush && !fifo_full_w && !exception_pending_r;
     assign in_fire_w = in_valid && s2_allowin;
+    assign req_enqueue_w = in_fire_w && !req_exception_valid_w;
+    assign resp_take_w = icache_resp_valid &&
+                         (resp_pending_count_r != {COUNT_W{1'b0}});
+    assign icache_req_valid = (req_pending_count_r != {COUNT_W{1'b0}});
+    assign icache_req_addr = fifo_req_addr_r[issue_ptr_r];
+    assign issue_fire_w = icache_req_valid && icache_req_ready;
 
     assign tlb_query_valid = in_fire_w && !pc_adef_w;
     assign tlb_query_write = 1'b0;
@@ -72,16 +101,27 @@ module s2_f2 (
 
     always @(posedge clk) begin
         if (reset || flush) begin
-            pend_valid                <= 1'b0;
-            pend_req_sent             <= 1'b0;
-            pend_pc                   <= 32'b0;
-            pend_pred_taken           <= 1'b0;
-            pend_pred_target          <= 32'b0;
-            pend_exception_valid      <= 1'b0;
-            pend_exception_ecode      <= 6'b0;
-            pend_exception_esubcode   <= 9'b0;
-            pend_exception_badv_valid <= 1'b0;
-            pend_exception_badv       <= 32'b0;
+            fifo_head_r               <= {PTR_W{1'b0}};
+            fifo_tail_r               <= {PTR_W{1'b0}};
+            issue_ptr_r               <= {PTR_W{1'b0}};
+            resp_ptr_r                <= {PTR_W{1'b0}};
+            fifo_count_r              <= {COUNT_W{1'b0}};
+            req_pending_count_r       <= {COUNT_W{1'b0}};
+            resp_pending_count_r      <= {COUNT_W{1'b0}};
+            exception_pending_r       <= 1'b0;
+            for (reset_i = 0; reset_i < FIFO_DEPTH; reset_i = reset_i + 1) begin
+                fifo_data_valid_r[reset_i]           <= 1'b0;
+                fifo_pc_r[reset_i]                   <= 32'b0;
+                fifo_req_addr_r[reset_i]             <= 32'b0;
+                fifo_inst_r[reset_i]                 <= 32'h03400000;
+                fifo_pred_taken_r[reset_i]           <= 1'b0;
+                fifo_pred_target_r[reset_i]          <= 32'b0;
+                fifo_exception_valid_r[reset_i]      <= 1'b0;
+                fifo_exception_ecode_r[reset_i]      <= 6'b0;
+                fifo_exception_esubcode_r[reset_i]   <= 9'b0;
+                fifo_exception_badv_valid_r[reset_i] <= 1'b0;
+                fifo_exception_badv_r[reset_i]       <= 32'b0;
+            end
             out_valid                 <= 1'b0;
             out_pc                    <= 32'b0;
             out_inst                  <= 32'h03400000;
@@ -92,23 +132,20 @@ module s2_f2 (
             out_exception_esubcode    <= 9'b0;
             out_exception_badv_valid  <= 1'b0;
             out_exception_badv        <= 32'b0;
-            icache_req_valid          <= 1'b0;
-            icache_req_addr           <= 32'b0;
         end else begin
             if (out_slot_ready_w) begin
-                if (pend_ready_w) begin
+                if (head_ready_w) begin
                     out_valid                <= 1'b1;
-                    out_pc                   <= pend_pc;
-                    out_inst                 <= pend_exception_valid ? 32'h03400000 : icache_resp_data;
-                    out_pred_taken           <= pend_pred_taken;
-                    out_pred_target          <= pend_pred_target;
-                    out_exception_valid      <= pend_exception_valid;
-                    out_exception_ecode      <= pend_exception_ecode;
-                    out_exception_esubcode   <= pend_exception_esubcode;
-                    out_exception_badv_valid <= pend_exception_badv_valid;
-                    out_exception_badv       <= pend_exception_badv;
-                    pend_valid               <= 1'b0;
-                    pend_req_sent            <= 1'b0;
+                    out_pc                   <= fifo_pc_r[fifo_head_r];
+                    out_inst                 <= fifo_exception_valid_r[fifo_head_r] ?
+                                                32'h03400000 : fifo_inst_r[fifo_head_r];
+                    out_pred_taken           <= fifo_pred_taken_r[fifo_head_r];
+                    out_pred_target          <= fifo_pred_target_r[fifo_head_r];
+                    out_exception_valid      <= fifo_exception_valid_r[fifo_head_r];
+                    out_exception_ecode      <= fifo_exception_ecode_r[fifo_head_r];
+                    out_exception_esubcode   <= fifo_exception_esubcode_r[fifo_head_r];
+                    out_exception_badv_valid <= fifo_exception_badv_valid_r[fifo_head_r];
+                    out_exception_badv       <= fifo_exception_badv_r[fifo_head_r];
                 end else begin
                     out_valid                <= 1'b0;
                     out_exception_valid      <= 1'b0;
@@ -119,27 +156,62 @@ module s2_f2 (
                 end
             end
 
-            if (icache_req_valid && icache_req_ready) begin
-                icache_req_valid <= 1'b0;
-                pend_req_sent    <= 1'b1;
+            if (issue_fire_w) begin
+                issue_ptr_r <= issue_ptr_r + {{(PTR_W-1){1'b0}}, 1'b1};
+            end
+
+            if (resp_take_w) begin
+                fifo_data_valid_r[resp_ptr_r] <= 1'b1;
+                fifo_inst_r[resp_ptr_r]       <= icache_resp_data;
+                resp_ptr_r <= resp_ptr_r + {{(PTR_W-1){1'b0}}, 1'b1};
+            end
+
+            if (out_fire_w) begin
+                fifo_data_valid_r[fifo_head_r]           <= 1'b0;
+                fifo_exception_valid_r[fifo_head_r]      <= 1'b0;
+                fifo_exception_badv_valid_r[fifo_head_r] <= 1'b0;
+                fifo_head_r <= fifo_head_r + {{(PTR_W-1){1'b0}}, 1'b1};
+                if (fifo_exception_valid_r[fifo_head_r]) begin
+                    exception_pending_r <= 1'b0;
+                    issue_ptr_r <= fifo_head_r + {{(PTR_W-1){1'b0}}, 1'b1};
+                    resp_ptr_r  <= fifo_head_r + {{(PTR_W-1){1'b0}}, 1'b1};
+                end
             end
 
             if (in_fire_w) begin
-                pend_valid                <= 1'b1;
-                pend_req_sent             <= req_exception_valid_w;
-                pend_pc                   <= in_pc;
-                pend_pred_taken           <= in_pred_taken;
-                pend_pred_target          <= in_pred_target;
-                pend_exception_valid      <= req_exception_valid_w;
-                pend_exception_ecode      <= req_exception_ecode_w;
-                pend_exception_esubcode   <= req_exception_esubcode_w;
-                pend_exception_badv_valid <= req_exception_valid_w;
-                pend_exception_badv       <= in_pc;
-                if (!req_exception_valid_w) begin
-                    icache_req_valid <= 1'b1;
-                    icache_req_addr  <= req_addr_w;
-                end
+                fifo_data_valid_r[fifo_tail_r]           <= req_exception_valid_w;
+                fifo_pc_r[fifo_tail_r]                   <= in_pc;
+                fifo_req_addr_r[fifo_tail_r]             <= req_addr_w;
+                fifo_inst_r[fifo_tail_r]                 <= 32'h03400000;
+                fifo_pred_taken_r[fifo_tail_r]           <= in_pred_taken;
+                fifo_pred_target_r[fifo_tail_r]          <= in_pred_target;
+                fifo_exception_valid_r[fifo_tail_r]      <= req_exception_valid_w;
+                fifo_exception_ecode_r[fifo_tail_r]      <= req_exception_ecode_w;
+                fifo_exception_esubcode_r[fifo_tail_r]   <= req_exception_esubcode_w;
+                fifo_exception_badv_valid_r[fifo_tail_r] <= req_exception_valid_w;
+                fifo_exception_badv_r[fifo_tail_r]       <= in_pc;
+                fifo_tail_r <= fifo_tail_r + {{(PTR_W-1){1'b0}}, 1'b1};
+                if (req_exception_valid_w)
+                    exception_pending_r <= 1'b1;
             end
+
+            case ({in_fire_w, out_fire_w})
+                2'b10: fifo_count_r <= fifo_count_r + {{(COUNT_W-1){1'b0}}, 1'b1};
+                2'b01: fifo_count_r <= fifo_count_r - {{(COUNT_W-1){1'b0}}, 1'b1};
+                default: ;
+            endcase
+
+            case ({req_enqueue_w, issue_fire_w})
+                2'b10: req_pending_count_r <= req_pending_count_r + {{(COUNT_W-1){1'b0}}, 1'b1};
+                2'b01: req_pending_count_r <= req_pending_count_r - {{(COUNT_W-1){1'b0}}, 1'b1};
+                default: ;
+            endcase
+
+            case ({issue_fire_w, resp_take_w})
+                2'b10: resp_pending_count_r <= resp_pending_count_r + {{(COUNT_W-1){1'b0}}, 1'b1};
+                2'b01: resp_pending_count_r <= resp_pending_count_r - {{(COUNT_W-1){1'b0}}, 1'b1};
+                default: ;
+            endcase
         end
     end
 
@@ -163,7 +235,7 @@ module s2_f2 (
             end
             if (out_fire_w) begin
                 dbg_emit_cnt <= dbg_emit_cnt + 1;
-                if (pend_pred_taken)
+                if (fifo_pred_taken_r[fifo_head_r])
                     dbg_emit_pred_taken_cnt <= dbg_emit_pred_taken_cnt + 1;
             end
         end

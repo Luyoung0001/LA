@@ -44,6 +44,11 @@ module la_l1i_adapter (
     // consume them and pulse l2_resp_valid on the final beat so cpu_l1_icache
     // clears stale_l2_resp_pending_q.
     reg [2:0]   axi_outstanding_r;
+    // A flush can coincide with an L1I miss request that the cache considers
+    // accepted but this adapter has not yet launched to AXI. No real AXI
+    // response will arrive in that case, so pulse a dummy L2 response after
+    // the flush to release cpu_l1_icache's stale-response wait state.
+    reg         stale_clear_pulse_r;
 
     reg         cacop_pend_r;
     reg [1:0]   cacop_mode_r;
@@ -72,6 +77,12 @@ module la_l1i_adapter (
     wire l2_req_accept_w  = l2_req_valid_w && l2_req_ready_w;
     wire axi_req_fire_w   = axi_req_valid_r && axi_req_ready;
     wire axi_resp_fire_w  = axi_resp_valid && (fill_state_r == FILL_RESP);
+    wire flush_real_resp_pending_w =
+        ((fill_state_r == FILL_RESP) && !axi_resp_valid) ||
+        ((fill_state_r == FILL_REQ) && axi_req_fire_w);
+    wire flush_synth_clear_w =
+        (l2_req_accept_w || (fill_state_r != FILL_IDLE)) &&
+        !flush_real_resp_pending_w;
 
     assign l2_req_ready_w = (fill_state_r == FILL_IDLE) && (axi_outstanding_r == 3'd0);
     assign axi_req_valid  = axi_req_valid_r;
@@ -179,22 +190,24 @@ module la_l1i_adapter (
             l2_resp_data3_r <= 32'b0;
             resp_valid_r    <= 1'b0;
             resp_data_r     <= 32'b0;
-            // On flush, count any AXI beat already accepted by the master
-            // (FILL_RESP) plus any pending request just sent (FILL_REQ) as
-            // outstanding so we can drain them.
             if (reset) begin
                 axi_outstanding_r <= 3'd0;
+                stale_clear_pulse_r <= 1'b0;
             end else if (flush) begin
-                // Any non-IDLE fill state means an AXI request was issued to
-                // the master and a response will come back later. Count it
-                // so we can drain.
                 axi_outstanding_r <= axi_outstanding_r +
-                    ((fill_state_r != FILL_IDLE) ? 3'd1 : 3'd0);
+                    (flush_real_resp_pending_w ? 3'd1 : 3'd0);
+                stale_clear_pulse_r <= stale_clear_pulse_r ||
+                                       flush_synth_clear_w;
             end
         end else begin
             l2_resp_valid_r <= 1'b0;
             resp_valid_r <= icache_resp_valid_w;
             if (icache_resp_valid_w) resp_data_r <= icache_resp_data_w;
+
+            if (stale_clear_pulse_r) begin
+                stale_clear_pulse_r <= 1'b0;
+                l2_resp_valid_r <= 1'b1;
+            end
 
             // Drain stale AXI responses left over from a flushed fill. Pulse
             // l2_resp_valid on the LAST drained beat so cpu_l1_icache clears
