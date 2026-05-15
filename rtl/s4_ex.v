@@ -1,3 +1,9 @@
+`ifdef VERILATOR
+`ifndef MDU
+`define S4_EX_FAST_MDU
+`endif
+`endif
+
 module s4_ex (
     input  wire        clk,
     input  wire        reset,
@@ -149,18 +155,32 @@ module s4_ex (
     wire signed [31:0] op1_signed;
     wire signed [31:0] op2_signed;
     wire [31:0] csr_write_data_w;
-    wire [63:0] mul_signed_w;
-    wire [63:0] mul_unsigned_w;
+    wire [9:0]  mul_div_op_w;
+    wire [31:0] mul_result_w;
     wire [31:0] div_signed_w;
     wire [31:0] div_unsigned_w;
     wire [31:0] mod_signed_w;
     wire [31:0] mod_unsigned_w;
+`ifdef S4_EX_FAST_MDU
+    wire [63:0] mul_signed_w;
+    wire [63:0] mul_unsigned_w;
     wire        div_signed_neg_w;
     wire [31:0] div_signed_abs1_w;
     wire [31:0] div_signed_abs2_w;
     wire [31:0] div_signed_abs2_safe_w;
     wire [31:0] div_signed_quot_abs_w;
     wire [31:0] div_signed_rem_abs_w;
+`else
+    wire        divmod_inst_w;
+    wire        divmod_active_w;
+    wire        div_signed_op_w;
+    wire        divider_start_w;
+    wire        divider_complete_w;
+    wire [31:0] divider_quot_w;
+    wire [31:0] divider_rem_w;
+    reg         div_active_r;
+    reg         div_done_r;
+`endif
     wire        unused_timer_64;
     wire        branch_take_w;
     wire [31:0] branch_target_w;
@@ -171,8 +191,16 @@ module s4_ex (
     wire        direction_miss_w;
     wire        target_miss_w;
     wire        redirect_miss_w;
+    wire        ex_slot_allowin_w;
+    wire        ex_ready_go_w;
 
-    assign ex_allowin = !out_valid || next_allowin;
+    assign ex_slot_allowin_w = !out_valid || next_allowin;
+`ifdef S4_EX_FAST_MDU
+    assign ex_ready_go_w = 1'b1;
+`else
+    assign ex_ready_go_w = !divmod_active_w || div_done_r;
+`endif
+    assign ex_allowin = ex_slot_allowin_w && ex_ready_go_w;
 
     reg [31:0] ex_result;
 
@@ -265,8 +293,16 @@ module s4_ex (
     assign op2_signed = op2_forwarded;
 
     assign csr_write_data_w = in_csr_mask ? ((op1_forwarded & op2_forwarded) | (~op1_forwarded & csr_read_data)) : op2_forwarded;
+    assign mul_div_op_w = {3'b0, inst_mod_wu, inst_mod_w, inst_div_wu, inst_div_w,
+                           inst_mulh_wu, inst_mulh_w, inst_mul_w};
+`ifdef S4_EX_FAST_MDU
     assign mul_signed_w = op1_signed * op2_signed;
     assign mul_unsigned_w = op1_forwarded * op2_forwarded;
+    assign mul_result_w =
+        inst_mul_w   ? mul_signed_w[31:0] :
+        inst_mulh_w  ? mul_signed_w[63:32] :
+        inst_mulh_wu ? mul_unsigned_w[63:32] :
+                       32'b0;
     assign div_signed_neg_w = op1_forwarded[31] ^ op2_forwarded[31];
     assign div_signed_abs1_w = op1_forwarded[31] ? (~op1_forwarded + 32'b1) : op1_forwarded;
     assign div_signed_abs2_w = op2_forwarded[31] ? (~op2_forwarded + 32'b1) : op2_forwarded;
@@ -279,6 +315,37 @@ module s4_ex (
     assign mod_signed_w = (op2_forwarded == 32'b0) ? op1_forwarded :
                           op1_forwarded[31] ? (~div_signed_rem_abs_w + 32'b1) : div_signed_rem_abs_w;
     assign mod_unsigned_w = (op2_forwarded == 32'b0) ? op1_forwarded : (op1_forwarded % op2_forwarded);
+`else
+    mul u_mul (
+        .mul_div_op (mul_div_op_w),
+        .alu_src1   (op1_forwarded),
+        .alu_src2   (op2_forwarded),
+        .mul_result (mul_result_w)
+    );
+
+    assign divmod_inst_w = inst_div_w | inst_div_wu | inst_mod_w | inst_mod_wu;
+    assign divmod_active_w = in_valid && !in_exception_valid && divmod_inst_w;
+    assign div_signed_op_w = inst_div_w | inst_mod_w;
+    assign divider_start_w = ex_slot_allowin_w && divmod_active_w &&
+                             !div_active_r && !div_done_r;
+
+    divider u_divider (
+        .div_clk    (clk),
+        .reset      (reset || flush),
+        .div        (divider_start_w),
+        .div_signed (div_signed_op_w),
+        .x          (op1_forwarded),
+        .y          (op2_forwarded),
+        .s          (divider_quot_w),
+        .r          (divider_rem_w),
+        .complete   (divider_complete_w)
+    );
+
+    assign div_signed_w   = (op2_forwarded == 32'b0) ? 32'hffffffff : divider_quot_w;
+    assign div_unsigned_w = (op2_forwarded == 32'b0) ? 32'hffffffff : divider_quot_w;
+    assign mod_signed_w   = (op2_forwarded == 32'b0) ? op1_forwarded : divider_rem_w;
+    assign mod_unsigned_w = (op2_forwarded == 32'b0) ? op1_forwarded : divider_rem_w;
+`endif
     assign branch_take_w = inst_b | inst_bl | inst_jirl |
                            (inst_beq && (op1_forwarded == op2_forwarded)) |
                            (inst_bne && (op1_forwarded != op2_forwarded)) |
@@ -346,12 +413,8 @@ module s4_ex (
             ex_result = $signed(op1_forwarded) >>> op2_forwarded[4:0];
         end else if (inst_srai_w) begin
             ex_result = $signed(op1_forwarded) >>> rk[4:0];
-        end else if (inst_mul_w) begin
-            ex_result = mul_signed_w[31:0];
-        end else if (inst_mulh_w) begin
-            ex_result = mul_signed_w[63:32];
-        end else if (inst_mulh_wu) begin
-            ex_result = mul_unsigned_w[63:32];
+        end else if (inst_mul_w || inst_mulh_w || inst_mulh_wu) begin
+            ex_result = mul_result_w;
         end else if (inst_div_w) begin
             ex_result = div_signed_w;
         end else if (inst_div_wu) begin
@@ -370,6 +433,27 @@ module s4_ex (
             ex_result = csr_read_data;
         end
     end
+
+`ifndef S4_EX_FAST_MDU
+    always @(posedge clk) begin
+        if (reset || flush) begin
+            div_active_r <= 1'b0;
+            div_done_r   <= 1'b0;
+        end else begin
+            if (divider_start_w) begin
+                div_active_r <= 1'b1;
+                div_done_r   <= 1'b0;
+            end else if (divider_complete_w) begin
+                div_active_r <= 1'b0;
+                div_done_r   <= 1'b1;
+            end
+
+            if (ex_allowin) begin
+                div_done_r <= 1'b0;
+            end
+        end
+    end
+`endif
 
     always @(posedge clk) begin
         if (reset) begin
@@ -467,6 +551,16 @@ module s4_ex (
             out_exception_esubcode   <= in_exception_esubcode;
             out_exception_badv_valid <= in_exception_badv_valid;
             out_exception_badv       <= in_exception_badv;
+        end else if (out_valid && next_allowin) begin
+            branch_update_valid <= 1'b0;
+            branch_taken        <= 1'b0;
+            branch_target       <= 32'b0;
+            branch_mispredict   <= 1'b0;
+`ifdef PERF_MONI
+            bpu_perf_valid          <= 1'b0;
+            bpu_perf_exu_flush      <= 1'b0;
+`endif
+            out_valid <= 1'b0;
         end else begin
             branch_update_valid <= 1'b0;
             branch_taken        <= 1'b0;
@@ -480,3 +574,7 @@ module s4_ex (
     end
 
 endmodule
+
+`ifdef S4_EX_FAST_MDU
+`undef S4_EX_FAST_MDU
+`endif
