@@ -28,9 +28,10 @@ module s1_f1 #(
     reg [1:0]  pred_valid_pipe_r;
 
     wire bp_use_valid = bp_resp_valid && bp_pred_taken && (&pred_valid_pipe_r);
+    wire [31:0] seq_next_pc_w = bp_use_valid ? bp_pred_target : (pc_r + 32'd4);
 
     assign out_pred_taken  = bp_use_valid;
-    assign out_pred_target = bp_use_valid ? bp_pred_target : (pc_r + 32'd4);
+    assign out_pred_target = seq_next_pc_w;
 
     always @(posedge clk) begin
         if (reset) begin
@@ -41,21 +42,27 @@ module s1_f1 #(
             out_pc            <= RESET_PC;
             pred_valid_pipe_r <= 2'b00;
         end else begin
-            bp_req_valid <= 1'b1;
-            bp_req_pc    <= pc_r;
-            out_valid    <= 1'b1;
-            out_pc       <= pc_r;
             pred_valid_pipe_r <= redirect_valid ? 2'b00
                                                 : {pred_valid_pipe_r[0], 1'b1};
 
             if (redirect_valid) begin
-                pc_r <= redirect_pc;
-            end else if (hold) begin
-                pc_r <= pc_r;
-            end else if (bp_use_valid) begin
-                pc_r <= bp_pred_target;
+                bp_req_valid <= 1'b1;
+                bp_req_pc    <= redirect_pc;
+                out_valid    <= 1'b1;
+                out_pc       <= redirect_pc;
+                pc_r         <= redirect_pc;
             end else begin
-                pc_r <= pc_r + 32'd4;
+                bp_req_valid <= 1'b1;
+                bp_req_pc    <= pc_r;
+                out_valid    <= 1'b1;
+
+                if (hold) begin
+                    out_pc <= pc_r;
+                    pc_r <= pc_r;
+                end else begin
+                    out_pc <= seq_next_pc_w;
+                    pc_r   <= seq_next_pc_w;
+                end
             end
         end
     end

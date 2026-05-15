@@ -69,7 +69,7 @@ module backend_top #(
     output wire [31:0] dbg_rf_rdata,
 
     output wire        ws_valid,
-    output wire        ex_done_valid,
+    output wire        d1_allowin,
     output wire [31:0] debug_wb_pc,
     output wire [3:0]  debug_wb_rf_wen,
     output wire [4:0]  debug_wb_rf_wnum,
@@ -447,11 +447,19 @@ module backend_top #(
                           !mem1_is_ertn_w && mem1_is_icacop_w;
     assign icacop_mode  = mem1_out_inst_w[4:3];
     assign icacop_addr  = mem1_out_wb_data_w;
+    wire backend_redirect_flush_w;
+    wire mem1_redirect_flush_w;
+    assign backend_redirect_flush_w = (branch_update_valid && branch_mispredict) ||
+                                      exception_redirect_valid || ertn_redirect_valid ||
+                                      refetch_redirect_valid;
+    assign mem1_redirect_flush_w = exception_redirect_valid || ertn_redirect_valid ||
+                                   refetch_redirect_valid;
 
     s3_d1 u_s3_d1 (
         .clk          (clk),
         .reset        (reset),
-        .flush        (branch_update_valid && branch_mispredict),
+        .flush        (backend_redirect_flush_w),
+        .next_allowin (ex_allowin_w),
         .in_valid     (fetch_valid),
         .in_pc        (fetch_pc),
         .in_inst      (fetch_inst),
@@ -465,8 +473,13 @@ module backend_top #(
         .wb_we        (rf_we_w),
         .wb_waddr     (rf_waddr_w),
         .wb_wdata     (rf_wdata_w),
+        .ex_load_valid(ex1_out_valid_w && ex1_out_is_load_w),
+        .ex_load_rd   (ex1_out_rd_w),
+        .m1_load_valid(m1_load_valid_w),
+        .m1_load_rd   (m1_load_rd_w),
         .dbg_reg_num  (dbg_reg_num),
         .dbg_rf_rdata (dbg_rf_rdata),
+        .d1_allowin   (d1_allowin_w),
         .out_valid    (rrd_out_valid_w),
         .out_pc       (rrd_out_pc_w),
         .out_inst     (rrd_out_inst_w),
@@ -542,7 +555,9 @@ module backend_top #(
     s4_ex u_s4_ex (
         .clk           (clk),
         .reset         (reset),
-        .in_valid      (rrd_out_valid_w),
+        .flush         (mem1_redirect_flush_w),
+        .next_allowin  (m1_allowin_w),
+        .in_valid      (rrd_out_valid_w && !backend_redirect_flush_w),
         .in_pc         (rrd_out_pc_w),
         .in_inst       (rrd_out_inst_w),
         .in_pred_taken (rrd_out_pred_taken_w),
@@ -617,16 +632,23 @@ module backend_top #(
         .out_exception_ecode(ex1_out_exception_ecode_w),
         .out_exception_esubcode(ex1_out_exception_esubcode_w),
         .out_exception_badv_valid(ex1_out_exception_badv_valid_w),
-        .out_exception_badv(ex1_out_exception_badv_w)
+        .out_exception_badv(ex1_out_exception_badv_w),
+        .ex_allowin    (ex_allowin_w)
     );
 
+    wire m1_allowin_w;
+    wire m1_load_valid_w;
+    wire [4:0] m1_load_rd_w;
+    wire d1_allowin_w;
+    wire ex_allowin_w;
+    assign d1_allowin = d1_allowin_w;
+
     assign branch_pc = ex1_out_pc_w;
-    assign ex_done_valid = ex1_out_valid_w && !ex1_out_is_load_w && !ex1_out_is_store_w;
 
     s5_m1 u_s5_m1 (
         .clk               (clk),
         .reset             (reset),
-        .in_valid          (ex1_out_valid_w),
+        .in_valid          (ex1_out_valid_w && m1_allowin_w && !mem1_redirect_flush_w),
         .in_pc             (ex1_out_pc_w),
         .in_inst           (ex1_out_inst_w),
         .in_rd             (ex1_out_rd_w),
@@ -658,6 +680,9 @@ module backend_top #(
         .dcache_req_wstrb  (dmem_req_wstrb),
         .dcache_resp_valid (dmem_resp_valid),
         .dcache_resp_data  (dmem_resp_rdata),
+        .m1_allowin        (m1_allowin_w),
+        .m1_load_valid     (m1_load_valid_w),
+        .m1_load_rd        (m1_load_rd_w),
         .out_valid         (mem1_out_valid_w),
         .out_pc            (mem1_out_pc_w),
         .out_inst          (mem1_out_inst_w),

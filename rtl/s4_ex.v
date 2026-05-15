@@ -1,6 +1,8 @@
 module s4_ex (
     input  wire        clk,
     input  wire        reset,
+    input  wire        flush,
+    input  wire        next_allowin,
     input  wire        in_valid,
     input  wire [31:0] in_pc,
     input  wire [31:0] in_inst,
@@ -76,7 +78,8 @@ module s4_ex (
     output reg  [5:0]  out_exception_ecode,
     output reg  [8:0]  out_exception_esubcode,
     output reg         out_exception_badv_valid,
-    output reg  [31:0] out_exception_badv
+    output reg  [31:0] out_exception_badv,
+    output wire        ex_allowin
 );
 
     wire [5:0] op_31_26;
@@ -168,6 +171,8 @@ module s4_ex (
     wire        direction_miss_w;
     wire        target_miss_w;
     wire        redirect_miss_w;
+
+    assign ex_allowin = !out_valid || next_allowin;
 
     reg [31:0] ex_result;
 
@@ -407,7 +412,17 @@ module s4_ex (
             out_exception_esubcode   <= 9'b0;
             out_exception_badv_valid <= 1'b0;
             out_exception_badv       <= 32'b0;
-        end else begin
+        end else if (flush) begin
+            branch_update_valid <= 1'b0;
+            branch_taken        <= 1'b0;
+            branch_target       <= 32'b0;
+            branch_mispredict   <= 1'b0;
+`ifdef PERF_MONI
+            bpu_perf_valid          <= 1'b0;
+            bpu_perf_exu_flush      <= 1'b0;
+`endif
+            out_valid <= 1'b0;
+        end else if (ex_allowin) begin
             branch_update_valid <= in_valid && in_is_branch;
             branch_taken        <= in_valid && branch_take_w;
             branch_target       <= branch_target_w;
@@ -452,6 +467,15 @@ module s4_ex (
             out_exception_esubcode   <= in_exception_esubcode;
             out_exception_badv_valid <= in_exception_badv_valid;
             out_exception_badv       <= in_exception_badv;
+        end else begin
+            branch_update_valid <= 1'b0;
+            branch_taken        <= 1'b0;
+            branch_target       <= 32'b0;
+            branch_mispredict   <= 1'b0;
+`ifdef PERF_MONI
+            bpu_perf_valid          <= 1'b0;
+            bpu_perf_exu_flush      <= 1'b0;
+`endif
         end
     end
 

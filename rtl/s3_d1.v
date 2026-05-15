@@ -2,6 +2,7 @@ module s3_d1 (
     input  wire        clk,
     input  wire        reset,
     input  wire        flush,
+    input  wire        next_allowin,
     input  wire        in_valid,
     input  wire [31:0] in_pc,
     input  wire [31:0] in_inst,
@@ -15,9 +16,14 @@ module s3_d1 (
     input  wire        wb_we,
     input  wire [4:0]  wb_waddr,
     input  wire [31:0] wb_wdata,
+    input  wire        ex_load_valid,
+    input  wire [4:0]  ex_load_rd,
+    input  wire        m1_load_valid,
+    input  wire [4:0]  m1_load_rd,
     input  wire [4:0]  dbg_reg_num,
     output wire [31:0] dbg_rf_rdata,
-    output reg         out_valid,
+    output wire        d1_allowin,
+    output wire        out_valid,
     output reg  [31:0] out_pc,
     output reg  [31:0] out_inst,
     output reg         out_pred_taken,
@@ -41,6 +47,15 @@ module s3_d1 (
     output reg         out_exception_badv_valid,
     output reg  [31:0] out_exception_badv
 );
+
+    // --- Handshake: LA500-style valid/allowin ---
+    reg        d1_valid;
+    reg [4:0]  d1_src1_r;
+    reg [4:0]  d1_src2_r;
+    wire       load_use_hazard_w;
+    wire       d1_ready_go;
+    assign     d1_allowin  = !d1_valid || (d1_ready_go && next_allowin);
+    assign     out_valid   = d1_valid && d1_ready_go;
 
     wire [5:0]  op_31_26;
     wire [3:0]  op_25_22;
@@ -315,13 +330,23 @@ module s3_d1 (
                          (wb_we && (wb_waddr == rf_raddr2_w)) ? wb_wdata :
                          regs[rf_raddr2_w];
     assign dbg_rf_rdata = (dbg_reg_num == 5'b0) ? 32'b0 : regs[dbg_reg_num];
+    assign load_use_hazard_w = d1_valid &&
+                               (((ex_load_valid && (ex_load_rd != 5'b0)) &&
+                                 ((d1_src1_r == ex_load_rd) ||
+                                  (d1_src2_r == ex_load_rd))) ||
+                                ((m1_load_valid && (m1_load_rd != 5'b0)) &&
+                                 ((d1_src1_r == m1_load_rd) ||
+                                  (d1_src2_r == m1_load_rd))));
+    assign d1_ready_go = !load_use_hazard_w;
 
     always @(posedge clk) begin
         if (reset) begin
             for (i = 0; i < 32; i = i + 1) begin
                 regs[i] <= 32'b0;
             end
-            out_valid      <= 1'b0;
+            d1_valid       <= 1'b0;
+            d1_src1_r      <= 5'b0;
+            d1_src2_r      <= 5'b0;
             out_pc         <= 32'b0;
             out_inst       <= 32'b0;
             out_pred_taken <= 1'b0;
@@ -349,29 +374,37 @@ module s3_d1 (
                 regs[wb_waddr] <= wb_wdata;
             end
 
-            out_valid      <= in_valid && !flush;
-            out_pc         <= in_pc;
-            out_inst       <= in_inst;
-            out_pred_taken <= in_pred_taken;
-            out_pred_target <= in_pred_target;
-            out_rd         <= out_rd_w;
-            out_op1        <= rf_rdata1_w;
-            out_op2        <= rf_rdata2_w;
-            out_imm        <= out_imm_w;
-            out_use_imm    <= out_use_imm_w;
-            out_is_branch  <= out_is_branch_w;
-            out_is_load    <= out_is_load_w;
-            out_is_store   <= out_is_store_w;
-            out_is_muldiv  <= out_is_muldiv_w;
-            out_is_csr     <= out_is_csr_w;
-            out_csr_we     <= out_csr_we_w;
-            out_csr_mask   <= out_csr_mask_w;
-            out_csr_addr   <= out_csr_addr_w;
-            out_exception_valid      <= in_valid && in_exception_valid;
-            out_exception_ecode      <= in_exception_ecode;
-            out_exception_esubcode   <= in_exception_esubcode;
-            out_exception_badv_valid <= in_exception_badv_valid;
-            out_exception_badv       <= in_exception_badv;
+            if (flush) begin
+                d1_valid <= 1'b0;
+            end else if (d1_allowin) begin
+                d1_valid <= in_valid;
+                if (in_valid) begin
+                    d1_src1_r      <= rf_raddr1_w;
+                    d1_src2_r      <= rf_raddr2_w;
+                    out_pc         <= in_pc;
+                    out_inst       <= in_inst;
+                    out_pred_taken <= in_pred_taken;
+                    out_pred_target <= in_pred_target;
+                    out_rd         <= out_rd_w;
+                    out_op1        <= rf_rdata1_w;
+                    out_op2        <= rf_rdata2_w;
+                    out_imm        <= out_imm_w;
+                    out_use_imm    <= out_use_imm_w;
+                    out_is_branch  <= out_is_branch_w;
+                    out_is_load    <= out_is_load_w;
+                    out_is_store   <= out_is_store_w;
+                    out_is_muldiv  <= out_is_muldiv_w;
+                    out_is_csr     <= out_is_csr_w;
+                    out_csr_we     <= out_csr_we_w;
+                    out_csr_mask   <= out_csr_mask_w;
+                    out_csr_addr   <= out_csr_addr_w;
+                    out_exception_valid      <= in_exception_valid;
+                    out_exception_ecode      <= in_exception_ecode;
+                    out_exception_esubcode   <= in_exception_esubcode;
+                    out_exception_badv_valid <= in_exception_badv_valid;
+                    out_exception_badv       <= in_exception_badv;
+                end
+            end
         end
     end
 

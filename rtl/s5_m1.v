@@ -33,6 +33,9 @@ module s5_m1 (
     output reg  [3:0]  dcache_req_wstrb,
     input  wire        dcache_resp_valid,
     input  wire [31:0] dcache_resp_data,
+    output wire        m1_allowin,
+    output wire        m1_load_valid,
+    output wire [4:0]  m1_load_rd,
     output reg         out_valid,
     output reg  [31:0] out_pc,
     output reg  [31:0] out_inst,
@@ -101,6 +104,10 @@ module s5_m1 (
     reg [8:0]  pend_exception_esubcode;
     reg        pend_exception_badv_valid;
     reg [31:0] pend_exception_badv;
+
+    assign m1_allowin = !pend_valid;
+    assign m1_load_valid = pend_valid && pend_is_load;
+    assign m1_load_rd = pend_rd;
 
     assign op_31_26 = in_inst[31:26];
     assign op_25_22 = in_inst[25:22];

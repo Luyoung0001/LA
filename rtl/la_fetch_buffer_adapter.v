@@ -9,6 +9,8 @@ module la_fetch_buffer_adapter #(
     input  wire            clk,
     input  wire            reset,
     input  wire            flush,
+    input  wire            out_allowin,
+    output wire            in_allowin,
 
     input  wire            in_valid,
     input  wire [XLEN-1:0] in_pc,
@@ -90,11 +92,11 @@ module la_fetch_buffer_adapter #(
         .wr_fault_i         (in_exception_valid),
         .wr_fault_ecode_i   (in_exception_ecode),
         .wr_fault_badv_i    (in_exception_badv),
-        .not_full_o         (),
+        .not_full_o         (in_allowin),
         .wr_fire_o          (wr_fire_w),
         .bypass_o           (bypass_w),
 
-        .rd_allowin_i       (1'b1),
+        .rd_allowin_i       (out_allowin),
         .rd_valid_o         (out_valid),
         .rd_fire_o          (rd_fire_w),
         .empty_o            (empty_w),

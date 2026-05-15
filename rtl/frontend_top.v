@@ -10,7 +10,7 @@ module frontend_top #(
     input  wire        clk,
     input  wire        reset,
 
-    input  wire        hold_fetch,
+    input  wire        d1_allowin,
     input  wire        redirect_valid,
     input  wire [31:0] redirect_pc,
 
@@ -65,9 +65,8 @@ module frontend_top #(
     wire [8:0] if2_out_exception_esubcode_w;
     wire if2_out_exception_badv_valid_w;
     wire [31:0] if2_out_exception_badv_w;
-    wire unused_ready;
-    assign unused_ready = ifetch_req_ready;
-
+    wire if2_next_allowin_w;
+    wire s2_allowin_w;
     wire unused_frontend_cfg;
     assign unused_frontend_cfg = &{1'b0, FETCH_BUFFER_ENABLE[0],
                                    ITCM_ENABLE[0], L1I_ENABLE[0]};
@@ -103,7 +102,7 @@ module frontend_top #(
     ) u_s1_f1 (
         .clk           (clk),
         .reset         (reset),
-        .hold          (hold_fetch),
+        .hold          (!pc_valid || !s2_allowin_w),
         .redirect_valid(redirect_valid),
         .redirect_pc   (redirect_pc),
         .bp_resp_valid (bp_resp_valid_w),
@@ -121,10 +120,12 @@ module frontend_top #(
         .clk               (clk),
         .reset             (reset),
         .flush             (redirect_valid),
-        .in_valid          (pc_valid && !hold_fetch),
+        .next_allowin      (if2_next_allowin_w),
+        .in_valid          (pc_valid),
         .in_pc             (pc),
         .in_pred_taken     (ifu_pred_taken_w),
         .in_pred_target    (ifu_pred_target_w),
+        .s2_allowin        (s2_allowin_w),
         .tlb_query_valid   (i_tlb_query_valid),
         .tlb_query_write   (i_tlb_query_write),
         .tlb_query_vaddr   (i_tlb_query_vaddr),
@@ -133,6 +134,7 @@ module frontend_top #(
         .tlb_exception_ecode(i_tlb_exception_ecode),
         .icache_req_valid  (ifetch_req_valid),
         .icache_req_addr   (ifetch_req_addr),
+        .icache_req_ready  (ifetch_req_ready),
         .icache_resp_valid (ifetch_resp_valid),
         .icache_resp_data  (ifetch_resp_data),
         .out_valid         (if2_out_valid_w),
@@ -149,10 +151,15 @@ module frontend_top #(
 
     generate
         if (FETCH_BUFFER_ENABLE != 0) begin : gen_fetch_buffer_enabled
+            wire fetch_buffer_in_allowin_w;
+            assign if2_next_allowin_w = fetch_buffer_in_allowin_w;
+
             la_fetch_buffer_adapter u_fetch_buffer_adapter (
                 .clk        (clk),
                 .reset      (reset),
                 .flush      (redirect_valid),
+                .out_allowin(d1_allowin),
+                .in_allowin (fetch_buffer_in_allowin_w),
                 .in_valid   (if2_out_valid_w),
                 .in_pc      (if2_out_pc_w),
                 .in_inst    (if2_out_inst_w),
@@ -173,6 +180,8 @@ module frontend_top #(
             assign fetch_exception_esubcode = 9'b0;
             assign fetch_exception_badv_valid = fetch_exception_valid;
         end else begin : gen_fetch_buffer_disabled
+            assign if2_next_allowin_w = d1_allowin;
+
             assign fetch_valid                = if2_out_valid_w;
             assign fetch_pc                   = if2_out_pc_w;
             assign fetch_inst                 = if2_out_inst_w;

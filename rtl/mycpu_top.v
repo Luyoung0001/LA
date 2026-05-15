@@ -100,8 +100,6 @@ module core_top #(
     wire unused_inputs;
     assign unused_inputs = &{1'b0, break_point, infor_flag, TLBNUM[0]};
 
-    reg        issue_busy_r;
-
     wire ifu_out_valid_w;
     wire [31:0] ifu_out_pc_w;
 
@@ -155,8 +153,6 @@ module core_top #(
     wire [10:0] commit_debug_intr_no_w;
     wire commit_debug_ertn_valid_w;
 
-    wire issue_fire_w;
-    wire hold_fetch_w;
     wire branch_redirect_valid_w;
     wire [31:0] branch_redirect_pc_w;
     wire exception_redirect_valid_w;
@@ -169,12 +165,12 @@ module core_top #(
     wire [1:0] icacop_mode_w;
     wire [31:0] icacop_addr_w;
 
-    // Pipeline flow control: clear issue_busy_r when instruction passes EX
-    // (reaches s5_m1), allowing next instruction to enter the pipeline.
-    wire ex_done_valid_w;
-
-    assign issue_fire_w = ifu_out_valid_w && (~issue_busy_r);
-    assign hold_fetch_w = ~issue_fire_w;
+    // Pipeline flow control: D1 backpressure is consumed by S2; S1 holds on
+    // S2's own allowin so the fetch PC is not lost while an icache request is
+    // pending or an output packet is waiting for D1.
+    wire d1_allowin_w;
+    wire unused_frontend_pc;
+    assign unused_frontend_pc = &{1'b0, ifu_out_valid_w, ifu_out_pc_w};
 
     redirect_ctrl u_redirect_ctrl (
         .branch_valid    (ex_branch_update_valid_w),
@@ -192,19 +188,6 @@ module core_top #(
         .redirect_pc     (branch_redirect_pc_w)
     );
 
-    always @(posedge aclk) begin
-        if (reset) begin
-            issue_busy_r <= 1'b0;
-        end else begin
-            if (issue_fire_w) begin
-                issue_busy_r <= 1'b1;
-            end
-            if (commit_ws_valid_w) begin
-                issue_busy_r <= 1'b0;
-            end
-        end
-    end
-
     frontend_top #(
         .RESET_PC(32'h1c000000),
         .BPU_ENABLE(BPU_ENABLE),
@@ -214,7 +197,7 @@ module core_top #(
     ) u_frontend_top (
         .clk                 (aclk),
         .reset               (reset),
-        .hold_fetch          (hold_fetch_w),
+        .d1_allowin          (d1_allowin_w),
         .redirect_valid      (branch_redirect_valid_w),
         .redirect_pc         (branch_redirect_pc_w),
         .branch_update_valid (ex_branch_update_valid_w),
@@ -310,7 +293,7 @@ module core_top #(
         .dbg_reg_num        (reg_num),
         .dbg_rf_rdata       (rf_rdata),
         .ws_valid           (commit_ws_valid_w),
-        .ex_done_valid      (ex_done_valid_w),
+        .d1_allowin         (d1_allowin_w),
         .debug_wb_pc        (commit_debug_wb_pc_w),
         .debug_wb_rf_wen    (commit_debug_wb_rf_wen_w),
         .debug_wb_rf_wnum   (commit_debug_wb_rf_wnum_w),
