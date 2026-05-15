@@ -106,6 +106,8 @@ module cpu_l1_icache #(
     localparam ENABLE_L1_LOOKAHEAD_PROBE = 1'b1;
     localparam ENABLE_L1_EARLY_LOOKUP_HIT = 1'b1;
     localparam ENABLE_L1_EARLY_LOOKUP_MISS = 1'b1;
+    localparam ENABLE_REDIRECT_LINEBUF_RTBUF_PROMOTE = 1'b0;
+    localparam ENABLE_REDIRECT_RTBUF_MRU_PROMOTE = 1'b0;
     localparam [XLEN-1:0] LINE_OFFSET_MASK = LINE_SIZE - 1;
 
     localparam ST_LOOKUP = 2'd0;
@@ -2793,7 +2795,8 @@ module cpu_l1_icache #(
                 rtbuf_pending_q      <= 1'b1;
                 rtbuf_pending_addr_q <= redirect_probe_addr_i;
             end
-            if (redirect_probe_linebuf_hit_w) begin
+            if (ENABLE_REDIRECT_LINEBUF_RTBUF_PROMOTE &&
+                redirect_probe_linebuf_hit_w) begin
                 fill_rtbuf(1'b1,
                            redirect_probe_linebuf_tag_w,
                            redirect_probe_linebuf_idx_w,
@@ -2801,7 +2804,8 @@ module cpu_l1_icache #(
                            redirect_probe_linebuf_word1_w,
                            redirect_probe_linebuf_word2_w,
                            redirect_probe_linebuf_word3_w);
-            end else if (redirect_probe_rtbuf_hit_w) begin
+            end else if (ENABLE_REDIRECT_RTBUF_MRU_PROMOTE &&
+                         redirect_probe_rtbuf_hit_w) begin
                 fill_rtbuf(1'b1,
                            redirect_probe_rtbuf_tag_w,
                            redirect_probe_rtbuf_idx_w,
@@ -2876,7 +2880,8 @@ module cpu_l1_icache #(
                     rtbuf_pending_q      <= 1'b1;
                     rtbuf_pending_addr_q <= redirect_probe_addr_i;
                 end
-                if (redirect_probe_linebuf_hit_w) begin
+                if (ENABLE_REDIRECT_LINEBUF_RTBUF_PROMOTE &&
+                    redirect_probe_linebuf_hit_w) begin
                     fill_rtbuf(1'b1,
                                redirect_probe_linebuf_tag_w,
                                redirect_probe_linebuf_idx_w,
@@ -2884,7 +2889,8 @@ module cpu_l1_icache #(
                                redirect_probe_linebuf_word1_w,
                                redirect_probe_linebuf_word2_w,
                                redirect_probe_linebuf_word3_w);
-                end else if (redirect_probe_rtbuf_hit_w) begin
+                end else if (ENABLE_REDIRECT_RTBUF_MRU_PROMOTE &&
+                             redirect_probe_rtbuf_hit_w) begin
                     fill_rtbuf(1'b1,
                                redirect_probe_rtbuf_tag_w,
                                redirect_probe_rtbuf_idx_w,
