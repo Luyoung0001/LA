@@ -196,13 +196,15 @@ module cpu_l1_icache #(
     wire [INDEX_WIDTH-1:0] lookahead_probe_idx_w;
     wire [INDEX_WIDTH-1:0] lookup_issue_idx =
         lookup_issue_addr_w[OFFSET_WIDTH+INDEX_WIDTH-1 : OFFSET_WIDTH];
+    wire [INDEX_WIDTH-1:0] normal_lookup_idx =
+        replay_lookup_fire_w ? lookup_issue_idx : req_idx;
     wire [INDEX_WIDTH-1:0] eff_rd_idx  =
         cacop_accept_w ? cacop_addr_i[OFFSET_WIDTH+INDEX_WIDTH-1 : OFFSET_WIDTH] :
         (state_q == ST_CACOP) ? cacop_idx :
         redirect_probe_lookup_start_w ? redirect_probe_idx :
         shadow_probe_lookup_start_w ? shadow_probe_idx_w :
         lookahead_probe_start_w ? lookahead_probe_idx_w :
-        lookup_issue_valid_w ? lookup_issue_idx : req_idx;
+        normal_lookup_idx;
     wire [9:0] bram_rd_line_addr =
         {{(10-INDEX_WIDTH){1'b0}}, eff_rd_idx};
     wire [9:0] bram_wr_line_addr =
