@@ -347,4 +347,51 @@ module s5_m1 (
         end
     end
 
+`ifdef VERILATOR
+`ifdef PERF_MONI
+    integer dbg_cycle_cnt = 0;
+    integer dbg_accept_cnt = 0;
+    integer dbg_accept_mem_cnt = 0;
+    integer dbg_accept_nonmem_cnt = 0;
+    integer dbg_emit_cnt = 0;
+    integer dbg_pend_busy_cnt = 0;
+    integer dbg_req_issue_cnt = 0;
+    integer dbg_resp_cnt = 0;
+    integer dbg_wait_resp_cnt = 0;
+    integer dbg_exception_emit_cnt = 0;
+    final begin
+        $display("[PERF][M1] cycles=%0d accept=%0d accept_mem=%0d accept_nonmem=%0d emit=%0d pend_busy=%0d",
+                 dbg_cycle_cnt, dbg_accept_cnt, dbg_accept_mem_cnt,
+                 dbg_accept_nonmem_cnt, dbg_emit_cnt, dbg_pend_busy_cnt);
+        $display("[PERF][M1] req_issue=%0d resp=%0d wait_resp=%0d exception_emit=%0d",
+                 dbg_req_issue_cnt, dbg_resp_cnt, dbg_wait_resp_cnt,
+                 dbg_exception_emit_cnt);
+    end
+    always @(posedge clk) begin
+        if (!reset) begin
+            dbg_cycle_cnt <= dbg_cycle_cnt + 1;
+            if (in_valid && m1_allowin) begin
+                dbg_accept_cnt <= dbg_accept_cnt + 1;
+                if (in_is_load || in_is_store)
+                    dbg_accept_mem_cnt <= dbg_accept_mem_cnt + 1;
+                else
+                    dbg_accept_nonmem_cnt <= dbg_accept_nonmem_cnt + 1;
+            end
+            if (out_valid)
+                dbg_emit_cnt <= dbg_emit_cnt + 1;
+            if (pend_valid)
+                dbg_pend_busy_cnt <= dbg_pend_busy_cnt + 1;
+            if (dcache_req_valid)
+                dbg_req_issue_cnt <= dbg_req_issue_cnt + 1;
+            if (dcache_resp_valid)
+                dbg_resp_cnt <= dbg_resp_cnt + 1;
+            if (pend_valid && pend_req_sent && !dcache_resp_valid)
+                dbg_wait_resp_cnt <= dbg_wait_resp_cnt + 1;
+            if (pend_valid && pend_exception_valid)
+                dbg_exception_emit_cnt <= dbg_exception_emit_cnt + 1;
+        end
+    end
+`endif
+`endif
+
 endmodule

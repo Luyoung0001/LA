@@ -395,6 +395,55 @@ module core_top #(
     assign debug1_wb_rf_wnum  = 5'b0;
     assign debug1_wb_rf_wdata = 32'b0;
 
+`ifdef VERILATOR
+`ifdef PERF_MONI
+    integer perf_cycle_cnt = 0;
+    integer perf_commit_cnt = 0;
+    integer perf_no_commit_cnt = 0;
+    integer perf_frontend_empty_cnt = 0;
+    integer perf_frontend_has_inst_cnt = 0;
+    integer perf_d1_not_allow_cnt = 0;
+    integer perf_ifetch_req_cnt = 0;
+    integer perf_ifetch_req_fire_cnt = 0;
+    integer perf_ifetch_resp_cnt = 0;
+    integer perf_redirect_cnt = 0;
+    final begin
+        $display("[PERF][CORE] cycles=%0d commit=%0d no_commit=%0d frontend_empty=%0d frontend_has_inst=%0d d1_not_allow=%0d redirect=%0d",
+                 perf_cycle_cnt, perf_commit_cnt, perf_no_commit_cnt,
+                 perf_frontend_empty_cnt, perf_frontend_has_inst_cnt,
+                 perf_d1_not_allow_cnt, perf_redirect_cnt);
+        $display("[PERF][CORE] ifetch_req=%0d ifetch_req_fire=%0d ifetch_resp=%0d",
+                 perf_ifetch_req_cnt, perf_ifetch_req_fire_cnt,
+                 perf_ifetch_resp_cnt);
+    end
+    always @(posedge aclk) begin
+        if (!reset) begin
+            perf_cycle_cnt <= perf_cycle_cnt + 1;
+            if (commit_ws_valid_w)
+                perf_commit_cnt <= perf_commit_cnt + 1;
+            else
+                perf_no_commit_cnt <= perf_no_commit_cnt + 1;
+
+            if (!if2_out_valid_w)
+                perf_frontend_empty_cnt <= perf_frontend_empty_cnt + 1;
+            else
+                perf_frontend_has_inst_cnt <= perf_frontend_has_inst_cnt + 1;
+
+            if (!d1_allowin_w)
+                perf_d1_not_allow_cnt <= perf_d1_not_allow_cnt + 1;
+            if (if1_icache_req_valid_w)
+                perf_ifetch_req_cnt <= perf_ifetch_req_cnt + 1;
+            if (if1_icache_req_valid_w && ifetch_req_ready_w)
+                perf_ifetch_req_fire_cnt <= perf_ifetch_req_fire_cnt + 1;
+            if (if2_icache_resp_valid_w)
+                perf_ifetch_resp_cnt <= perf_ifetch_resp_cnt + 1;
+            if (branch_redirect_valid_w)
+                perf_redirect_cnt <= perf_redirect_cnt + 1;
+        end
+    end
+`endif
+`endif
+
 endmodule
 
 module mycpu_top (

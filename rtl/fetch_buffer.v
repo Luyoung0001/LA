@@ -201,6 +201,50 @@ module fetch_buffer #(
     assign rd_fault_badv_o  = empty ? wr_fault_badv_i  : buf_fault_badv [rd_ptr_q];
 
 `ifdef VERILATOR
+`ifdef PERF_MONI
+    integer dbg_cycle_cnt = 0;
+    integer dbg_wr_fire_cnt = 0;
+    integer dbg_rd_accept_cnt = 0;
+    integer dbg_bypass_cnt = 0;
+    integer dbg_empty_cnt = 0;
+    integer dbg_full_cnt = 0;
+    integer dbg_block_input_full_cnt = 0;
+    integer dbg_block_output_cnt = 0;
+    integer dbg_level_sum = 0;
+    integer dbg_level_max = 0;
+    wire [31:0] dbg_count_w = {{(32-COUNT_WIDTH){1'b0}}, count_q};
+    final begin
+        $display("[PERF][FETCH_BUFFER] cycles=%0d wr_fire=%0d rd_accept=%0d bypass=%0d empty=%0d full=%0d",
+                 dbg_cycle_cnt, dbg_wr_fire_cnt, dbg_rd_accept_cnt,
+                 dbg_bypass_cnt, dbg_empty_cnt, dbg_full_cnt);
+        $display("[PERF][FETCH_BUFFER] block_input_full=%0d block_output=%0d level_sum=%0d level_max=%0d",
+                 dbg_block_input_full_cnt, dbg_block_output_cnt,
+                 dbg_level_sum, dbg_level_max);
+    end
+    always @(posedge clk) begin
+        if (rst_n && !flush) begin
+            dbg_cycle_cnt <= dbg_cycle_cnt + 1;
+            dbg_level_sum <= dbg_level_sum + dbg_count_w;
+            if (dbg_count_w > dbg_level_max)
+                dbg_level_max <= dbg_count_w;
+            if (do_wr)
+                dbg_wr_fire_cnt <= dbg_wr_fire_cnt + 1;
+            if (rd_allowin_i && rd_valid_o)
+                dbg_rd_accept_cnt <= dbg_rd_accept_cnt + 1;
+            if (do_bypass)
+                dbg_bypass_cnt <= dbg_bypass_cnt + 1;
+            if (empty)
+                dbg_empty_cnt <= dbg_empty_cnt + 1;
+            if (full)
+                dbg_full_cnt <= dbg_full_cnt + 1;
+            if (wr_valid_i && !not_full_o)
+                dbg_block_input_full_cnt <= dbg_block_input_full_cnt + 1;
+            if (rd_valid_o && !rd_allowin_i)
+                dbg_block_output_cnt <= dbg_block_output_cnt + 1;
+        end
+    end
+`endif
+
     always @(posedge clk) begin
         if (!rst_n || flush) begin
             `CPU_DEBUG($sformatf("[PIPE][FETCH_BUFFER][CLEAR] rst_n=%0d flush=%0d count=%0d", rst_n, flush, count_q));

@@ -426,4 +426,47 @@ module s3_d1 (
         end
     end
 
+`ifdef VERILATOR
+`ifdef PERF_MONI
+    integer dbg_cycle_cnt = 0;
+    integer dbg_accept_cnt = 0;
+    integer dbg_emit_cnt = 0;
+    integer dbg_flush_cnt = 0;
+    integer dbg_empty_cnt = 0;
+    integer dbg_wait_input_cnt = 0;
+    integer dbg_load_use_stall_cnt = 0;
+    integer dbg_next_block_cnt = 0;
+    integer dbg_fast_redirect_cnt = 0;
+    final begin
+        $display("[PERF][D1] cycles=%0d accept=%0d emit=%0d flush=%0d empty=%0d wait_input=%0d",
+                 dbg_cycle_cnt, dbg_accept_cnt, dbg_emit_cnt,
+                 dbg_flush_cnt, dbg_empty_cnt, dbg_wait_input_cnt);
+        $display("[PERF][D1] load_use_stall=%0d next_block=%0d fast_redirect=%0d",
+                 dbg_load_use_stall_cnt, dbg_next_block_cnt,
+                 dbg_fast_redirect_cnt);
+    end
+    always @(posedge clk) begin
+        if (!reset) begin
+            dbg_cycle_cnt <= dbg_cycle_cnt + 1;
+            if (flush)
+                dbg_flush_cnt <= dbg_flush_cnt + 1;
+            if (d1_allowin && in_valid)
+                dbg_accept_cnt <= dbg_accept_cnt + 1;
+            if (out_valid && next_allowin)
+                dbg_emit_cnt <= dbg_emit_cnt + 1;
+            if (!d1_valid)
+                dbg_empty_cnt <= dbg_empty_cnt + 1;
+            if (d1_allowin && !in_valid)
+                dbg_wait_input_cnt <= dbg_wait_input_cnt + 1;
+            if (d1_valid && load_use_hazard_w)
+                dbg_load_use_stall_cnt <= dbg_load_use_stall_cnt + 1;
+            if (d1_valid && d1_ready_go && !next_allowin)
+                dbg_next_block_cnt <= dbg_next_block_cnt + 1;
+            if (fast_redirect_valid)
+                dbg_fast_redirect_cnt <= dbg_fast_redirect_cnt + 1;
+        end
+    end
+`endif
+`endif
+
 endmodule

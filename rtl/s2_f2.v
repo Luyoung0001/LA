@@ -217,27 +217,79 @@ module s2_f2 (
 
 `ifdef VERILATOR
 `ifdef PERF_MONI
+    integer dbg_cycle_cnt = 0;
     integer dbg_accept_cnt = 0;
     integer dbg_accept_pred_taken_cnt = 0;
     integer dbg_emit_cnt = 0;
     integer dbg_emit_pred_taken_cnt = 0;
+    integer dbg_req_start_cnt = 0;
+    integer dbg_req_fire_cnt = 0;
+    integer dbg_resp_cnt = 0;
+    integer dbg_flush_cnt = 0;
+    integer dbg_block_pend_cnt = 0;
+    integer dbg_block_out_cnt = 0;
+    integer dbg_wait_req_ready_cnt = 0;
+    integer dbg_wait_resp_cnt = 0;
+    integer dbg_no_input_cnt = 0;
+    integer dbg_fifo_level_sum = 0;
+    integer dbg_fifo_level_max = 0;
+    integer dbg_req_pending_max = 0;
+    integer dbg_resp_pending_max = 0;
+    wire [31:0] dbg_fifo_count_w = {{(32-COUNT_W){1'b0}}, fifo_count_r};
+    wire [31:0] dbg_req_pending_count_w = {{(32-COUNT_W){1'b0}}, req_pending_count_r};
+    wire [31:0] dbg_resp_pending_count_w = {{(32-COUNT_W){1'b0}}, resp_pending_count_r};
     final begin
-        $display("[S2F2][DBG] accept=%0d accept_pred_taken=%0d emit=%0d emit_pred_taken=%0d",
-                 dbg_accept_cnt, dbg_accept_pred_taken_cnt,
-                 dbg_emit_cnt, dbg_emit_pred_taken_cnt);
+        $display("[PERF][S2F2] cycles=%0d accept=%0d emit=%0d req_start=%0d req_fire=%0d resp=%0d flush=%0d",
+                 dbg_cycle_cnt, dbg_accept_cnt, dbg_emit_cnt,
+                 dbg_req_start_cnt, dbg_req_fire_cnt, dbg_resp_cnt,
+                 dbg_flush_cnt);
+        $display("[PERF][S2F2] block_pend=%0d block_out=%0d wait_req_ready=%0d wait_resp=%0d no_input=%0d accept_pred_taken=%0d emit_pred_taken=%0d",
+                 dbg_block_pend_cnt, dbg_block_out_cnt,
+                 dbg_wait_req_ready_cnt, dbg_wait_resp_cnt,
+                 dbg_no_input_cnt, dbg_accept_pred_taken_cnt,
+                 dbg_emit_pred_taken_cnt);
+        $display("[PERF][S2F2] fifo_level_sum=%0d fifo_level_max=%0d req_pending_max=%0d resp_pending_max=%0d",
+                 dbg_fifo_level_sum, dbg_fifo_level_max,
+                 dbg_req_pending_max, dbg_resp_pending_max);
     end
     always @(posedge clk) begin
         if (!reset) begin
+            dbg_cycle_cnt <= dbg_cycle_cnt + 1;
+            dbg_fifo_level_sum <= dbg_fifo_level_sum + dbg_fifo_count_w;
+            if (dbg_fifo_count_w > dbg_fifo_level_max)
+                dbg_fifo_level_max <= dbg_fifo_count_w;
+            if (dbg_req_pending_count_w > dbg_req_pending_max)
+                dbg_req_pending_max <= dbg_req_pending_count_w;
+            if (dbg_resp_pending_count_w > dbg_resp_pending_max)
+                dbg_resp_pending_max <= dbg_resp_pending_count_w;
+            if (flush)
+                dbg_flush_cnt <= dbg_flush_cnt + 1;
             if (in_fire_w) begin
                 dbg_accept_cnt <= dbg_accept_cnt + 1;
                 if (in_pred_taken)
                     dbg_accept_pred_taken_cnt <= dbg_accept_pred_taken_cnt + 1;
             end
+            if (in_fire_w && !req_exception_valid_w)
+                dbg_req_start_cnt <= dbg_req_start_cnt + 1;
+            if (issue_fire_w)
+                dbg_req_fire_cnt <= dbg_req_fire_cnt + 1;
+            if (icache_resp_valid)
+                dbg_resp_cnt <= dbg_resp_cnt + 1;
             if (out_fire_w) begin
                 dbg_emit_cnt <= dbg_emit_cnt + 1;
                 if (fifo_pred_taken_r[fifo_head_r])
                     dbg_emit_pred_taken_cnt <= dbg_emit_pred_taken_cnt + 1;
             end
+            if (in_valid && !s2_allowin && fifo_full_w)
+                dbg_block_pend_cnt <= dbg_block_pend_cnt + 1;
+            if (head_ready_w && !out_slot_ready_w)
+                dbg_block_out_cnt <= dbg_block_out_cnt + 1;
+            if (icache_req_valid && !icache_req_ready)
+                dbg_wait_req_ready_cnt <= dbg_wait_req_ready_cnt + 1;
+            if (!fifo_empty_w && !head_ready_w && !icache_resp_valid)
+                dbg_wait_resp_cnt <= dbg_wait_resp_cnt + 1;
+            if (s2_allowin && !in_valid)
+                dbg_no_input_cnt <= dbg_no_input_cnt + 1;
         end
     end
 `endif
