@@ -69,7 +69,7 @@ module la_bpu_adapter_tb;
         end
     endtask
 
-    task automatic request_and_expect_two_cycle(
+    task automatic request_and_expect_one_cycle(
         input string name,
         input [31:0] pc,
         input        exp_taken,
@@ -84,10 +84,7 @@ module la_bpu_adapter_tb;
             req_valid = 1'b0;
             req_pc = 32'd0;
             #1;
-            `check({name, " no one-cycle response"}, !resp_valid);
-            tick();
-            #1;
-            `check({name, " two-cycle response valid"}, resp_valid);
+            `check({name, " one-cycle response valid"}, resp_valid);
             `check({name, " predicted direction"}, pred_taken == exp_taken);
             `check32({name, " predicted target"}, pred_target, exp_target);
             tick();
@@ -102,14 +99,14 @@ module la_bpu_adapter_tb;
         reset_dut();
 
         train_branch(PC_TAKEN, 1'b1, TARGET_TAKEN);
-        request_and_expect_two_cycle("BPU adapter trained taken",
+        request_and_expect_one_cycle("BPU adapter trained taken",
                                      PC_TAKEN, 1'b1, TARGET_TAKEN);
 
         train_branch(PC_NOT_TAKEN, 1'b0, 32'h8000_2000);
-        request_and_expect_two_cycle("BPU adapter trained not-taken",
+        request_and_expect_one_cycle("BPU adapter trained not-taken",
                                      PC_NOT_TAKEN, 1'b0, PC_NOT_TAKEN + 32'd4);
 
-        request_and_expect_two_cycle("BPU adapter untrained fallback",
+        request_and_expect_one_cycle("BPU adapter untrained fallback",
                                      PC_UNKNOWN, 1'b0, PC_UNKNOWN + 32'd4);
 
         req_valid = 1'b1;
