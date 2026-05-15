@@ -11,6 +11,7 @@ module s2_f2 (
     output wire        tlb_query_valid,
     output wire        tlb_query_write,
     output wire [31:0] tlb_query_vaddr,
+    input  wire        tlb_resp_valid,
     input  wire [31:0] tlb_query_paddr,
     input  wire        tlb_exception_valid,
     input  wire [5:0]  tlb_exception_ecode,
@@ -44,6 +45,11 @@ module s2_f2 (
     reg [COUNT_W-1:0] req_pending_count_r;
     reg [COUNT_W-1:0] resp_pending_count_r;
     reg               exception_pending_r;
+    reg               tlb_pending_r;
+    reg        tlb_pending_pc_adef_r;
+    reg [31:0] tlb_pending_pc_r;
+    reg        tlb_pending_pred_taken_r;
+    reg [31:0] tlb_pending_pred_target_r;
 
     reg        fifo_data_valid_r           [0:FIFO_DEPTH-1];
     reg [31:0] fifo_pc_r                   [0:FIFO_DEPTH-1];
@@ -58,37 +64,56 @@ module s2_f2 (
     reg [31:0] fifo_exception_badv_r       [0:FIFO_DEPTH-1];
 
     wire        pc_adef_w;
-    wire        req_exception_valid_w;
-    wire [5:0]  req_exception_ecode_w;
-    wire [8:0]  req_exception_esubcode_w;
-    wire [31:0] req_addr_w;
+    wire        tlb_pending_ready_w;
+    wire        tlb_pending_exception_valid_w;
+    wire [5:0]  tlb_pending_exception_ecode_w;
+    wire [8:0]  tlb_pending_exception_esubcode_w;
     wire        in_fire_w;
     wire        out_slot_ready_w;
     wire        out_fire_w;
     wire        fifo_full_w;
     wire        fifo_empty_w;
+    wire [COUNT_W:0] fifo_count_after_w;
+    wire        fifo_room_after_pending_w;
     wire        head_ready_w;
     wire        issue_fire_w;
+    wire        fifo_enqueue_w;
     wire        req_enqueue_w;
     wire        resp_take_w;
+    wire        pending_exception_ready_w;
     integer reset_i;
 
     assign pc_adef_w = |in_pc[1:0];
-    assign req_exception_valid_w = pc_adef_w || tlb_exception_valid;
-    assign req_exception_ecode_w = pc_adef_w ? 6'h08 : tlb_exception_ecode;
-    assign req_exception_esubcode_w = 9'h0;
-    assign req_addr_w = tlb_query_paddr;
+    assign tlb_pending_ready_w = tlb_pending_r &&
+                                 (tlb_pending_pc_adef_r || tlb_resp_valid);
+    assign tlb_pending_exception_valid_w = tlb_pending_pc_adef_r ||
+                                           tlb_exception_valid;
+    assign tlb_pending_exception_ecode_w = tlb_pending_pc_adef_r ?
+                                           6'h08 : tlb_exception_ecode;
+    assign tlb_pending_exception_esubcode_w = 9'h0;
+    assign pending_exception_ready_w = tlb_pending_ready_w &&
+                                       tlb_pending_exception_valid_w;
 
     assign fifo_full_w = (fifo_count_r == FIFO_DEPTH_COUNT);
     assign fifo_empty_w = (fifo_count_r == {COUNT_W{1'b0}});
+    assign fifo_enqueue_w = tlb_pending_ready_w;
+    assign fifo_count_after_w = {1'b0, fifo_count_r} +
+                                {{COUNT_W{1'b0}}, fifo_enqueue_w} -
+                                {{COUNT_W{1'b0}}, out_fire_w};
+    assign fifo_room_after_pending_w =
+        (fifo_count_after_w < {1'b0, FIFO_DEPTH_COUNT});
     assign out_slot_ready_w = !out_valid || next_allowin;
     assign head_ready_w = !fifo_empty_w &&
                           (fifo_exception_valid_r[fifo_head_r] ||
                            fifo_data_valid_r[fifo_head_r]);
     assign out_fire_w = out_slot_ready_w && head_ready_w;
-    assign s2_allowin = !flush && !fifo_full_w && !exception_pending_r;
+    assign s2_allowin = !flush &&
+                        (!tlb_pending_r || tlb_pending_ready_w) &&
+                        !exception_pending_r &&
+                        !pending_exception_ready_w &&
+                        fifo_room_after_pending_w;
     assign in_fire_w = in_valid && s2_allowin;
-    assign req_enqueue_w = in_fire_w && !req_exception_valid_w;
+    assign req_enqueue_w = fifo_enqueue_w && !tlb_pending_exception_valid_w;
     assign resp_take_w = icache_resp_valid &&
                          (resp_pending_count_r != {COUNT_W{1'b0}});
     assign icache_req_valid = (req_pending_count_r != {COUNT_W{1'b0}});
@@ -109,6 +134,11 @@ module s2_f2 (
             req_pending_count_r       <= {COUNT_W{1'b0}};
             resp_pending_count_r      <= {COUNT_W{1'b0}};
             exception_pending_r       <= 1'b0;
+            tlb_pending_r             <= 1'b0;
+            tlb_pending_pc_adef_r     <= 1'b0;
+            tlb_pending_pc_r          <= 32'b0;
+            tlb_pending_pred_taken_r  <= 1'b0;
+            tlb_pending_pred_target_r <= 32'b0;
             for (reset_i = 0; reset_i < FIFO_DEPTH; reset_i = reset_i + 1) begin
                 fifo_data_valid_r[reset_i]           <= 1'b0;
                 fifo_pc_r[reset_i]                   <= 32'b0;
@@ -178,24 +208,34 @@ module s2_f2 (
                 end
             end
 
-            if (in_fire_w) begin
-                fifo_data_valid_r[fifo_tail_r]           <= req_exception_valid_w;
-                fifo_pc_r[fifo_tail_r]                   <= in_pc;
-                fifo_req_addr_r[fifo_tail_r]             <= req_addr_w;
+            if (fifo_enqueue_w) begin
+                fifo_data_valid_r[fifo_tail_r]           <= tlb_pending_exception_valid_w;
+                fifo_pc_r[fifo_tail_r]                   <= tlb_pending_pc_r;
+                fifo_req_addr_r[fifo_tail_r]             <= tlb_query_paddr;
                 fifo_inst_r[fifo_tail_r]                 <= 32'h03400000;
-                fifo_pred_taken_r[fifo_tail_r]           <= in_pred_taken;
-                fifo_pred_target_r[fifo_tail_r]          <= in_pred_target;
-                fifo_exception_valid_r[fifo_tail_r]      <= req_exception_valid_w;
-                fifo_exception_ecode_r[fifo_tail_r]      <= req_exception_ecode_w;
-                fifo_exception_esubcode_r[fifo_tail_r]   <= req_exception_esubcode_w;
-                fifo_exception_badv_valid_r[fifo_tail_r] <= req_exception_valid_w;
-                fifo_exception_badv_r[fifo_tail_r]       <= in_pc;
+                fifo_pred_taken_r[fifo_tail_r]           <= tlb_pending_pred_taken_r;
+                fifo_pred_target_r[fifo_tail_r]          <= tlb_pending_pred_target_r;
+                fifo_exception_valid_r[fifo_tail_r]      <= tlb_pending_exception_valid_w;
+                fifo_exception_ecode_r[fifo_tail_r]      <= tlb_pending_exception_ecode_w;
+                fifo_exception_esubcode_r[fifo_tail_r]   <= tlb_pending_exception_esubcode_w;
+                fifo_exception_badv_valid_r[fifo_tail_r] <= tlb_pending_exception_valid_w;
+                fifo_exception_badv_r[fifo_tail_r]       <= tlb_pending_pc_r;
                 fifo_tail_r <= fifo_tail_r + {{(PTR_W-1){1'b0}}, 1'b1};
-                if (req_exception_valid_w)
+                if (tlb_pending_exception_valid_w)
                     exception_pending_r <= 1'b1;
             end
 
-            case ({in_fire_w, out_fire_w})
+            if (in_fire_w) begin
+                tlb_pending_r             <= 1'b1;
+                tlb_pending_pc_adef_r     <= pc_adef_w;
+                tlb_pending_pc_r          <= in_pc;
+                tlb_pending_pred_taken_r  <= in_pred_taken;
+                tlb_pending_pred_target_r <= in_pred_target;
+            end else if (tlb_pending_ready_w) begin
+                tlb_pending_r <= 1'b0;
+            end
+
+            case ({fifo_enqueue_w, out_fire_w})
                 2'b10: fifo_count_r <= fifo_count_r + {{(COUNT_W-1){1'b0}}, 1'b1};
                 2'b01: fifo_count_r <= fifo_count_r - {{(COUNT_W-1){1'b0}}, 1'b1};
                 default: ;
@@ -269,7 +309,7 @@ module s2_f2 (
                 if (in_pred_taken)
                     dbg_accept_pred_taken_cnt <= dbg_accept_pred_taken_cnt + 1;
             end
-            if (in_fire_w && !req_exception_valid_w)
+            if (req_enqueue_w)
                 dbg_req_start_cnt <= dbg_req_start_cnt + 1;
             if (issue_fire_w)
                 dbg_req_fire_cnt <= dbg_req_fire_cnt + 1;
@@ -280,7 +320,8 @@ module s2_f2 (
                 if (fifo_pred_taken_r[fifo_head_r])
                     dbg_emit_pred_taken_cnt <= dbg_emit_pred_taken_cnt + 1;
             end
-            if (in_valid && !s2_allowin && fifo_full_w)
+            if (in_valid && !s2_allowin &&
+                (fifo_full_w || tlb_pending_r || !fifo_room_after_pending_w))
                 dbg_block_pend_cnt <= dbg_block_pend_cnt + 1;
             if (head_ready_w && !out_slot_ready_w)
                 dbg_block_out_cnt <= dbg_block_out_cnt + 1;

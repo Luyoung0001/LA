@@ -33,9 +33,10 @@ module cpu_tlb (
     input  wire        i_tlb_query_valid,
     input  wire        i_tlb_query_write,
     input  wire [31:0] i_tlb_query_vaddr,
-    output wire [31:0] i_tlb_query_paddr,
-    output wire        i_tlb_exception_valid,
-    output wire [5:0]  i_tlb_exception_ecode,
+    output reg         i_tlb_resp_valid,
+    output reg  [31:0] i_tlb_query_paddr,
+    output reg         i_tlb_exception_valid,
+    output reg  [5:0]  i_tlb_exception_ecode,
 
     input  wire        d_tlb_query_valid,
     input  wire        d_tlb_query_write,
@@ -92,6 +93,9 @@ module cpu_tlb (
     wire [1:0]  i_tlb_plv;
     wire [31:0] i_tlb_trans_paddr;
     wire [31:0] i_dmw_paddr;
+    wire [31:0] i_tlb_query_paddr_w;
+    wire        i_tlb_exception_valid_w;
+    wire [5:0]  i_tlb_exception_ecode_w;
 
     wire        d_dmw0_hit;
     wire        d_dmw1_hit;
@@ -163,14 +167,14 @@ module cpu_tlb (
     assign i_dmw_paddr = i_dmw0_hit ? {csr_dmw0[27:25], i_tlb_query_vaddr[28:0]} :
                          i_dmw1_hit ? {csr_dmw1[27:25], i_tlb_query_vaddr[28:0]} :
                                       i_tlb_query_vaddr;
-    assign i_tlb_query_paddr = i_tlb_translate ? i_tlb_trans_paddr : i_dmw_paddr;
-    assign i_tlb_exception_valid = i_tlb_translate &&
-                                   (!i_tlb_found_r ||
-                                    !i_tlb_v ||
-                                    (csr_crmd[1:0] > i_tlb_plv));
-    assign i_tlb_exception_ecode = !i_tlb_found_r ? 6'h3f :
-                                   !i_tlb_v ? 6'h03 :
-                                   6'h07;
+    assign i_tlb_query_paddr_w = i_tlb_translate ? i_tlb_trans_paddr : i_dmw_paddr;
+    assign i_tlb_exception_valid_w = i_tlb_translate &&
+                                     (!i_tlb_found_r ||
+                                      !i_tlb_v ||
+                                      (csr_crmd[1:0] > i_tlb_plv));
+    assign i_tlb_exception_ecode_w = !i_tlb_found_r ? 6'h3f :
+                                     !i_tlb_v ? 6'h03 :
+                                     6'h07;
 
     always @(*) begin
         i_tlb_found_r = 1'b0;
@@ -236,6 +240,10 @@ module cpu_tlb (
 
     always @(posedge clk) begin
         if (reset) begin
+            i_tlb_resp_valid      <= 1'b0;
+            i_tlb_query_paddr     <= 32'b0;
+            i_tlb_exception_valid <= 1'b0;
+            i_tlb_exception_ecode <= 6'b0;
             d_tlb_resp_valid      <= 1'b0;
             d_tlb_query_paddr     <= 32'b0;
             d_tlb_exception_valid <= 1'b0;
@@ -258,6 +266,11 @@ module cpu_tlb (
                 tlb_v1[reset_i]   <= 1'b0;
             end
         end else begin
+            i_tlb_resp_valid      <= i_tlb_query_valid;
+            i_tlb_query_paddr     <= i_tlb_query_paddr_w;
+            i_tlb_exception_valid <= i_tlb_exception_valid_w;
+            i_tlb_exception_ecode <= i_tlb_exception_ecode_w;
+
             d_tlb_resp_valid      <= d_tlb_query_valid;
             d_tlb_query_paddr     <= d_tlb_query_paddr_w;
             d_tlb_exception_valid <= d_tlb_exception_valid_w;

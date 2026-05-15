@@ -21,6 +21,7 @@ module backend_top #(
     input  wire        i_tlb_query_valid,
     input  wire        i_tlb_query_write,
     input  wire [31:0] i_tlb_query_vaddr,
+    output wire        i_tlb_resp_valid,
     output wire [31:0] i_tlb_query_paddr,
     output wire        i_tlb_exception_valid,
     output wire [5:0]  i_tlb_exception_ecode,
@@ -172,6 +173,7 @@ module backend_top #(
     wire d_tlb_exception_valid_w;
     wire [5:0] d_tlb_exception_ecode_w;
     wire [31:0] i_tlb_query_paddr_w;
+    wire i_tlb_resp_valid_w;
     wire i_tlb_exception_valid_w;
     wire [5:0] i_tlb_exception_ecode_w;
     wire mem1_is_syscall_w;
@@ -546,6 +548,7 @@ module backend_top #(
         .i_tlb_query_valid(i_tlb_query_valid),
         .i_tlb_query_write(i_tlb_query_write),
         .i_tlb_query_vaddr(i_tlb_query_vaddr),
+        .i_tlb_resp_valid(i_tlb_resp_valid_w),
         .i_tlb_query_paddr(i_tlb_query_paddr_w),
         .i_tlb_exception_valid(i_tlb_exception_valid_w),
         .i_tlb_exception_ecode(i_tlb_exception_ecode_w),
@@ -571,6 +574,7 @@ module backend_top #(
         .timer_64_out(csr_timer_64_w)
     );
 
+    assign i_tlb_resp_valid      = i_tlb_resp_valid_w;
     assign i_tlb_query_paddr    = i_tlb_query_paddr_w;
     assign i_tlb_exception_valid = i_tlb_exception_valid_w;
     assign i_tlb_exception_ecode = i_tlb_exception_ecode_w;
