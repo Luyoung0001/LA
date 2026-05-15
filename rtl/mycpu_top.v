@@ -107,6 +107,7 @@ module core_top #(
     wire i_tlb_query_write_w;
     wire [31:0] i_tlb_query_vaddr_w;
     wire i_tlb_resp_valid_w;
+    wire [31:0] i_tlb_resp_vaddr_w;
     wire [31:0] i_tlb_query_paddr_w;
     wire i_tlb_exception_valid_w;
     wire [5:0] i_tlb_exception_ecode_w;
@@ -213,6 +214,7 @@ module core_top #(
         .i_tlb_query_write   (i_tlb_query_write_w),
         .i_tlb_query_vaddr   (i_tlb_query_vaddr_w),
         .i_tlb_resp_valid    (i_tlb_resp_valid_w),
+        .i_tlb_resp_vaddr    (i_tlb_resp_vaddr_w),
         .i_tlb_query_paddr   (i_tlb_query_paddr_w),
         .i_tlb_exception_valid(i_tlb_exception_valid_w),
         .i_tlb_exception_ecode(i_tlb_exception_ecode_w),
@@ -296,6 +298,7 @@ module core_top #(
         .i_tlb_query_write  (i_tlb_query_write_w),
         .i_tlb_query_vaddr  (i_tlb_query_vaddr_w),
         .i_tlb_resp_valid   (i_tlb_resp_valid_w),
+        .i_tlb_resp_vaddr   (i_tlb_resp_vaddr_w),
         .i_tlb_query_paddr  (i_tlb_query_paddr_w),
         .i_tlb_exception_valid(i_tlb_exception_valid_w),
         .i_tlb_exception_ecode(i_tlb_exception_ecode_w),

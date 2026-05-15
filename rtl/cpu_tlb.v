@@ -34,6 +34,7 @@ module cpu_tlb (
     input  wire        i_tlb_query_write,
     input  wire [31:0] i_tlb_query_vaddr,
     output reg         i_tlb_resp_valid,
+    output reg  [31:0] i_tlb_resp_vaddr,
     output reg  [31:0] i_tlb_query_paddr,
     output reg         i_tlb_exception_valid,
     output reg  [5:0]  i_tlb_exception_ecode,
@@ -42,6 +43,7 @@ module cpu_tlb (
     input  wire        d_tlb_query_write,
     input  wire [31:0] d_tlb_query_vaddr,
     output reg         d_tlb_resp_valid,
+    output reg  [31:0] d_tlb_resp_vaddr,
     output reg  [31:0] d_tlb_query_paddr,
     output reg         d_tlb_exception_valid,
     output reg  [5:0]  d_tlb_exception_ecode
@@ -80,6 +82,16 @@ module cpu_tlb (
     reg        i_tlb_req_pg_mode_r;
     reg [31:0] i_tlb_req_dmw0_r;
     reg [31:0] i_tlb_req_dmw1_r;
+    reg        i_tlb_xlate_valid_r;
+    reg [31:0] i_tlb_xlate_vaddr_r;
+    reg [1:0]  i_tlb_xlate_req_plv_r;
+    reg        i_tlb_xlate_translate_r;
+    reg [31:0] i_tlb_xlate_dmw_paddr_r;
+    reg        i_tlb_xlate_found_r;
+    reg [5:0]  i_tlb_xlate_ps_r;
+    reg [19:0] i_tlb_xlate_ppn_r;
+    reg        i_tlb_xlate_v_r;
+    reg [1:0]  i_tlb_xlate_plv_r;
     reg        d_tlb_found_r;
     reg [4:0]  d_tlb_index_r;
     reg        d_tlb_req_valid_r;
@@ -90,6 +102,18 @@ module cpu_tlb (
     reg        d_tlb_req_pg_mode_r;
     reg [31:0] d_tlb_req_dmw0_r;
     reg [31:0] d_tlb_req_dmw1_r;
+    reg        d_tlb_xlate_valid_r;
+    reg        d_tlb_xlate_write_r;
+    reg [31:0] d_tlb_xlate_vaddr_r;
+    reg [1:0]  d_tlb_xlate_req_plv_r;
+    reg        d_tlb_xlate_translate_r;
+    reg [31:0] d_tlb_xlate_dmw_paddr_r;
+    reg        d_tlb_xlate_found_r;
+    reg [5:0]  d_tlb_xlate_ps_r;
+    reg [19:0] d_tlb_xlate_ppn_r;
+    reg        d_tlb_xlate_v_r;
+    reg        d_tlb_xlate_d_r;
+    reg [1:0]  d_tlb_xlate_plv_r;
 
     wire [4:0]  tlb_write_index;
     wire        tlb_write_enable_value;
@@ -176,19 +200,19 @@ module cpu_tlb (
     assign i_tlb_ppn = i_tlb_odd_page ? tlb_ppn1[i_tlb_index_r] : tlb_ppn0[i_tlb_index_r];
     assign i_tlb_v   = i_tlb_odd_page ? tlb_v1[i_tlb_index_r]   : tlb_v0[i_tlb_index_r];
     assign i_tlb_plv = i_tlb_odd_page ? tlb_plv1[i_tlb_index_r] : tlb_plv0[i_tlb_index_r];
-    assign i_tlb_trans_paddr = (i_tlb_ps == 6'd12) ?
-                               {i_tlb_ppn, i_tlb_req_vaddr_r[11:0]} :
-                               {i_tlb_ppn[19:10], i_tlb_req_vaddr_r[21:0]};
+    assign i_tlb_trans_paddr = (i_tlb_xlate_ps_r == 6'd12) ?
+                               {i_tlb_xlate_ppn_r, i_tlb_xlate_vaddr_r[11:0]} :
+                               {i_tlb_xlate_ppn_r[19:10], i_tlb_xlate_vaddr_r[21:0]};
     assign i_dmw_paddr = i_dmw0_hit ? {i_tlb_req_dmw0_r[27:25], i_tlb_req_vaddr_r[28:0]} :
                          i_dmw1_hit ? {i_tlb_req_dmw1_r[27:25], i_tlb_req_vaddr_r[28:0]} :
                                       i_tlb_req_vaddr_r;
-    assign i_tlb_query_paddr_w = i_tlb_translate ? i_tlb_trans_paddr : i_dmw_paddr;
-    assign i_tlb_exception_valid_w = i_tlb_translate &&
-                                     (!i_tlb_found_r ||
-                                      !i_tlb_v ||
-                                      (i_tlb_req_plv_r > i_tlb_plv));
-    assign i_tlb_exception_ecode_w = !i_tlb_found_r ? 6'h3f :
-                                     !i_tlb_v ? 6'h03 :
+    assign i_tlb_query_paddr_w = i_tlb_xlate_translate_r ? i_tlb_trans_paddr : i_tlb_xlate_dmw_paddr_r;
+    assign i_tlb_exception_valid_w = i_tlb_xlate_translate_r &&
+                                     (!i_tlb_xlate_found_r ||
+                                      !i_tlb_xlate_v_r ||
+                                      (i_tlb_xlate_req_plv_r > i_tlb_xlate_plv_r));
+    assign i_tlb_exception_ecode_w = !i_tlb_xlate_found_r ? 6'h3f :
+                                     !i_tlb_xlate_v_r ? 6'h03 :
                                      6'h07;
 
     always @(*) begin
@@ -221,21 +245,21 @@ module cpu_tlb (
     assign d_tlb_v   = d_tlb_odd_page ? tlb_v1[d_tlb_index_r]   : tlb_v0[d_tlb_index_r];
     assign d_tlb_d   = d_tlb_odd_page ? tlb_d1[d_tlb_index_r]   : tlb_d0[d_tlb_index_r];
     assign d_tlb_plv = d_tlb_odd_page ? tlb_plv1[d_tlb_index_r] : tlb_plv0[d_tlb_index_r];
-    assign d_tlb_trans_paddr = (d_tlb_ps == 6'd12) ?
-                               {d_tlb_ppn, d_tlb_req_vaddr_r[11:0]} :
-                               {d_tlb_ppn[19:10], d_tlb_req_vaddr_r[21:0]};
+    assign d_tlb_trans_paddr = (d_tlb_xlate_ps_r == 6'd12) ?
+                               {d_tlb_xlate_ppn_r, d_tlb_xlate_vaddr_r[11:0]} :
+                               {d_tlb_xlate_ppn_r[19:10], d_tlb_xlate_vaddr_r[21:0]};
     assign d_dmw_paddr = d_dmw0_hit ? {d_tlb_req_dmw0_r[27:25], d_tlb_req_vaddr_r[28:0]} :
                          d_dmw1_hit ? {d_tlb_req_dmw1_r[27:25], d_tlb_req_vaddr_r[28:0]} :
                                       d_tlb_req_vaddr_r;
-    assign d_tlb_query_paddr_w = d_tlb_translate ? d_tlb_trans_paddr : d_dmw_paddr;
-    assign d_tlb_exception_valid_w = d_tlb_translate &&
-                                     (!d_tlb_found_r ||
-                                      !d_tlb_v ||
-                                      (d_tlb_req_plv_r > d_tlb_plv) ||
-                                      (d_tlb_req_write_r && !d_tlb_d));
-    assign d_tlb_exception_ecode_w = !d_tlb_found_r ? 6'h3f :
-                                     !d_tlb_v ? (d_tlb_req_write_r ? 6'h02 : 6'h01) :
-                                     (d_tlb_req_plv_r > d_tlb_plv) ? 6'h07 :
+    assign d_tlb_query_paddr_w = d_tlb_xlate_translate_r ? d_tlb_trans_paddr : d_tlb_xlate_dmw_paddr_r;
+    assign d_tlb_exception_valid_w = d_tlb_xlate_translate_r &&
+                                     (!d_tlb_xlate_found_r ||
+                                      !d_tlb_xlate_v_r ||
+                                      (d_tlb_xlate_req_plv_r > d_tlb_xlate_plv_r) ||
+                                      (d_tlb_xlate_write_r && !d_tlb_xlate_d_r));
+    assign d_tlb_exception_ecode_w = !d_tlb_xlate_found_r ? 6'h3f :
+                                     !d_tlb_xlate_v_r ? (d_tlb_xlate_write_r ? 6'h02 : 6'h01) :
+                                     (d_tlb_xlate_req_plv_r > d_tlb_xlate_plv_r) ? 6'h07 :
                                      6'h04;
 
     always @(*) begin
@@ -256,6 +280,7 @@ module cpu_tlb (
     always @(posedge clk) begin
         if (reset) begin
             i_tlb_resp_valid      <= 1'b0;
+            i_tlb_resp_vaddr      <= 32'b0;
             i_tlb_query_paddr     <= 32'b0;
             i_tlb_exception_valid <= 1'b0;
             i_tlb_exception_ecode <= 6'b0;
@@ -266,6 +291,16 @@ module cpu_tlb (
             i_tlb_req_pg_mode_r   <= 1'b0;
             i_tlb_req_dmw0_r      <= 32'b0;
             i_tlb_req_dmw1_r      <= 32'b0;
+            i_tlb_xlate_valid_r   <= 1'b0;
+            i_tlb_xlate_vaddr_r   <= 32'b0;
+            i_tlb_xlate_req_plv_r <= 2'b0;
+            i_tlb_xlate_translate_r <= 1'b0;
+            i_tlb_xlate_dmw_paddr_r <= 32'b0;
+            i_tlb_xlate_found_r   <= 1'b0;
+            i_tlb_xlate_ps_r      <= 6'b0;
+            i_tlb_xlate_ppn_r     <= 20'b0;
+            i_tlb_xlate_v_r       <= 1'b0;
+            i_tlb_xlate_plv_r     <= 2'b0;
             d_tlb_req_valid_r     <= 1'b0;
             d_tlb_req_write_r     <= 1'b0;
             d_tlb_req_vaddr_r     <= 32'b0;
@@ -274,7 +309,20 @@ module cpu_tlb (
             d_tlb_req_pg_mode_r   <= 1'b0;
             d_tlb_req_dmw0_r      <= 32'b0;
             d_tlb_req_dmw1_r      <= 32'b0;
+            d_tlb_xlate_valid_r   <= 1'b0;
+            d_tlb_xlate_write_r   <= 1'b0;
+            d_tlb_xlate_vaddr_r   <= 32'b0;
+            d_tlb_xlate_req_plv_r <= 2'b0;
+            d_tlb_xlate_translate_r <= 1'b0;
+            d_tlb_xlate_dmw_paddr_r <= 32'b0;
+            d_tlb_xlate_found_r   <= 1'b0;
+            d_tlb_xlate_ps_r      <= 6'b0;
+            d_tlb_xlate_ppn_r     <= 20'b0;
+            d_tlb_xlate_v_r       <= 1'b0;
+            d_tlb_xlate_d_r       <= 1'b0;
+            d_tlb_xlate_plv_r     <= 2'b0;
             d_tlb_resp_valid      <= 1'b0;
+            d_tlb_resp_vaddr      <= 32'b0;
             d_tlb_query_paddr     <= 32'b0;
             d_tlb_exception_valid <= 1'b0;
             d_tlb_exception_ecode <= 6'b0;
@@ -304,7 +352,19 @@ module cpu_tlb (
             i_tlb_req_dmw0_r      <= csr_dmw0;
             i_tlb_req_dmw1_r      <= csr_dmw1;
 
-            i_tlb_resp_valid      <= i_tlb_req_valid_r;
+            i_tlb_xlate_valid_r     <= i_tlb_req_valid_r;
+            i_tlb_xlate_vaddr_r     <= i_tlb_req_vaddr_r;
+            i_tlb_xlate_req_plv_r   <= i_tlb_req_plv_r;
+            i_tlb_xlate_translate_r <= i_tlb_translate;
+            i_tlb_xlate_dmw_paddr_r <= i_dmw_paddr;
+            i_tlb_xlate_found_r     <= i_tlb_found_r;
+            i_tlb_xlate_ps_r        <= i_tlb_ps;
+            i_tlb_xlate_ppn_r       <= i_tlb_ppn;
+            i_tlb_xlate_v_r         <= i_tlb_v;
+            i_tlb_xlate_plv_r       <= i_tlb_plv;
+
+            i_tlb_resp_valid      <= i_tlb_xlate_valid_r;
+            i_tlb_resp_vaddr      <= i_tlb_xlate_vaddr_r;
             i_tlb_query_paddr     <= i_tlb_query_paddr_w;
             i_tlb_exception_valid <= i_tlb_exception_valid_w;
             i_tlb_exception_ecode <= i_tlb_exception_ecode_w;
@@ -317,7 +377,22 @@ module cpu_tlb (
             d_tlb_req_pg_mode_r   <= pg_mode;
             d_tlb_req_dmw0_r      <= csr_dmw0;
             d_tlb_req_dmw1_r      <= csr_dmw1;
-            d_tlb_resp_valid      <= d_tlb_req_valid_r;
+
+            d_tlb_xlate_valid_r     <= d_tlb_req_valid_r;
+            d_tlb_xlate_write_r     <= d_tlb_req_write_r;
+            d_tlb_xlate_vaddr_r     <= d_tlb_req_vaddr_r;
+            d_tlb_xlate_req_plv_r   <= d_tlb_req_plv_r;
+            d_tlb_xlate_translate_r <= d_tlb_translate;
+            d_tlb_xlate_dmw_paddr_r <= d_dmw_paddr;
+            d_tlb_xlate_found_r     <= d_tlb_found_r;
+            d_tlb_xlate_ps_r        <= d_tlb_ps;
+            d_tlb_xlate_ppn_r       <= d_tlb_ppn;
+            d_tlb_xlate_v_r         <= d_tlb_v;
+            d_tlb_xlate_d_r         <= d_tlb_d;
+            d_tlb_xlate_plv_r       <= d_tlb_plv;
+
+            d_tlb_resp_valid      <= d_tlb_xlate_valid_r;
+            d_tlb_resp_vaddr      <= d_tlb_xlate_vaddr_r;
             d_tlb_query_paddr     <= d_tlb_query_paddr_w;
             d_tlb_exception_valid <= d_tlb_exception_valid_w;
             d_tlb_exception_ecode <= d_tlb_exception_ecode_w;

@@ -24,6 +24,7 @@ module s5_m1 (
     output wire        d_tlb_query_write,
     output wire [31:0] d_tlb_query_vaddr,
     input  wire        d_tlb_resp_valid,
+    input  wire [31:0] d_tlb_resp_vaddr,
     input  wire [31:0] d_tlb_query_paddr,
     input  wire        d_tlb_exception_valid,
     input  wire [5:0]  d_tlb_exception_ecode,
@@ -63,7 +64,10 @@ module s5_m1 (
     wire in_inst_st_h;
     wire in_inst_st_w;
     wire in_inst_cacop;
+    wire in_cacop_needs_translate;
     wire in_data_ale_w;
+    wire in_mem_accept_w;
+    wire in_d_tlb_needs_query_w;
     wire inst_b;
     wire inst_beq;
     wire inst_bne;
@@ -89,6 +93,7 @@ module s5_m1 (
     wire [15:0] load_half_w;
     wire [31:0] load_result_w;
     wire        d_tlb_needs_query_w;
+    wire        d_tlb_resp_match_w;
 
     reg        pend_valid;
     reg        pend_req_sent;
@@ -120,6 +125,7 @@ module s5_m1 (
     assign in_inst_st_h  = in_is_store && (op_25_22 == 4'h5);
     assign in_inst_st_w  = in_is_store && (op_25_22 == 4'h6);
     assign in_inst_cacop = (op_31_26 == 6'h01) && (op_25_22 == 4'h8);
+    assign in_cacop_needs_translate = in_inst_cacop && (in_inst[4:3] == 2'b10);
     assign in_data_ale_w = ((in_inst_ld_h || in_inst_ld_hu || in_inst_st_h) && in_result[0]) ||
                            ((in_inst_ld_w || in_inst_st_w) && (in_result[1:0] != 2'b00));
     assign inst_b   = (op_31_26 == 6'h14);
@@ -147,9 +153,18 @@ module s5_m1 (
     assign d_tlb_needs_query_w = pend_valid && !pend_req_sent && !pend_exception_valid &&
                                  ((pend_is_load && !pend_inst_cacop) || pend_is_store ||
                                   pend_cacop_needs_translate);
-    assign d_tlb_query_valid = d_tlb_needs_query_w && !pend_tlb_wait;
-    assign d_tlb_query_write = pend_is_store && !pend_inst_cacop;
-    assign d_tlb_query_vaddr = pend_result;
+    assign in_mem_accept_w = !pend_valid && in_valid && (in_is_load || in_is_store);
+    assign in_d_tlb_needs_query_w = in_mem_accept_w && !in_exception_valid && !in_data_ale_w &&
+                                    ((in_is_load && !in_inst_cacop) || in_is_store ||
+                                     in_cacop_needs_translate);
+    assign d_tlb_query_valid = in_d_tlb_needs_query_w ||
+                               (d_tlb_needs_query_w && !pend_tlb_wait);
+    assign d_tlb_query_write = in_d_tlb_needs_query_w ?
+                               (in_is_store && !in_inst_cacop) :
+                               (pend_is_store && !pend_inst_cacop);
+    assign d_tlb_query_vaddr = in_d_tlb_needs_query_w ? in_result : pend_result;
+    assign d_tlb_resp_match_w = d_tlb_resp_valid &&
+                                (d_tlb_resp_vaddr == pend_result);
     assign store_wstrb_w = pend_inst_st_b ? (4'b0001 << pend_result[1:0]) :
                            pend_inst_st_h ? (pend_result[1] ? 4'b1100 : 4'b0011) :
                                             4'b1111;
@@ -231,7 +246,7 @@ module s5_m1 (
                 if (in_is_load || in_is_store) begin
                     pend_valid      <= 1'b1;
                     pend_req_sent   <= 1'b0;
-                    pend_tlb_wait   <= 1'b0;
+                    pend_tlb_wait   <= in_d_tlb_needs_query_w;
                     pend_pc         <= in_pc;
                     pend_inst       <= in_inst;
                     pend_rd         <= in_rd;
@@ -287,7 +302,7 @@ module s5_m1 (
                     pend_tlb_wait <= 1'b0;
                 end else if (!pend_req_sent) begin
                     if (pend_tlb_wait) begin
-                        if (d_tlb_resp_valid) begin
+                        if (d_tlb_resp_match_w) begin
                             pend_tlb_wait <= 1'b0;
                             if (d_tlb_exception_valid) begin
                                 out_valid                <= 1'b1;
