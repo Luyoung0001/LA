@@ -38,6 +38,18 @@ CONFIG_FLAGS = \
 	-DLA_ITCM_ENABLE=$(ITCM_ENABLE) \
 	-DLA_CACHE_OP_STRICT_ENABLE=$(CACHE_OP_STRICT_ENABLE)
 
+TIMING_CONFIG_ARGS = \
+	-tlb $(TLB_ENABLE) \
+	-l1i $(L1I_ENABLE) \
+	-l1d $(L1D_ENABLE) \
+	-l2 $(L2_ENABLE) \
+	-bpu $(BPU_ENABLE) \
+	-fetch-buffer $(FETCH_BUFFER_ENABLE) \
+	-itcm $(ITCM_ENABLE) \
+	-cache-op-strict $(CACHE_OP_STRICT_ENABLE) \
+	-l2-prefetch $(L2_PREFETCH) \
+	-perf-moni $(PERF_MONI)
+
 # mycpu
 RTL_DIR = $(CPU_HOME)/rtl
 VSRC_project_la_rtl_all = $(wildcard $(RTL_DIR)/*.v)
@@ -150,7 +162,7 @@ synth_timing: $(TIMING_SCRIPT)
 	@mkdir -p $(LOG_DIR)
 	bash -c '$(VIVADO) $(VIVADO_FLAGS) \
 		-source $(TIMING_SCRIPT) \
-		-tclargs -freq $(FREQ) -jobs $(JOBS) -part $(FPGA_PART) -top $(SYNTH_TOP) \
+		-tclargs -freq $(FREQ) -jobs $(JOBS) -part $(FPGA_PART) -top $(SYNTH_TOP) $(TIMING_CONFIG_ARGS) \
 		2>&1 | tee $(SYNTH_LOG); exit $${PIPESTATUS[0]}'
 	@echo ""
 	@echo "=== Timing Result ==="

@@ -30,10 +30,36 @@ set project_name "la_cpu_timing"
 set top_module   "core_top"
 set synth_top    "timing_wrapper"
 set num_jobs     8
+set cfg_tlb_enable 0
+set cfg_l1i_enable 0
+set cfg_l1d_enable 0
+set cfg_l2_enable 0
+set cfg_bpu_enable 0
+set cfg_fetch_buffer_enable 0
+set cfg_itcm_enable 0
+set cfg_cache_op_strict_enable 0
+set cfg_l2_prefetch_enable 1
+set cfg_perf_moni_enable 0
 
 # Target clock frequency in MHz (used for constraint, not hard limit)
 set target_freq_mhz 100.0
 set target_period_ns [expr {1000.0 / $target_freq_mhz}]
+
+proc normalize_bool_arg {name value} {
+    set lower_value [string tolower $value]
+    switch -exact -- $lower_value {
+        "1" - "true" - "yes" - "on" {
+            return 1
+        }
+        "0" - "false" - "no" - "off" {
+            return 0
+        }
+        default {
+            puts "ERROR: $name expects 0/1, true/false, yes/no, or on/off; got '$value'"
+            exit 1
+        }
+    }
+}
 
 # Parse command line args
 if {[info exists argc]} {
@@ -57,11 +83,70 @@ if {[info exists argc]} {
                 incr i
                 set top_module [lindex $argv $i]
             }
+            "-tlb" {
+                incr i
+                set cfg_tlb_enable [normalize_bool_arg $arg [lindex $argv $i]]
+            }
+            "-l1i" {
+                incr i
+                set cfg_l1i_enable [normalize_bool_arg $arg [lindex $argv $i]]
+            }
+            "-l1d" {
+                incr i
+                set cfg_l1d_enable [normalize_bool_arg $arg [lindex $argv $i]]
+            }
+            "-l2" {
+                incr i
+                set cfg_l2_enable [normalize_bool_arg $arg [lindex $argv $i]]
+            }
+            "-bpu" {
+                incr i
+                set cfg_bpu_enable [normalize_bool_arg $arg [lindex $argv $i]]
+            }
+            "-fetch-buffer" {
+                incr i
+                set cfg_fetch_buffer_enable [normalize_bool_arg $arg [lindex $argv $i]]
+            }
+            "-itcm" {
+                incr i
+                set cfg_itcm_enable [normalize_bool_arg $arg [lindex $argv $i]]
+            }
+            "-cache-op-strict" {
+                incr i
+                set cfg_cache_op_strict_enable [normalize_bool_arg $arg [lindex $argv $i]]
+            }
+            "-l2-prefetch" {
+                incr i
+                set cfg_l2_prefetch_enable [normalize_bool_arg $arg [lindex $argv $i]]
+            }
+            "-perf-moni" {
+                incr i
+                set cfg_perf_moni_enable [normalize_bool_arg $arg [lindex $argv $i]]
+            }
             default {
                 # Ignore unknown args for forward compatibility
             }
         }
     }
+}
+
+set verilog_defines [list \
+    "LA_TLB_ENABLE=$cfg_tlb_enable" \
+    "LA_L1I_ENABLE=$cfg_l1i_enable" \
+    "LA_L1D_ENABLE=$cfg_l1d_enable" \
+    "LA_L2_ENABLE=$cfg_l2_enable" \
+    "LA_BPU_ENABLE=$cfg_bpu_enable" \
+    "LA_FETCH_BUFFER_ENABLE=$cfg_fetch_buffer_enable" \
+    "LA_ITCM_ENABLE=$cfg_itcm_enable" \
+    "LA_CACHE_OP_STRICT_ENABLE=$cfg_cache_op_strict_enable" \
+]
+
+if {!$cfg_l2_prefetch_enable} {
+    lappend verilog_defines "CPU_DISABLE_L2_PREFETCH"
+}
+
+if {$cfg_perf_moni_enable} {
+    lappend verilog_defines "PERF_MONI"
 }
 
 puts "=============================================="
@@ -73,6 +158,7 @@ puts " Synth Top   : $synth_top"
 puts " Target Freq : ${target_freq_mhz} MHz (period = [format %.3f $target_period_ns] ns)"
 puts " RTL Dir     : $rtl_dir"
 puts " Output Dir  : $output_dir"
+puts " Config      : TLB=$cfg_tlb_enable L1I=$cfg_l1i_enable L1D=$cfg_l1d_enable L2=$cfg_l2_enable BPU=$cfg_bpu_enable FBUF=$cfg_fetch_buffer_enable ITCM=$cfg_itcm_enable STRICT_CACOP=$cfg_cache_op_strict_enable L2_PREFETCH=$cfg_l2_prefetch_enable PERF_MONI=$cfg_perf_moni_enable"
 puts "=============================================="
 
 #==============================================================================
@@ -295,7 +381,9 @@ add_files -norecurse $wrapper_file
 puts "  + Generated wrapper: [file tail $wrapper_file] (instantiates $top_module)"
 
 set_property include_dirs [list $rtl_dir] [current_fileset]
+set_property verilog_define $verilog_defines [current_fileset]
 set_property top $synth_top [current_fileset]
+puts "  + Verilog defines: $verilog_defines"
 
 #==============================================================================
 # Constraints
@@ -428,6 +516,7 @@ puts $sf ""
 puts $sf "  Device               : $fpga_part"
 puts $sf "  DUT top              : $top_module"
 puts $sf "  Synthesis top        : $synth_top"
+puts $sf "  Config               : TLB=$cfg_tlb_enable L1I=$cfg_l1i_enable L1D=$cfg_l1d_enable L2=$cfg_l2_enable BPU=$cfg_bpu_enable FBUF=$cfg_fetch_buffer_enable ITCM=$cfg_itcm_enable STRICT_CACOP=$cfg_cache_op_strict_enable L2_PREFETCH=$cfg_l2_prefetch_enable PERF_MONI=$cfg_perf_moni_enable"
 puts $sf "  Target frequency     : [format %.1f $target_freq_mhz] MHz"
 puts $sf "  Target period        : [format %.3f $target_period_ns] ns"
 puts $sf "  WNS                  : [format %.3f $wns] ns"
