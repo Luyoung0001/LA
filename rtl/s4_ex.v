@@ -174,6 +174,7 @@ module s4_ex (
     wire        mul_inst_w;
     wire        mul_active_w;
     wire        multiplier_start_w;
+    wire        multiplier_done_w;
     wire        divmod_inst_w;
     wire        divmod_active_w;
     wire        div_signed_op_w;
@@ -181,6 +182,7 @@ module s4_ex (
     wire        divider_complete_w;
     wire [31:0] divider_quot_w;
     wire [31:0] divider_rem_w;
+    reg         mul_busy_r;
     reg         mul_done_r;
     reg  [31:0] mul_result_r;
     reg         div_active_r;
@@ -324,13 +326,18 @@ module s4_ex (
 `else
     assign mul_inst_w = inst_mul_w | inst_mulh_w | inst_mulh_wu;
     assign mul_active_w = in_valid && !in_exception_valid && mul_inst_w;
-    assign multiplier_start_w = ex_slot_allowin_w && mul_active_w && !mul_done_r;
+    assign multiplier_start_w = ex_slot_allowin_w && mul_active_w &&
+                                !mul_busy_r && !mul_done_r;
 
     mul u_mul (
+        .clk        (clk),
+        .reset      (reset || flush),
+        .mult       (multiplier_start_w),
         .mul_div_op (mul_div_op_w),
         .alu_src1   (op1_forwarded),
         .alu_src2   (op2_forwarded),
-        .mul_result (mul_result_w)
+        .mul_result (mul_result_w),
+        .done       (multiplier_done_w)
     );
 
     assign divmod_inst_w = inst_div_w | inst_div_wu | inst_mod_w | inst_mod_wu;
@@ -451,12 +458,17 @@ module s4_ex (
 `ifndef S4_EX_FAST_MDU
     always @(posedge clk) begin
         if (reset || flush) begin
+            mul_busy_r  <= 1'b0;
             mul_done_r  <= 1'b0;
             mul_result_r <= 32'b0;
             div_active_r <= 1'b0;
             div_done_r   <= 1'b0;
         end else begin
             if (multiplier_start_w) begin
+                mul_busy_r <= 1'b1;
+                mul_done_r <= 1'b0;
+            end else if (multiplier_done_w) begin
+                mul_busy_r   <= 1'b0;
                 mul_result_r <= mul_result_w;
                 mul_done_r   <= 1'b1;
             end

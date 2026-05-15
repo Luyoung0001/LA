@@ -1,27 +1,55 @@
 module mul (
+    input  wire        clk,
+    input  wire        reset,
+    input  wire        mult,
     input  wire [9:0]  mul_div_op,
     input  wire [31:0] alu_src1,
     input  wire [31:0] alu_src2,
-    output wire [31:0] mul_result
+    output reg  [31:0] mul_result,
+    output reg         done
 );
 
-    wire [63:0] signed_mul_result64;
-    wire [63:0] unsigned_mul_result64;
+    wire [63:0] mul_res64;
+    wire        top_done;
+    wire        signed_op;
+    reg  [2:0]  op_reg;
 
-    wire op_mul;
-    wire op_mulh;
-    wire op_mulhu;
+    assign signed_op = mul_div_op[0] || mul_div_op[1];
 
-    assign op_mul   = mul_div_op[0];
-    assign op_mulh  = mul_div_op[1];
-    assign op_mulhu = mul_div_op[2];
+    always @(posedge clk or posedge reset) begin
+        if (reset) begin
+            op_reg <= 3'b0;
+        end else if (mult) begin
+            op_reg <= mul_div_op[2:0];
+        end
+    end
 
-    assign signed_mul_result64   = $signed(alu_src1) * $signed(alu_src2);
-    assign unsigned_mul_result64 = $unsigned(alu_src1) * $unsigned(alu_src2);
+    TopMultiplier u_topmul (
+        .clk        (clk),
+        .reset      (reset),
+        .mult       (mult),
+        .x_in       (alu_src1),
+        .y_in       (alu_src2),
+        .signed_op  (signed_op),
+        .result_out (mul_res64),
+        .done       (top_done)
+    );
 
-    assign mul_result =
-        ({32{op_mul}}   & signed_mul_result64[31:0]) |
-        ({32{op_mulh}}  & signed_mul_result64[63:32]) |
-        ({32{op_mulhu}} & unsigned_mul_result64[63:32]);
+    always @(posedge clk or posedge reset) begin
+        if (reset) begin
+            mul_result <= 32'b0;
+            done       <= 1'b0;
+        end else begin
+            done <= top_done;
+            if (top_done) begin
+                case (op_reg)
+                    3'b001: mul_result <= mul_res64[31:0];
+                    3'b010: mul_result <= mul_res64[63:32];
+                    3'b100: mul_result <= mul_res64[63:32];
+                    default: mul_result <= 32'b0;
+                endcase
+            end
+        end
+    end
 
 endmodule
