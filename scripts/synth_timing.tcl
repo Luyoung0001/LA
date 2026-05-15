@@ -21,7 +21,7 @@
 
 set script_dir  [file dirname [info script]]
 set repo_root   [file normalize "$script_dir/.."]
-set rtl_dir     [file normalize "$repo_root/mycpu_env/myCPU/v_src"]
+set rtl_dir     [file normalize "$repo_root/rtl"]
 set project_dir [file normalize "$repo_root/vivado_timing"]
 set output_dir  $project_dir
 
@@ -82,8 +82,8 @@ set rtl_sources [list]
 
 foreach src $all_rtl_sources {
     set name [file tail $src]
-    # Simulation-only wrapper; exclude from synthesis flow.
-    if {$name eq "verilator_top.v"} {
+    # Simulation-only wrappers; exclude from synthesis flow.
+    if {($name eq "verilator_top.v") || ($name eq "verilator_top_la500.v")} {
         continue
     }
     lappend rtl_sources $src
