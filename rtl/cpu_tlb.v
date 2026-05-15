@@ -75,6 +75,9 @@ module cpu_tlb (
     reg [4:0]  i_tlb_index_r;
     reg        d_tlb_found_r;
     reg [4:0]  d_tlb_index_r;
+    reg        d_tlb_req_valid_r;
+    reg        d_tlb_req_write_r;
+    reg [31:0] d_tlb_req_vaddr_r;
 
     wire [4:0]  tlb_write_index;
     wire        tlb_write_enable_value;
@@ -194,32 +197,32 @@ module cpu_tlb (
     assign d_dmw0_hit = pg_mode &&
                         (((csr_dmw0[0] && (csr_crmd[1:0] == 2'd0)) ||
                           (csr_dmw0[3] && (csr_crmd[1:0] == 2'd3))) &&
-                         (d_tlb_query_vaddr[31:29] == csr_dmw0[31:29]));
+                         (d_tlb_req_vaddr_r[31:29] == csr_dmw0[31:29]));
     assign d_dmw1_hit = pg_mode &&
                         (((csr_dmw1[0] && (csr_crmd[1:0] == 2'd0)) ||
                           (csr_dmw1[3] && (csr_crmd[1:0] == 2'd3))) &&
-                         (d_tlb_query_vaddr[31:29] == csr_dmw1[31:29]));
-    assign d_tlb_translate = d_tlb_query_valid && pg_mode && !d_dmw0_hit && !d_dmw1_hit;
+                         (d_tlb_req_vaddr_r[31:29] == csr_dmw1[31:29]));
+    assign d_tlb_translate = d_tlb_req_valid_r && pg_mode && !d_dmw0_hit && !d_dmw1_hit;
     assign d_tlb_ps = tlb_ps[d_tlb_index_r];
-    assign d_tlb_odd_page = (d_tlb_ps == 6'd12) ? d_tlb_query_vaddr[12] : d_tlb_query_vaddr[21];
+    assign d_tlb_odd_page = (d_tlb_ps == 6'd12) ? d_tlb_req_vaddr_r[12] : d_tlb_req_vaddr_r[21];
     assign d_tlb_ppn = d_tlb_odd_page ? tlb_ppn1[d_tlb_index_r] : tlb_ppn0[d_tlb_index_r];
     assign d_tlb_v   = d_tlb_odd_page ? tlb_v1[d_tlb_index_r]   : tlb_v0[d_tlb_index_r];
     assign d_tlb_d   = d_tlb_odd_page ? tlb_d1[d_tlb_index_r]   : tlb_d0[d_tlb_index_r];
     assign d_tlb_plv = d_tlb_odd_page ? tlb_plv1[d_tlb_index_r] : tlb_plv0[d_tlb_index_r];
     assign d_tlb_trans_paddr = (d_tlb_ps == 6'd12) ?
-                               {d_tlb_ppn, d_tlb_query_vaddr[11:0]} :
-                               {d_tlb_ppn[19:10], d_tlb_query_vaddr[21:0]};
-    assign d_dmw_paddr = d_dmw0_hit ? {csr_dmw0[27:25], d_tlb_query_vaddr[28:0]} :
-                         d_dmw1_hit ? {csr_dmw1[27:25], d_tlb_query_vaddr[28:0]} :
-                                      d_tlb_query_vaddr;
+                               {d_tlb_ppn, d_tlb_req_vaddr_r[11:0]} :
+                               {d_tlb_ppn[19:10], d_tlb_req_vaddr_r[21:0]};
+    assign d_dmw_paddr = d_dmw0_hit ? {csr_dmw0[27:25], d_tlb_req_vaddr_r[28:0]} :
+                         d_dmw1_hit ? {csr_dmw1[27:25], d_tlb_req_vaddr_r[28:0]} :
+                                      d_tlb_req_vaddr_r;
     assign d_tlb_query_paddr_w = d_tlb_translate ? d_tlb_trans_paddr : d_dmw_paddr;
     assign d_tlb_exception_valid_w = d_tlb_translate &&
                                      (!d_tlb_found_r ||
                                       !d_tlb_v ||
                                       (csr_crmd[1:0] > d_tlb_plv) ||
-                                      (d_tlb_query_write && !d_tlb_d));
+                                      (d_tlb_req_write_r && !d_tlb_d));
     assign d_tlb_exception_ecode_w = !d_tlb_found_r ? 6'h3f :
-                                     !d_tlb_v ? (d_tlb_query_write ? 6'h02 : 6'h01) :
+                                     !d_tlb_v ? (d_tlb_req_write_r ? 6'h02 : 6'h01) :
                                      (csr_crmd[1:0] > d_tlb_plv) ? 6'h07 :
                                      6'h04;
 
@@ -229,8 +232,8 @@ module cpu_tlb (
         for (d_search_i = 0; d_search_i < 32; d_search_i = d_search_i + 1) begin
             if (!d_tlb_found_r && tlb_e[d_search_i] &&
                 ((tlb_ps[d_search_i] == 6'd12) ?
-                 (tlb_vppn[d_search_i] == d_tlb_query_vaddr[31:13]) :
-                 (tlb_vppn[d_search_i][18:9] == d_tlb_query_vaddr[31:22])) &&
+                 (tlb_vppn[d_search_i] == d_tlb_req_vaddr_r[31:13]) :
+                 (tlb_vppn[d_search_i][18:9] == d_tlb_req_vaddr_r[31:22])) &&
                 ((tlb_asid[d_search_i] == csr_asid[9:0]) || tlb_g[d_search_i])) begin
                 d_tlb_found_r = 1'b1;
                 d_tlb_index_r = d_search_i[4:0];
@@ -244,6 +247,9 @@ module cpu_tlb (
             i_tlb_query_paddr     <= 32'b0;
             i_tlb_exception_valid <= 1'b0;
             i_tlb_exception_ecode <= 6'b0;
+            d_tlb_req_valid_r     <= 1'b0;
+            d_tlb_req_write_r     <= 1'b0;
+            d_tlb_req_vaddr_r     <= 32'b0;
             d_tlb_resp_valid      <= 1'b0;
             d_tlb_query_paddr     <= 32'b0;
             d_tlb_exception_valid <= 1'b0;
@@ -271,7 +277,10 @@ module cpu_tlb (
             i_tlb_exception_valid <= i_tlb_exception_valid_w;
             i_tlb_exception_ecode <= i_tlb_exception_ecode_w;
 
-            d_tlb_resp_valid      <= d_tlb_query_valid;
+            d_tlb_req_valid_r     <= d_tlb_query_valid;
+            d_tlb_req_write_r     <= d_tlb_query_write;
+            d_tlb_req_vaddr_r     <= d_tlb_query_vaddr;
+            d_tlb_resp_valid      <= d_tlb_req_valid_r;
             d_tlb_query_paddr     <= d_tlb_query_paddr_w;
             d_tlb_exception_valid <= d_tlb_exception_valid_w;
             d_tlb_exception_ecode <= d_tlb_exception_ecode_w;
