@@ -83,6 +83,14 @@ module la_l1i_adapter (
     wire flush_synth_clear_w =
         (l2_req_accept_w || (fill_state_r != FILL_IDLE)) &&
         !flush_real_resp_pending_w;
+    wire flush_drain_stale_resp_w = (axi_outstanding_r != 3'd0) && axi_resp_valid;
+    wire [3:0] flush_outstanding_next_w =
+        {1'b0, axi_outstanding_r} +
+        {3'b0, flush_real_resp_pending_w} -
+        {3'b0, flush_drain_stale_resp_w};
+    wire flush_stale_done_w =
+        (flush_outstanding_next_w == 4'd0) &&
+        (flush_synth_clear_w || flush_drain_stale_resp_w);
 
     assign l2_req_ready_w = (fill_state_r == FILL_IDLE) && (axi_outstanding_r == 3'd0);
     assign axi_req_valid  = axi_req_valid_r;
@@ -194,10 +202,8 @@ module la_l1i_adapter (
                 axi_outstanding_r <= 3'd0;
                 stale_clear_pulse_r <= 1'b0;
             end else if (flush) begin
-                axi_outstanding_r <= axi_outstanding_r +
-                    (flush_real_resp_pending_w ? 3'd1 : 3'd0);
-                stale_clear_pulse_r <= stale_clear_pulse_r ||
-                                       flush_synth_clear_w;
+                axi_outstanding_r <= flush_outstanding_next_w[2:0];
+                stale_clear_pulse_r <= stale_clear_pulse_r || flush_stale_done_w;
             end
         end else begin
             l2_resp_valid_r <= 1'b0;
