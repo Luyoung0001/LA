@@ -7,6 +7,7 @@ module s1_f1 #(
     input  wire        redirect_valid,
     input  wire [31:0] redirect_pc,
     input  wire        bp_resp_valid,
+    input  wire [31:0] bp_resp_pc,
     input  wire        bp_pred_taken,
     input  wire [31:0] bp_pred_target,
     output reg         bp_req_valid,
@@ -26,7 +27,8 @@ module s1_f1 #(
     // Keep 2 cycles, shift in 1's every non-redirect cycle.
     reg [1:0]  pred_valid_pipe_r;
 
-    wire bp_use_valid = bp_resp_valid && bp_pred_taken && (&pred_valid_pipe_r);
+    wire bp_use_valid = bp_resp_valid && bp_pred_taken &&
+                        (bp_resp_pc == pc_r) && (&pred_valid_pipe_r);
     wire [31:0] seq_next_pc_w = bp_use_valid ? bp_pred_target : (pc_r + 32'd4);
 
     assign out_pred_taken  = bp_use_valid;

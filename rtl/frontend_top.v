@@ -50,6 +50,7 @@ module frontend_top #(
     wire bp_req_valid_w;
     wire [31:0] bp_req_pc_w;
     wire bp_resp_valid_w;
+    wire [31:0] bp_resp_pc_w;
     wire bp_pred_taken_w;
     wire [31:0] bp_pred_target_w;
     wire ifu_pred_taken_w;
@@ -79,6 +80,7 @@ module frontend_top #(
                 .req_valid    (bp_req_valid_w),
                 .req_pc       (bp_req_pc_w),
                 .resp_valid   (bp_resp_valid_w),
+                .resp_pc      (bp_resp_pc_w),
                 .pred_taken   (bp_pred_taken_w),
                 .pred_target  (bp_pred_target_w),
                 .update_valid (branch_update_valid),
@@ -92,6 +94,7 @@ module frontend_top #(
                                          branch_update_valid, branch_update_taken,
                                          branch_update_pc, branch_update_target};
             assign bp_resp_valid_w  = bp_req_valid_w;
+            assign bp_resp_pc_w     = bp_req_pc_w;
             assign bp_pred_taken_w  = 1'b0;
             assign bp_pred_target_w = 32'b0;
         end
@@ -106,6 +109,7 @@ module frontend_top #(
         .redirect_valid(redirect_valid),
         .redirect_pc   (redirect_pc),
         .bp_resp_valid (bp_resp_valid_w),
+        .bp_resp_pc    (bp_resp_pc_w),
         .bp_pred_taken (bp_pred_taken_w),
         .bp_pred_target(bp_pred_target_w),
         .bp_req_valid  (bp_req_valid_w),

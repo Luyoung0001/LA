@@ -7,6 +7,7 @@ module la_bpu_adapter #(
     input  wire            req_valid,
     input  wire [XLEN-1:0] req_pc,
     output wire            resp_valid,
+    output wire [XLEN-1:0] resp_pc,
     output wire            pred_taken,
     output wire [XLEN-1:0] pred_target,
 
@@ -39,6 +40,7 @@ module la_bpu_adapter #(
                                    pred_ras_target_w};
 
     assign resp_valid  = req_valid_d2;
+    assign resp_pc     = req_pc_d2;
     assign pred_taken  = pred_valid_d1 && pred_taken_d1;
     assign pred_target = pred_taken ? pred_target_d1 : (req_pc_d2 + {{(XLEN-3){1'b0}}, 3'd4});
 

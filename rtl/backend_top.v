@@ -192,6 +192,10 @@ module backend_top #(
     wire [8:0] mem1_exception_esubcode_w;
     wire mem1_exception_badv_valid_w;
     wire [31:0] mem1_exception_badv_w;
+    wire ex_branch_update_valid_raw_w;
+    wire ex_branch_taken_raw_w;
+    wire [31:0] ex_branch_target_raw_w;
+    wire ex_branch_mispredict_raw_w;
 
     function is_valid_la32_inst;
         input [31:0] inst;
@@ -465,6 +469,10 @@ module backend_top #(
                                       refetch_redirect_valid;
     assign mem1_redirect_flush_w = exception_redirect_valid || ertn_redirect_valid ||
                                    refetch_redirect_valid;
+    assign branch_update_valid = ex_branch_update_valid_raw_w && !mem1_redirect_flush_w;
+    assign branch_taken        = ex_branch_taken_raw_w;
+    assign branch_target       = ex_branch_target_raw_w;
+    assign branch_mispredict   = ex_branch_mispredict_raw_w && !mem1_redirect_flush_w;
 
     s3_d1 u_s3_d1 (
         .clk          (clk),
@@ -607,10 +615,10 @@ module backend_top #(
         .forward_wb_valid(rf_we_w),
         .forward_wb_waddr(rf_waddr_w),
         .forward_wb_wdata(rf_wdata_w),
-        .branch_update_valid(branch_update_valid),
-        .branch_taken   (branch_taken),
-        .branch_target  (branch_target),
-        .branch_mispredict(branch_mispredict),
+        .branch_update_valid(ex_branch_update_valid_raw_w),
+        .branch_taken   (ex_branch_taken_raw_w),
+        .branch_target  (ex_branch_target_raw_w),
+        .branch_mispredict(ex_branch_mispredict_raw_w),
 `ifdef PERF_MONI
         .bpu_perf_valid (bpu_perf_valid),
         .bpu_perf_is_branch(bpu_perf_is_branch),
