@@ -422,6 +422,16 @@ module s3_d1 (
                 end
             end else begin
                 fast_redirect_valid <= 1'b0;
+                // A held D1 instruction may wait long enough for an older
+                // producer to leave the EX/MEM forwarding window. Refresh the
+                // latched operands from WB so the eventual EX cycle sees the
+                // committed source value.
+                if (d1_valid && wb_we && (wb_waddr != 5'b0)) begin
+                    if (d1_src1_r == wb_waddr)
+                        out_op1 <= wb_wdata;
+                    if (d1_src2_r == wb_waddr)
+                        out_op2 <= wb_wdata;
+                end
             end
         end
     end
