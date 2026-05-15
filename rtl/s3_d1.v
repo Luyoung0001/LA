@@ -1,6 +1,7 @@
 module s3_d1 (
     input  wire        clk,
     input  wire        reset,
+    input  wire        flush,
     input  wire        in_valid,
     input  wire [31:0] in_pc,
     input  wire [31:0] in_inst,
@@ -348,7 +349,7 @@ module s3_d1 (
                 regs[wb_waddr] <= wb_wdata;
             end
 
-            out_valid      <= in_valid;
+            out_valid      <= in_valid && !flush;
             out_pc         <= in_pc;
             out_inst       <= in_inst;
             out_pred_taken <= in_pred_taken;

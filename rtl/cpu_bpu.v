@@ -25,7 +25,7 @@
 // ============================================================================
 module cpu_bpu #(
     parameter XLEN            = 32,
-    parameter BTB_INDEX_WIDTH = 6,   // BTB 深度 = 2^6 = 64
+    parameter BTB_INDEX_WIDTH = 8,   // BTB 深度 = 2^8 = 256
     parameter PHT_INDEX_WIDTH = 9,   // PHT 深度 = 2^9 = 512
     parameter RAS_INDEX_WIDTH = 3,   // RAS 深度 = 2^3 = 8
     parameter GSHARE_ENABLE   = 1,   // 1=Gshare, 0=局部历史
@@ -284,6 +284,27 @@ module cpu_bpu #(
                                          (btb_is_cond_r && COND_PREDICT_ENABLE && pht_predict_taken));
     assign pred_ras_valid_o = ras_valid;
     assign pred_ras_target_o = ras_pred_target;
+
+`ifdef VERILATOR
+`ifdef PERF_MONI
+    integer dbg_btb_hit_cnt = 0;
+    integer dbg_btb_pred_taken_cnt = 0;
+    integer dbg_update_cnt = 0;
+    integer dbg_update_taken_cnt = 0;
+    final begin
+        $display("[BPU][DBG] btb_hit=%0d pred_taken=%0d update=%0d update_taken=%0d",
+                 dbg_btb_hit_cnt, dbg_btb_pred_taken_cnt, dbg_update_cnt, dbg_update_taken_cnt);
+    end
+    always @(posedge clk) begin
+        if (rst_n) begin
+            if (btb_hit) dbg_btb_hit_cnt <= dbg_btb_hit_cnt + 1;
+            if (pred_taken_o) dbg_btb_pred_taken_cnt <= dbg_btb_pred_taken_cnt + 1;
+            if (update_valid_i) dbg_update_cnt <= dbg_update_cnt + 1;
+            if (update_valid_i && update_taken_i) dbg_update_taken_cnt <= dbg_update_taken_cnt + 1;
+        end
+    end
+`endif
+`endif
 `endif
 
 `ifdef VERILATOR

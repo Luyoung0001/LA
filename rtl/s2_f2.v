@@ -1,6 +1,7 @@
 module s2_f2 (
     input  wire        clk,
     input  wire        reset,
+    input  wire        flush,
     input  wire        in_valid,
     input  wire [31:0] in_pc,
     input  wire        in_pred_taken,
@@ -53,7 +54,7 @@ module s2_f2 (
     assign req_addr_w = tlb_query_paddr;
 
     always @(posedge clk) begin
-        if (reset) begin
+        if (reset || flush) begin
             pend_valid                <= 1'b0;
             pend_pc                   <= 32'b0;
             pend_pred_taken           <= 1'b0;
@@ -115,5 +116,33 @@ module s2_f2 (
             end
         end
     end
+
+`ifdef VERILATOR
+`ifdef PERF_MONI
+    integer dbg_accept_cnt = 0;
+    integer dbg_accept_pred_taken_cnt = 0;
+    integer dbg_emit_cnt = 0;
+    integer dbg_emit_pred_taken_cnt = 0;
+    final begin
+        $display("[S2F2][DBG] accept=%0d accept_pred_taken=%0d emit=%0d emit_pred_taken=%0d",
+                 dbg_accept_cnt, dbg_accept_pred_taken_cnt,
+                 dbg_emit_cnt, dbg_emit_pred_taken_cnt);
+    end
+    always @(posedge clk) begin
+        if (!reset) begin
+            if (in_valid && !pend_valid) begin
+                dbg_accept_cnt <= dbg_accept_cnt + 1;
+                if (in_pred_taken)
+                    dbg_accept_pred_taken_cnt <= dbg_accept_pred_taken_cnt + 1;
+            end
+            if (pend_valid && (pend_exception_valid || icache_resp_valid)) begin
+                dbg_emit_cnt <= dbg_emit_cnt + 1;
+                if (pend_pred_taken)
+                    dbg_emit_pred_taken_cnt <= dbg_emit_pred_taken_cnt + 1;
+            end
+        end
+    end
+`endif
+`endif
 
 endmodule

@@ -120,6 +120,7 @@ module frontend_top #(
     s2_f2 u_s2_f2 (
         .clk               (clk),
         .reset             (reset),
+        .flush             (redirect_valid),
         .in_valid          (pc_valid && !hold_fetch),
         .in_pc             (pc),
         .in_pred_taken     (ifu_pred_taken_w),

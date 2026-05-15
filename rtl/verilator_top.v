@@ -41,6 +41,10 @@ module verilator_top(
     wire        bpu_perf_direction_miss/* verilator public */;
     wire        bpu_perf_target_miss/* verilator public */;
     wire        bpu_perf_exu_flush/* verilator public */;
+    wire        bpu_perf_is_direct_jump/* verilator public */;
+    wire        bpu_perf_is_jirl/* verilator public */;
+    wire        bpu_perf_is_ret_jirl/* verilator public */;
+    wire        bpu_perf_is_indirect_jirl/* verilator public */;
 `endif
     // wire debug_wb_is_csr_wr_o/* verilator public */;
     // wire debug_has_refetch_excp_o/* verilator public */;
@@ -218,7 +222,11 @@ module verilator_top(
                       .bpu_perf_correct   (bpu_perf_correct),
                       .bpu_perf_direction_miss(bpu_perf_direction_miss),
                       .bpu_perf_target_miss(bpu_perf_target_miss),
-                      .bpu_perf_exu_flush (bpu_perf_exu_flush)
+                      .bpu_perf_exu_flush (bpu_perf_exu_flush),
+                      .bpu_perf_is_direct_jump(bpu_perf_is_direct_jump),
+                      .bpu_perf_is_jirl(bpu_perf_is_jirl),
+                      .bpu_perf_is_ret_jirl(bpu_perf_is_ret_jirl),
+                      .bpu_perf_is_indirect_jirl(bpu_perf_is_indirect_jirl)
 `endif
 	                //   .debug_wb_is_csr_wr_o (debug_wb_is_csr_wr_o),
                 //   .debug_has_refetch_excp_o(debug_has_refetch_excp_o),

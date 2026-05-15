@@ -38,6 +38,7 @@ module backend_top #(
     output wire        branch_taken,
     output wire [31:0] branch_pc,
     output wire [31:0] branch_target,
+    output wire        branch_mispredict,
     output wire        exception_redirect_valid,
     output wire [31:0] exception_redirect_pc,
     output wire        ertn_redirect_valid,
@@ -58,12 +59,17 @@ module backend_top #(
     output wire        bpu_perf_direction_miss,
     output wire        bpu_perf_target_miss,
     output wire        bpu_perf_exu_flush,
+    output wire        bpu_perf_is_direct_jump,
+    output wire        bpu_perf_is_jirl,
+    output wire        bpu_perf_is_ret_jirl,
+    output wire        bpu_perf_is_indirect_jirl,
 `endif
 
     input  wire [4:0]  dbg_reg_num,
     output wire [31:0] dbg_rf_rdata,
 
     output wire        ws_valid,
+    output wire        ex_done_valid,
     output wire [31:0] debug_wb_pc,
     output wire [3:0]  debug_wb_rf_wen,
     output wire [4:0]  debug_wb_rf_wnum,
@@ -445,6 +451,7 @@ module backend_top #(
     s3_d1 u_s3_d1 (
         .clk          (clk),
         .reset        (reset),
+        .flush        (branch_update_valid && branch_mispredict),
         .in_valid     (fetch_valid),
         .in_pc        (fetch_pc),
         .in_inst      (fetch_inst),
@@ -575,6 +582,7 @@ module backend_top #(
         .branch_update_valid(branch_update_valid),
         .branch_taken   (branch_taken),
         .branch_target  (branch_target),
+        .branch_mispredict(branch_mispredict),
 `ifdef PERF_MONI
         .bpu_perf_valid (bpu_perf_valid),
         .bpu_perf_is_branch(bpu_perf_is_branch),
@@ -586,6 +594,10 @@ module backend_top #(
         .bpu_perf_direction_miss(bpu_perf_direction_miss),
         .bpu_perf_target_miss(bpu_perf_target_miss),
         .bpu_perf_exu_flush(bpu_perf_exu_flush),
+        .bpu_perf_is_direct_jump(bpu_perf_is_direct_jump),
+        .bpu_perf_is_jirl(bpu_perf_is_jirl),
+        .bpu_perf_is_ret_jirl(bpu_perf_is_ret_jirl),
+        .bpu_perf_is_indirect_jirl(bpu_perf_is_indirect_jirl),
 `endif
         .out_valid     (ex1_out_valid_w),
         .out_pc        (ex1_out_pc_w),
@@ -609,6 +621,7 @@ module backend_top #(
     );
 
     assign branch_pc = ex1_out_pc_w;
+    assign ex_done_valid = ex1_out_valid_w && !ex1_out_is_load_w && !ex1_out_is_store_w;
 
     s5_m1 u_s5_m1 (
         .clk               (clk),

@@ -82,6 +82,10 @@ module core_top #(
     output wire        bpu_perf_direction_miss,
     output wire        bpu_perf_target_miss,
     output wire        bpu_perf_exu_flush,
+    output wire        bpu_perf_is_direct_jump,
+    output wire        bpu_perf_is_jirl,
+    output wire        bpu_perf_is_ret_jirl,
+    output wire        bpu_perf_is_indirect_jirl,
 `endif
 
     output wire [31:0] debug1_wb_pc,
@@ -126,6 +130,7 @@ module core_top #(
     wire [31:0] if2_out_exception_badv_w;
 
     wire ex_branch_update_valid_w;
+    wire ex_branch_mispredict_w;
     wire ex_branch_taken_w;
     wire [31:0] ex_branch_target_w;
     wire [31:0] ex_branch_pc_w;
@@ -164,14 +169,16 @@ module core_top #(
     wire [1:0] icacop_mode_w;
     wire [31:0] icacop_addr_w;
 
+    // Pipeline flow control: clear issue_busy_r when instruction passes EX
+    // (reaches s5_m1), allowing next instruction to enter the pipeline.
+    wire ex_done_valid_w;
+
     assign issue_fire_w = ifu_out_valid_w && (~issue_busy_r);
-    // Advance IFU PC only when the current fetch entry is really issued.
-    // This avoids skipping one sequential instruction while issue_busy_r is
-    // being raised in the same cycle.
     assign hold_fetch_w = ~issue_fire_w;
 
     redirect_ctrl u_redirect_ctrl (
         .branch_valid    (ex_branch_update_valid_w),
+        .branch_mispredict(ex_branch_mispredict_w),
         .branch_pc       (ex_branch_pc_w),
         .branch_taken    (ex_branch_taken_w),
         .branch_target   (ex_branch_target_w),
@@ -268,6 +275,7 @@ module core_top #(
         .branch_taken       (ex_branch_taken_w),
         .branch_pc          (ex_branch_pc_w),
         .branch_target      (ex_branch_target_w),
+        .branch_mispredict  (ex_branch_mispredict_w),
         .exception_redirect_valid(exception_redirect_valid_w),
         .exception_redirect_pc(exception_redirect_pc_w),
         .ertn_redirect_valid(ertn_redirect_valid_w),
@@ -288,6 +296,10 @@ module core_top #(
         .bpu_perf_direction_miss(bpu_perf_direction_miss),
         .bpu_perf_target_miss(bpu_perf_target_miss),
         .bpu_perf_exu_flush (bpu_perf_exu_flush),
+        .bpu_perf_is_direct_jump(bpu_perf_is_direct_jump),
+        .bpu_perf_is_jirl(bpu_perf_is_jirl),
+        .bpu_perf_is_ret_jirl(bpu_perf_is_ret_jirl),
+        .bpu_perf_is_indirect_jirl(bpu_perf_is_indirect_jirl),
 `endif
         .i_tlb_query_valid  (i_tlb_query_valid_w),
         .i_tlb_query_write  (i_tlb_query_write_w),
@@ -298,6 +310,7 @@ module core_top #(
         .dbg_reg_num        (reg_num),
         .dbg_rf_rdata       (rf_rdata),
         .ws_valid           (commit_ws_valid_w),
+        .ex_done_valid      (ex_done_valid_w),
         .debug_wb_pc        (commit_debug_wb_pc_w),
         .debug_wb_rf_wen    (commit_debug_wb_rf_wen_w),
         .debug_wb_rf_wnum   (commit_debug_wb_rf_wnum_w),
@@ -460,6 +473,10 @@ module mycpu_top (
     wire bpu_perf_direction_miss_unused;
     wire bpu_perf_target_miss_unused;
     wire bpu_perf_exu_flush_unused;
+    wire bpu_perf_is_direct_jump_unused;
+    wire bpu_perf_is_jirl_unused;
+    wire bpu_perf_is_ret_jirl_unused;
+    wire bpu_perf_is_indirect_jirl_unused;
 `endif
 
     core_top u_core_top (
@@ -527,6 +544,10 @@ module mycpu_top (
         .bpu_perf_direction_miss(bpu_perf_direction_miss_unused),
         .bpu_perf_target_miss(bpu_perf_target_miss_unused),
         .bpu_perf_exu_flush (bpu_perf_exu_flush_unused),
+        .bpu_perf_is_direct_jump(bpu_perf_is_direct_jump_unused),
+        .bpu_perf_is_jirl(bpu_perf_is_jirl_unused),
+        .bpu_perf_is_ret_jirl(bpu_perf_is_ret_jirl_unused),
+        .bpu_perf_is_indirect_jirl(bpu_perf_is_indirect_jirl_unused),
 `endif
         .debug1_wb_pc       (debug1_wb_pc),
         .debug1_wb_rf_wen   (debug1_wb_rf_we),

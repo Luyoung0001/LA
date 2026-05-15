@@ -41,6 +41,7 @@ module s4_ex (
     output reg         branch_update_valid,
     output reg         branch_taken,
     output reg  [31:0] branch_target,
+    output reg         branch_mispredict,
 `ifdef PERF_MONI
     output reg         bpu_perf_valid,
     output reg         bpu_perf_is_branch,
@@ -52,6 +53,10 @@ module s4_ex (
     output reg         bpu_perf_direction_miss,
     output reg         bpu_perf_target_miss,
     output reg         bpu_perf_exu_flush,
+    output reg         bpu_perf_is_direct_jump,
+    output reg         bpu_perf_is_jirl,
+    output reg         bpu_perf_is_ret_jirl,
+    output reg         bpu_perf_is_indirect_jirl,
 `endif
     output reg         out_valid,
     output reg  [31:0] out_pc,
@@ -366,6 +371,7 @@ module s4_ex (
             branch_update_valid <= 1'b0;
             branch_taken        <= 1'b0;
             branch_target       <= 32'b0;
+            branch_mispredict   <= 1'b0;
 `ifdef PERF_MONI
             bpu_perf_valid          <= 1'b0;
             bpu_perf_is_branch      <= 1'b0;
@@ -377,6 +383,10 @@ module s4_ex (
             bpu_perf_direction_miss <= 1'b0;
             bpu_perf_target_miss    <= 1'b0;
             bpu_perf_exu_flush      <= 1'b0;
+            bpu_perf_is_direct_jump   <= 1'b0;
+            bpu_perf_is_jirl          <= 1'b0;
+            bpu_perf_is_ret_jirl      <= 1'b0;
+            bpu_perf_is_indirect_jirl <= 1'b0;
 `endif
             out_valid      <= 1'b0;
             out_pc         <= 32'b0;
@@ -401,6 +411,7 @@ module s4_ex (
             branch_update_valid <= in_valid && in_is_branch;
             branch_taken        <= in_valid && branch_take_w;
             branch_target       <= branch_target_w;
+            branch_mispredict   <= redirect_miss_w;
 `ifdef PERF_MONI
             bpu_perf_valid          <= control_flow_w;
             bpu_perf_is_branch      <= control_flow_w && !(inst_b || inst_bl || inst_jirl);
@@ -412,6 +423,15 @@ module s4_ex (
             bpu_perf_direction_miss <= direction_miss_w;
             bpu_perf_target_miss    <= target_miss_w;
             bpu_perf_exu_flush      <= redirect_miss_w;
+            bpu_perf_is_direct_jump   <= control_flow_w && (inst_b || inst_bl);
+            bpu_perf_is_jirl          <= control_flow_w && inst_jirl &&
+                                         (in_inst[4:0] == 5'h01);
+            bpu_perf_is_ret_jirl      <= control_flow_w && inst_jirl &&
+                                         (in_inst[4:0] == 5'h00) &&
+                                         (in_inst[9:5] == 5'h01);
+            bpu_perf_is_indirect_jirl <= control_flow_w && inst_jirl &&
+                                         (in_inst[4:0] == 5'h00) &&
+                                         (in_inst[9:5] != 5'h01);
 `endif
             out_valid      <= in_valid;
             out_pc         <= in_pc;
