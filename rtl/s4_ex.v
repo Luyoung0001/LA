@@ -171,6 +171,9 @@ module s4_ex (
     wire [31:0] div_signed_quot_abs_w;
     wire [31:0] div_signed_rem_abs_w;
 `else
+    wire        mul_inst_w;
+    wire        mul_active_w;
+    wire        multiplier_start_w;
     wire        divmod_inst_w;
     wire        divmod_active_w;
     wire        div_signed_op_w;
@@ -178,6 +181,8 @@ module s4_ex (
     wire        divider_complete_w;
     wire [31:0] divider_quot_w;
     wire [31:0] divider_rem_w;
+    reg         mul_done_r;
+    reg  [31:0] mul_result_r;
     reg         div_active_r;
     reg         div_done_r;
 `endif
@@ -198,7 +203,8 @@ module s4_ex (
 `ifdef S4_EX_FAST_MDU
     assign ex_ready_go_w = 1'b1;
 `else
-    assign ex_ready_go_w = !divmod_active_w || div_done_r;
+    assign ex_ready_go_w = (!mul_active_w || mul_done_r) &&
+                           (!divmod_active_w || div_done_r);
 `endif
     assign ex_allowin = ex_slot_allowin_w && ex_ready_go_w;
 
@@ -316,6 +322,10 @@ module s4_ex (
                           op1_forwarded[31] ? (~div_signed_rem_abs_w + 32'b1) : div_signed_rem_abs_w;
     assign mod_unsigned_w = (op2_forwarded == 32'b0) ? op1_forwarded : (op1_forwarded % op2_forwarded);
 `else
+    assign mul_inst_w = inst_mul_w | inst_mulh_w | inst_mulh_wu;
+    assign mul_active_w = in_valid && !in_exception_valid && mul_inst_w;
+    assign multiplier_start_w = ex_slot_allowin_w && mul_active_w && !mul_done_r;
+
     mul u_mul (
         .mul_div_op (mul_div_op_w),
         .alu_src1   (op1_forwarded),
@@ -414,7 +424,11 @@ module s4_ex (
         end else if (inst_srai_w) begin
             ex_result = $signed(op1_forwarded) >>> rk[4:0];
         end else if (inst_mul_w || inst_mulh_w || inst_mulh_wu) begin
+`ifdef S4_EX_FAST_MDU
             ex_result = mul_result_w;
+`else
+            ex_result = mul_result_r;
+`endif
         end else if (inst_div_w) begin
             ex_result = div_signed_w;
         end else if (inst_div_wu) begin
@@ -437,9 +451,16 @@ module s4_ex (
 `ifndef S4_EX_FAST_MDU
     always @(posedge clk) begin
         if (reset || flush) begin
+            mul_done_r  <= 1'b0;
+            mul_result_r <= 32'b0;
             div_active_r <= 1'b0;
             div_done_r   <= 1'b0;
         end else begin
+            if (multiplier_start_w) begin
+                mul_result_r <= mul_result_w;
+                mul_done_r   <= 1'b1;
+            end
+
             if (divider_start_w) begin
                 div_active_r <= 1'b1;
                 div_done_r   <= 1'b0;
@@ -449,6 +470,7 @@ module s4_ex (
             end
 
             if (ex_allowin) begin
+                mul_done_r <= 1'b0;
                 div_done_r <= 1'b0;
             end
         end
