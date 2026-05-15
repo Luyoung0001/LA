@@ -23,6 +23,8 @@ module s3_d1 (
     input  wire [4:0]  dbg_reg_num,
     output wire [31:0] dbg_rf_rdata,
     output wire        d1_allowin,
+    output reg         fast_redirect_valid,
+    output reg  [31:0] fast_redirect_pc,
     output wire        out_valid,
     output reg  [31:0] out_pc,
     output reg  [31:0] out_inst,
@@ -161,6 +163,9 @@ module s3_d1 (
     wire [13:0] out_csr_addr_w;
     wire [31:0] rf_rdata1_w;
     wire [31:0] rf_rdata2_w;
+    wire        direct_jump_w;
+    wire [31:0] direct_jump_target_w;
+    wire        direct_jump_redirect_w;
 
     reg [31:0] regs [31:0];
     integer i;
@@ -323,6 +328,12 @@ module s3_d1 (
                            inst_andi | inst_ori | inst_xori |
                            inst_slli_w | inst_srli_w | inst_srai_w;
 
+    assign direct_jump_w = inst_b | inst_bl;
+    assign direct_jump_target_w = in_pc + br_offs26;
+    assign direct_jump_redirect_w =
+        direct_jump_w && !in_exception_valid &&
+        (!in_pred_taken || (in_pred_target != direct_jump_target_w));
+
     assign rf_rdata1_w = (rf_raddr1_w == 5'b0) ? 32'b0 :
                          (wb_we && (wb_waddr == rf_raddr1_w)) ? wb_wdata :
                          regs[rf_raddr1_w];
@@ -347,6 +358,8 @@ module s3_d1 (
             d1_valid       <= 1'b0;
             d1_src1_r      <= 5'b0;
             d1_src2_r      <= 5'b0;
+            fast_redirect_valid <= 1'b0;
+            fast_redirect_pc    <= 32'b0;
             out_pc         <= 32'b0;
             out_inst       <= 32'b0;
             out_pred_taken <= 1'b0;
@@ -376,15 +389,18 @@ module s3_d1 (
 
             if (flush) begin
                 d1_valid <= 1'b0;
+                fast_redirect_valid <= 1'b0;
             end else if (d1_allowin) begin
                 d1_valid <= in_valid;
+                fast_redirect_valid <= in_valid && direct_jump_redirect_w;
+                fast_redirect_pc    <= direct_jump_target_w;
                 if (in_valid) begin
                     d1_src1_r      <= rf_raddr1_w;
                     d1_src2_r      <= rf_raddr2_w;
                     out_pc         <= in_pc;
                     out_inst       <= in_inst;
-                    out_pred_taken <= in_pred_taken;
-                    out_pred_target <= in_pred_target;
+                    out_pred_taken <= direct_jump_w ? 1'b1 : in_pred_taken;
+                    out_pred_target <= direct_jump_w ? direct_jump_target_w : in_pred_target;
                     out_rd         <= out_rd_w;
                     out_op1        <= rf_rdata1_w;
                     out_op2        <= rf_rdata2_w;
@@ -404,6 +420,8 @@ module s3_d1 (
                     out_exception_badv_valid <= in_exception_badv_valid;
                     out_exception_badv       <= in_exception_badv;
                 end
+            end else begin
+                fast_redirect_valid <= 1'b0;
             end
         end
     end

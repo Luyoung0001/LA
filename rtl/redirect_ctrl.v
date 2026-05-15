@@ -10,6 +10,12 @@ module redirect_ctrl (
     input  wire        branch_taken,
     input  wire [31:0] branch_target,
 
+    // D1 early redirect for direct unconditional jumps. This only steers the
+    // frontend; the redirecting instruction remains live in D1/EX and should
+    // later resolve as correctly predicted.
+    input  wire        early_valid,
+    input  wire [31:0] early_target,
+
     input  wire        exception_valid,
     input  wire [31:0] exception_target,
 
@@ -29,11 +35,13 @@ module redirect_ctrl (
 
     assign branch_next_pc = branch_taken ? branch_target : (branch_pc + 32'd4);
 
-    assign redirect_valid = exception_valid || ertn_valid || refetch_valid || branch_redirect_w;
+    assign redirect_valid = exception_valid || ertn_valid || refetch_valid ||
+                            branch_redirect_w || early_valid;
     assign redirect_pc    = exception_valid ? exception_target :
                             ertn_valid      ? ertn_target :
                             refetch_valid   ? refetch_target :
-                                              branch_next_pc;
+                            branch_redirect_w ? branch_next_pc :
+                                              early_target;
     assign redirect_is_exception = exception_valid || ertn_valid || refetch_valid;
 
 endmodule

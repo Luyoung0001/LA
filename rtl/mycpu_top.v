@@ -132,6 +132,8 @@ module core_top #(
     wire ex_branch_taken_w;
     wire [31:0] ex_branch_target_w;
     wire [31:0] ex_branch_pc_w;
+    wire d1_early_redirect_valid_w;
+    wire [31:0] d1_early_redirect_pc_w;
 
     wire mem1_dcache_req_valid_w;
     wire mem1_dcache_req_write_w;
@@ -178,6 +180,8 @@ module core_top #(
         .branch_pc       (ex_branch_pc_w),
         .branch_taken    (ex_branch_taken_w),
         .branch_target   (ex_branch_target_w),
+        .early_valid     (d1_early_redirect_valid_w),
+        .early_target    (d1_early_redirect_pc_w),
         .exception_valid (exception_redirect_valid_w),
         .exception_target(exception_redirect_pc_w),
         .ertn_valid      (ertn_redirect_valid_w),
@@ -259,6 +263,8 @@ module core_top #(
         .branch_pc          (ex_branch_pc_w),
         .branch_target      (ex_branch_target_w),
         .branch_mispredict  (ex_branch_mispredict_w),
+        .early_redirect_valid(d1_early_redirect_valid_w),
+        .early_redirect_pc  (d1_early_redirect_pc_w),
         .exception_redirect_valid(exception_redirect_valid_w),
         .exception_redirect_pc(exception_redirect_pc_w),
         .ertn_redirect_valid(ertn_redirect_valid_w),
