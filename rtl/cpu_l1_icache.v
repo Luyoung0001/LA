@@ -285,7 +285,9 @@ module cpu_l1_icache #(
     //       T3 用 way_hit_q 做 hit_data MUX，并驱动保序响应队列/组合输出。
     // 代价：hit 延迟从 T2 变为 T3（多 1 拍），miss 路径不变。
     wire [NUM_WAYS-1:0] way_hit_comb;
+    wire [NUM_WAYS-1:0] normal_way_hit_comb;
     wire [31:0] way_data_comb [0:NUM_WAYS-1];
+    wire [31:0] normal_way_data_comb [0:NUM_WAYS-1];
     reg [NUM_WAYS-1:0] way_hit_q;
     reg [31:0]         way_data_q [0:NUM_WAYS-1];
     reg [31:0]         way_line_q [0:NUM_WAYS-1][0:WORDS_PER_LINE-1];
@@ -328,10 +330,14 @@ module cpu_l1_icache #(
             assign way_hit_comb[gw2]  = tag_bram_rd[gw2][TAG_WIDTH] &&
                                          (tag_bram_rd[gw2][TAG_WIDTH-1:0] == bram_cmp_tag_w);
             assign way_data_comb[gw2] = data_bram_rd[gw2][bram_word_off_w];
+            assign normal_way_hit_comb[gw2]  = tag_bram_rd[gw2][TAG_WIDTH] &&
+                                                (tag_bram_rd[gw2][TAG_WIDTH-1:0] == lk_tag);
+            assign normal_way_data_comb[gw2] = data_bram_rd[gw2][lk_word_off];
         end
     endgenerate
 
     wire cache_hit_comb = |way_hit_comb;
+    wire normal_cache_hit_comb = |normal_way_hit_comb;
     // T2→T3 寄存器：way_hit 和对应 data（各 way 的目标 word）
     // way_data 同样寄存，这样 T3 做 MUX 的扇出仅来自 way_hit_q（fo=4，每 bit 驱动 1 个 MUX）
 
@@ -364,14 +370,14 @@ module cpu_l1_icache #(
             lookup_resp_slot_d2 <= {RESP_PTR_W{1'b0}};
         end else begin
             way_hit_q       <= way_hit_comb;
-            cache_hit_q     <= cache_hit_comb && !probe_lookup_valid_d1 &&
+            cache_hit_q     <= normal_cache_hit_comb && !probe_lookup_valid_d1 &&
                                !shadow_probe_valid_d1 &&
                                !lookahead_probe_valid_d1;
             lookup_valid_d2 <= lookup_valid_d1 && !probe_lookup_valid_d1 &&
                                !shadow_probe_valid_d1 &&
                                !lookahead_probe_valid_d1 &&
-                               !(ENABLE_L1_EARLY_LOOKUP_HIT && cache_hit_comb) &&
-                               !(ENABLE_L1_EARLY_LOOKUP_MISS && !cache_hit_comb);
+                               !(ENABLE_L1_EARLY_LOOKUP_HIT && normal_cache_hit_comb) &&
+                               !(ENABLE_L1_EARLY_LOOKUP_MISS && !normal_cache_hit_comb);
             lookup_addr_d2  <= lookup_addr_d1;
             lookup_resp_slot_d2 <= lookup_resp_slot_d1;
         end
@@ -463,25 +469,25 @@ module cpu_l1_icache #(
         way_hit_q[1] ? way_line_q[1][3] :
         way_hit_q[2] ? way_line_q[2][3] : way_line_q[3][3];
     wire [31:0] early_hit_data =
-        way_hit_comb[0] ? way_data_comb[0] :
-        way_hit_comb[1] ? way_data_comb[1] :
-        way_hit_comb[2] ? way_data_comb[2] : way_data_comb[3];
+        normal_way_hit_comb[0] ? normal_way_data_comb[0] :
+        normal_way_hit_comb[1] ? normal_way_data_comb[1] :
+        normal_way_hit_comb[2] ? normal_way_data_comb[2] : normal_way_data_comb[3];
     wire [31:0] early_hit_line_word0 =
-        way_hit_comb[0] ? data_bram_rd[0][0] :
-        way_hit_comb[1] ? data_bram_rd[1][0] :
-        way_hit_comb[2] ? data_bram_rd[2][0] : data_bram_rd[3][0];
+        normal_way_hit_comb[0] ? data_bram_rd[0][0] :
+        normal_way_hit_comb[1] ? data_bram_rd[1][0] :
+        normal_way_hit_comb[2] ? data_bram_rd[2][0] : data_bram_rd[3][0];
     wire [31:0] early_hit_line_word1 =
-        way_hit_comb[0] ? data_bram_rd[0][1] :
-        way_hit_comb[1] ? data_bram_rd[1][1] :
-        way_hit_comb[2] ? data_bram_rd[2][1] : data_bram_rd[3][1];
+        normal_way_hit_comb[0] ? data_bram_rd[0][1] :
+        normal_way_hit_comb[1] ? data_bram_rd[1][1] :
+        normal_way_hit_comb[2] ? data_bram_rd[2][1] : data_bram_rd[3][1];
     wire [31:0] early_hit_line_word2 =
-        way_hit_comb[0] ? data_bram_rd[0][2] :
-        way_hit_comb[1] ? data_bram_rd[1][2] :
-        way_hit_comb[2] ? data_bram_rd[2][2] : data_bram_rd[3][2];
+        normal_way_hit_comb[0] ? data_bram_rd[0][2] :
+        normal_way_hit_comb[1] ? data_bram_rd[1][2] :
+        normal_way_hit_comb[2] ? data_bram_rd[2][2] : data_bram_rd[3][2];
     wire [31:0] early_hit_line_word3 =
-        way_hit_comb[0] ? data_bram_rd[0][3] :
-        way_hit_comb[1] ? data_bram_rd[1][3] :
-        way_hit_comb[2] ? data_bram_rd[2][3] : data_bram_rd[3][3];
+        normal_way_hit_comb[0] ? data_bram_rd[0][3] :
+        normal_way_hit_comb[1] ? data_bram_rd[1][3] :
+        normal_way_hit_comb[2] ? data_bram_rd[2][3] : data_bram_rd[3][3];
 
     // 最近命中的整行寄存器。顺序取指和小范围跳转重新访问近期 line 时，
     // 可以直接从这些寄存器返回，避开 RAMB 查找流水。
@@ -1704,13 +1710,13 @@ module cpu_l1_icache #(
         (state_q == ST_LOOKUP) && lookup_valid_d1 &&
         !probe_lookup_valid_d1 && !shadow_probe_valid_d1 &&
         !lookahead_probe_valid_d1 &&
-        cache_hit_comb;
+        normal_cache_hit_comb;
     wire early_lookup_miss_complete_w =
         ENABLE_L1_EARLY_LOOKUP_MISS &&
         (state_q == ST_LOOKUP) && lookup_valid_d1 &&
         !probe_lookup_valid_d1 && !shadow_probe_valid_d1 &&
         !lookahead_probe_valid_d1 &&
-        !cache_hit_comb;
+        !normal_cache_hit_comb;
     wire lookup_hit_complete_late_w =
         (state_q == ST_LOOKUP) && lookup_valid_d2 && cache_hit_q;
     wire lookup_miss_complete_late_w =
@@ -3299,13 +3305,13 @@ module cpu_l1_icache #(
                         rtbuf6_valid_q   <= 1'b0;
                         rtbuf7_valid_q   <= 1'b0;
                         rtbuf_pending_q  <= 1'b0;
-	                        pfbuf_valid_q    <= 1'b0;
-	                        pfbuf1_valid_q   <= 1'b0;
-	                        altbuf_valid_q   <= 1'b0;
-	                        altbuf1_valid_q  <= 1'b0;
-	                        redirect_fast_valid_q <= 1'b0;
-	                        redirect_fast_line_valid_q <= 1'b0;
-	                    end
+                        pfbuf_valid_q    <= 1'b0;
+                        pfbuf1_valid_q   <= 1'b0;
+                        altbuf_valid_q   <= 1'b0;
+                        altbuf1_valid_q  <= 1'b0;
+                        redirect_fast_valid_q <= 1'b0;
+                        redirect_fast_line_valid_q <= 1'b0;
+                    end
                 end
             endcase
 
