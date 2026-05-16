@@ -182,6 +182,118 @@ module s5_m1 (
                            pend_inst_ld_hu ? {16'b0, load_half_w} :
                                              dcache_resp_data;
 
+    task clear_dcache_req;
+        begin
+            dcache_req_valid <= 1'b0;
+            dcache_req_write <= 1'b0;
+            dcache_req_addr  <= 32'b0;
+            dcache_req_wdata <= 32'b0;
+            dcache_req_wstrb <= 4'b0;
+        end
+    endtask
+
+    task clear_out_packet;
+        begin
+            out_valid                <= 1'b0;
+            out_wen                  <= 1'b0;
+            out_csr_we               <= 1'b0;
+            out_csr_addr             <= 14'b0;
+            out_csr_wdata            <= 32'b0;
+            out_exception_valid      <= 1'b0;
+            out_exception_ecode      <= 6'b0;
+            out_exception_esubcode   <= 9'b0;
+            out_exception_badv_valid <= 1'b0;
+            out_exception_badv       <= 32'b0;
+        end
+    endtask
+
+    task clear_pend;
+        begin
+            pend_valid    <= 1'b0;
+            pend_req_sent <= 1'b0;
+            pend_tlb_wait <= 1'b0;
+        end
+    endtask
+
+    task capture_pend_from_input;
+        begin
+            pend_valid      <= 1'b1;
+            pend_req_sent   <= 1'b0;
+            pend_tlb_wait   <= in_d_tlb_needs_query_w;
+            pend_pc         <= in_pc;
+            pend_inst       <= in_inst;
+            pend_rd         <= in_rd;
+            pend_result     <= in_result;
+            pend_op1        <= in_op1;
+            pend_op2        <= in_op2;
+            pend_is_load    <= in_is_load;
+            pend_is_store   <= in_is_store;
+            pend_store_data <= in_store_data;
+            pend_exception_valid      <= in_exception_valid || in_data_ale_w;
+            pend_exception_ecode      <= in_exception_valid ? in_exception_ecode : 6'h09;
+            pend_exception_esubcode   <= in_exception_valid ? in_exception_esubcode : 9'b0;
+            pend_exception_badv_valid <= in_exception_valid ? in_exception_badv_valid : in_data_ale_w;
+            pend_exception_badv       <= in_exception_valid ? in_exception_badv : in_result;
+        end
+    endtask
+
+    task emit_input_packet;
+        begin
+            out_valid                <= 1'b1;
+            out_pc                   <= in_pc;
+            out_inst                 <= in_inst;
+            out_rd                   <= in_rd;
+            out_wb_data              <= in_result;
+            out_op1                  <= in_op1;
+            out_op2                  <= in_op2;
+            out_wen                  <= wb_wen_no_mem && !in_exception_valid;
+            out_csr_we               <= in_is_csr && in_csr_we && !in_exception_valid;
+            out_csr_addr             <= in_csr_addr;
+            out_csr_wdata            <= in_csr_wdata;
+            out_exception_valid      <= in_exception_valid;
+            out_exception_ecode      <= in_exception_ecode;
+            out_exception_esubcode   <= in_exception_esubcode;
+            out_exception_badv_valid <= in_exception_badv_valid;
+            out_exception_badv       <= in_exception_badv;
+        end
+    endtask
+
+    task emit_pend_packet;
+        input [31:0] wb_data;
+        input        wb_wen;
+        input        exc_valid;
+        input [5:0]  exc_ecode;
+        input [8:0]  exc_esubcode;
+        input        exc_badv_valid;
+        input [31:0] exc_badv;
+        begin
+            out_valid                <= 1'b1;
+            out_pc                   <= pend_pc;
+            out_inst                 <= pend_inst;
+            out_rd                   <= pend_rd;
+            out_wb_data              <= wb_data;
+            out_op1                  <= pend_op1;
+            out_op2                  <= pend_op2;
+            out_wen                  <= wb_wen;
+            out_exception_valid      <= exc_valid;
+            out_exception_ecode      <= exc_ecode;
+            out_exception_esubcode   <= exc_esubcode;
+            out_exception_badv_valid <= exc_badv_valid;
+            out_exception_badv       <= exc_badv;
+        end
+    endtask
+
+    task issue_dcache_req;
+        begin
+            dcache_req_valid <= 1'b1;
+            dcache_req_write <= pend_is_store;
+            dcache_req_addr  <= pend_aligned_paddr;
+            dcache_req_wdata <= store_wdata_w;
+            dcache_req_wstrb <= pend_is_store ? store_wstrb_w : 4'h0;
+            pend_req_sent    <= 1'b1;
+        end
+    endtask
+
     always @(posedge clk) begin
         if (reset) begin
             pend_valid       <= 1'b0;
@@ -225,178 +337,60 @@ module s5_m1 (
             out_exception_badv_valid <= 1'b0;
             out_exception_badv       <= 32'b0;
         end else begin
-            dcache_req_valid <= 1'b0;
-            dcache_req_write <= 1'b0;
-            dcache_req_addr  <= 32'b0;
-            dcache_req_wdata <= 32'b0;
-            dcache_req_wstrb <= 4'b0;
-
-            out_valid        <= 1'b0;
-            out_wen          <= 1'b0;
-            out_csr_we       <= 1'b0;
-            out_csr_addr     <= 14'b0;
-            out_csr_wdata    <= 32'b0;
-            out_exception_valid      <= 1'b0;
-            out_exception_ecode      <= 6'b0;
-            out_exception_esubcode   <= 9'b0;
-            out_exception_badv_valid <= 1'b0;
-            out_exception_badv       <= 32'b0;
+            clear_dcache_req();
+            clear_out_packet();
 
             if (!pend_valid && in_valid) begin
                 if (in_is_load || in_is_store) begin
-                    pend_valid      <= 1'b1;
-                    pend_req_sent   <= 1'b0;
-                    pend_tlb_wait   <= in_d_tlb_needs_query_w;
-                    pend_pc         <= in_pc;
-                    pend_inst       <= in_inst;
-                    pend_rd         <= in_rd;
-                    pend_result     <= in_result;
-                    pend_op1        <= in_op1;
-                    pend_op2        <= in_op2;
-                    pend_is_load    <= in_is_load;
-                    pend_is_store   <= in_is_store;
-                    pend_store_data <= in_store_data;
-                    pend_exception_valid      <= in_exception_valid || in_data_ale_w;
-                    pend_exception_ecode      <= in_exception_valid ? in_exception_ecode : 6'h09;
-                    pend_exception_esubcode   <= in_exception_valid ? in_exception_esubcode : 9'b0;
-                    pend_exception_badv_valid <= in_exception_valid ? in_exception_badv_valid : in_data_ale_w;
-                    pend_exception_badv       <= in_exception_valid ? in_exception_badv : in_result;
+                    capture_pend_from_input();
                 end else begin
-                    out_valid                <= 1'b1;
-                    out_pc                   <= in_pc;
-                    out_inst                 <= in_inst;
-                    out_rd                   <= in_rd;
-                    out_wb_data              <= in_result;
-                    out_op1                  <= in_op1;
-                    out_op2                  <= in_op2;
-                    out_wen                  <= wb_wen_no_mem && !in_exception_valid;
-                    out_csr_we               <= in_is_csr && in_csr_we && !in_exception_valid;
-                    out_csr_addr             <= in_csr_addr;
-                    out_csr_wdata            <= in_csr_wdata;
-                    out_exception_valid      <= in_exception_valid;
-                    out_exception_ecode      <= in_exception_ecode;
-                    out_exception_esubcode   <= in_exception_esubcode;
-                    out_exception_badv_valid <= in_exception_badv_valid;
-                    out_exception_badv       <= in_exception_badv;
+                    emit_input_packet();
                 end
             end
 
             if (pend_valid) begin
                 if (pend_exception_valid) begin
-                    out_valid                <= 1'b1;
-                    out_pc                   <= pend_pc;
-                    out_inst                 <= pend_inst;
-                    out_rd                   <= pend_rd;
-                    out_wb_data              <= pend_result;
-                    out_op1                  <= pend_op1;
-                    out_op2                  <= pend_op2;
-                    out_wen                  <= 1'b0;
-                    out_exception_valid      <= 1'b1;
-                    out_exception_ecode      <= pend_exception_ecode;
-                    out_exception_esubcode   <= pend_exception_esubcode;
-                    out_exception_badv_valid <= pend_exception_badv_valid;
-                    out_exception_badv       <= pend_exception_badv;
-
-                    pend_valid    <= 1'b0;
-                    pend_req_sent <= 1'b0;
-                    pend_tlb_wait <= 1'b0;
+                    emit_pend_packet(pend_result, 1'b0, 1'b1,
+                                     pend_exception_ecode,
+                                     pend_exception_esubcode,
+                                     pend_exception_badv_valid,
+                                     pend_exception_badv);
+                    clear_pend();
                 end else if (!pend_req_sent) begin
                     if (pend_tlb_wait) begin
                         if (d_tlb_resp_match_w) begin
                             pend_tlb_wait <= 1'b0;
                             if (d_tlb_exception_valid) begin
-                                out_valid                <= 1'b1;
-                                out_pc                   <= pend_pc;
-                                out_inst                 <= pend_inst;
-                                out_rd                   <= pend_rd;
-                                out_wb_data              <= pend_result;
-                                out_op1                  <= pend_op1;
-                                out_op2                  <= pend_op2;
-                                out_wen                  <= 1'b0;
-                                out_exception_valid      <= 1'b1;
-                                out_exception_ecode      <= d_tlb_exception_ecode;
-                                out_exception_esubcode   <= 9'b0;
-                                out_exception_badv_valid <= 1'b1;
-                                out_exception_badv       <= pend_result;
-
-                                pend_valid    <= 1'b0;
-                                pend_req_sent <= 1'b0;
+                                emit_pend_packet(pend_result, 1'b0, 1'b1,
+                                                 d_tlb_exception_ecode,
+                                                 9'b0, 1'b1, pend_result);
+                                clear_pend();
                             end else if (pend_inst_cacop) begin
-                                out_valid                <= 1'b1;
-                                out_pc                   <= pend_pc;
-                                out_inst                 <= pend_inst;
-                                out_rd                   <= pend_rd;
-                                out_wb_data              <= pend_result;
-                                out_op1                  <= pend_op1;
-                                out_op2                  <= pend_op2;
-                                out_wen                  <= 1'b0;
-                                out_exception_valid      <= 1'b0;
-                                out_exception_ecode      <= 6'b0;
-                                out_exception_esubcode   <= 9'b0;
-                                out_exception_badv_valid <= 1'b0;
-                                out_exception_badv       <= 32'b0;
-
-                                pend_valid    <= 1'b0;
-                                pend_req_sent <= 1'b0;
+                                emit_pend_packet(pend_result, 1'b0, 1'b0,
+                                                 6'b0, 9'b0, 1'b0, 32'b0);
+                                clear_pend();
                             end else begin
-                                dcache_req_valid <= 1'b1;
-                                dcache_req_write <= pend_is_store;
-                                dcache_req_addr  <= pend_aligned_paddr;
-                                dcache_req_wdata <= store_wdata_w;
-                                dcache_req_wstrb <= pend_is_store ? store_wstrb_w : 4'h0;
-                                pend_req_sent    <= 1'b1;
+                                issue_dcache_req();
                             end
                         end
                     end else if (d_tlb_needs_query_w) begin
                         pend_tlb_wait <= 1'b1;
                     end else begin
                         if (pend_inst_cacop) begin
-                            out_valid                <= 1'b1;
-                            out_pc                   <= pend_pc;
-                            out_inst                 <= pend_inst;
-                            out_rd                   <= pend_rd;
-                            out_wb_data              <= pend_result;
-                            out_op1                  <= pend_op1;
-                            out_op2                  <= pend_op2;
-                            out_wen                  <= 1'b0;
-                            out_exception_valid      <= 1'b0;
-                            out_exception_ecode      <= 6'b0;
-                            out_exception_esubcode   <= 9'b0;
-                            out_exception_badv_valid <= 1'b0;
-                            out_exception_badv       <= 32'b0;
-
-                            pend_valid    <= 1'b0;
-                            pend_req_sent <= 1'b0;
-                            pend_tlb_wait <= 1'b0;
+                            emit_pend_packet(pend_result, 1'b0, 1'b0,
+                                             6'b0, 9'b0, 1'b0, 32'b0);
+                            clear_pend();
                         end else begin
-                            dcache_req_valid <= 1'b1;
-                            dcache_req_write <= pend_is_store;
-                            dcache_req_addr  <= pend_aligned_paddr;
-                            dcache_req_wdata <= store_wdata_w;
-                            dcache_req_wstrb <= pend_is_store ? store_wstrb_w : 4'h0;
-                            pend_req_sent    <= 1'b1;
+                            issue_dcache_req();
                         end
                     end
                 end
 
                 if (pend_req_sent && dcache_resp_valid) begin
-                    out_valid                <= 1'b1;
-                    out_pc                   <= pend_pc;
-                    out_inst                 <= pend_inst;
-                    out_rd                   <= pend_rd;
-                    out_wb_data              <= pend_is_load ? load_result_w : pend_result;
-                    out_op1                  <= pend_op1;
-                    out_op2                  <= pend_op2;
-                    out_wen                  <= ~pend_is_store;
-                    out_exception_valid      <= 1'b0;
-                    out_exception_ecode      <= 6'b0;
-                    out_exception_esubcode   <= 9'b0;
-                    out_exception_badv_valid <= 1'b0;
-                    out_exception_badv       <= 32'b0;
-
-                    pend_valid    <= 1'b0;
-                    pend_req_sent <= 1'b0;
-                    pend_tlb_wait <= 1'b0;
+                    emit_pend_packet(pend_is_load ? load_result_w : pend_result,
+                                     ~pend_is_store, 1'b0,
+                                     6'b0, 9'b0, 1'b0, 32'b0);
+                    clear_pend();
                 end
             end
         end
