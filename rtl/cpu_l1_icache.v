@@ -494,6 +494,12 @@ module cpu_l1_icache #(
     reg                  linebuf_valid_q;
     reg [TAG_WIDTH-1:0]  linebuf_tag_q;
     reg [INDEX_WIDTH-1:0] linebuf_idx_q;
+    reg [XLEN-1:0]       linebuf_next_addr_q;
+    reg [TAG_WIDTH-1:0]  linebuf_next_tag_q;
+    reg [INDEX_WIDTH-1:0] linebuf_next_idx_q;
+    reg [XLEN-1:0]       linebuf_next2_addr_q;
+    reg [TAG_WIDTH-1:0]  linebuf_next2_tag_q;
+    reg [INDEX_WIDTH-1:0] linebuf_next2_idx_q;
     reg [31:0]           linebuf_data_q [0:WORDS_PER_LINE-1];
     reg                  linebuf1_valid_q;
     reg [TAG_WIDTH-1:0]  linebuf1_tag_q;
@@ -890,7 +896,13 @@ module cpu_l1_icache #(
         input [31:0]           new_word1;
         input [31:0]           new_word2;
         input [31:0]           new_word3;
+        reg [XLEN-1:0]         new_base_addr;
+        reg [XLEN-1:0]         new_next_addr;
+        reg [XLEN-1:0]         new_next2_addr;
         begin
+            new_base_addr = {new_tag, new_idx, {OFFSET_WIDTH{1'b0}}};
+            new_next_addr = new_base_addr + LINE_SIZE;
+            new_next2_addr = new_base_addr + (LINE_SIZE << 1);
             linebuf15_valid_q  <= linebuf14_valid_q;
             linebuf15_tag_q    <= linebuf14_tag_q;
             linebuf15_idx_q    <= linebuf14_idx_q;
@@ -999,6 +1011,12 @@ module cpu_l1_icache #(
             linebuf_valid_q   <= new_valid;
             linebuf_tag_q     <= new_tag;
             linebuf_idx_q     <= new_idx;
+            linebuf_next_addr_q <= new_next_addr;
+            linebuf_next_tag_q  <= new_next_addr[XLEN-1 : OFFSET_WIDTH+INDEX_WIDTH];
+            linebuf_next_idx_q  <= new_next_addr[OFFSET_WIDTH+INDEX_WIDTH-1 : OFFSET_WIDTH];
+            linebuf_next2_addr_q <= new_next2_addr;
+            linebuf_next2_tag_q  <= new_next2_addr[XLEN-1 : OFFSET_WIDTH+INDEX_WIDTH];
+            linebuf_next2_idx_q  <= new_next2_addr[OFFSET_WIDTH+INDEX_WIDTH-1 : OFFSET_WIDTH];
             linebuf_data_q[0] <= new_word0;
             linebuf_data_q[1] <= new_word1;
             linebuf_data_q[2] <= new_word2;
@@ -1996,136 +2014,126 @@ module cpu_l1_icache #(
 
     wire [XLEN-1:0] linebuf_base_addr =
         {linebuf_tag_q, linebuf_idx_q, {OFFSET_WIDTH{1'b0}}};
-    wire [XLEN-1:0] linebuf_next_addr = linebuf_base_addr + LINE_SIZE;
-    wire [XLEN-1:0] linebuf_next2_addr = linebuf_base_addr + (LINE_SIZE << 1);
-    wire [TAG_WIDTH-1:0] linebuf_next_tag =
-        linebuf_next_addr[XLEN-1 : OFFSET_WIDTH+INDEX_WIDTH];
-    wire [INDEX_WIDTH-1:0] linebuf_next_idx =
-        linebuf_next_addr[OFFSET_WIDTH+INDEX_WIDTH-1 : OFFSET_WIDTH];
-    wire [TAG_WIDTH-1:0] linebuf_next2_tag =
-        linebuf_next2_addr[XLEN-1 : OFFSET_WIDTH+INDEX_WIDTH];
-    wire [INDEX_WIDTH-1:0] linebuf_next2_idx =
-        linebuf_next2_addr[OFFSET_WIDTH+INDEX_WIDTH-1 : OFFSET_WIDTH];
     wire pfbuf_holds_next_w =
         (pfbuf_valid_q &&
-         (pfbuf_tag_q == linebuf_next_tag) &&
-         (pfbuf_idx_q == linebuf_next_idx)) ||
+         (pfbuf_tag_q == linebuf_next_tag_q) &&
+         (pfbuf_idx_q == linebuf_next_idx_q)) ||
         (pfbuf1_valid_q &&
-         (pfbuf1_tag_q == linebuf_next_tag) &&
-         (pfbuf1_idx_q == linebuf_next_idx));
+         (pfbuf1_tag_q == linebuf_next_tag_q) &&
+         (pfbuf1_idx_q == linebuf_next_idx_q));
     wire pfbuf_holds_next2_w =
         (pfbuf_valid_q &&
-         (pfbuf_tag_q == linebuf_next2_tag) &&
-         (pfbuf_idx_q == linebuf_next2_idx)) ||
+         (pfbuf_tag_q == linebuf_next2_tag_q) &&
+         (pfbuf_idx_q == linebuf_next2_idx_q)) ||
         (pfbuf1_valid_q &&
-         (pfbuf1_tag_q == linebuf_next2_tag) &&
-         (pfbuf1_idx_q == linebuf_next2_idx));
+         (pfbuf1_tag_q == linebuf_next2_tag_q) &&
+         (pfbuf1_idx_q == linebuf_next2_idx_q));
     wire linebuf_holds_next_w =
         (linebuf_valid_q &&
-         (linebuf_tag_q == linebuf_next_tag) &&
-         (linebuf_idx_q == linebuf_next_idx)) ||
+         (linebuf_tag_q == linebuf_next_tag_q) &&
+         (linebuf_idx_q == linebuf_next_idx_q)) ||
         (linebuf1_valid_q &&
-         (linebuf1_tag_q == linebuf_next_tag) &&
-         (linebuf1_idx_q == linebuf_next_idx)) ||
+         (linebuf1_tag_q == linebuf_next_tag_q) &&
+         (linebuf1_idx_q == linebuf_next_idx_q)) ||
         (linebuf2_valid_q &&
-         (linebuf2_tag_q == linebuf_next_tag) &&
-         (linebuf2_idx_q == linebuf_next_idx)) ||
+         (linebuf2_tag_q == linebuf_next_tag_q) &&
+         (linebuf2_idx_q == linebuf_next_idx_q)) ||
         (linebuf3_valid_q &&
-         (linebuf3_tag_q == linebuf_next_tag) &&
-         (linebuf3_idx_q == linebuf_next_idx)) ||
+         (linebuf3_tag_q == linebuf_next_tag_q) &&
+         (linebuf3_idx_q == linebuf_next_idx_q)) ||
         (linebuf4_valid_q &&
-         (linebuf4_tag_q == linebuf_next_tag) &&
-         (linebuf4_idx_q == linebuf_next_idx)) ||
+         (linebuf4_tag_q == linebuf_next_tag_q) &&
+         (linebuf4_idx_q == linebuf_next_idx_q)) ||
         (linebuf5_valid_q &&
-         (linebuf5_tag_q == linebuf_next_tag) &&
-         (linebuf5_idx_q == linebuf_next_idx)) ||
+         (linebuf5_tag_q == linebuf_next_tag_q) &&
+         (linebuf5_idx_q == linebuf_next_idx_q)) ||
         (linebuf6_valid_q &&
-         (linebuf6_tag_q == linebuf_next_tag) &&
-         (linebuf6_idx_q == linebuf_next_idx)) ||
+         (linebuf6_tag_q == linebuf_next_tag_q) &&
+         (linebuf6_idx_q == linebuf_next_idx_q)) ||
         (linebuf7_valid_q &&
-         (linebuf7_tag_q == linebuf_next_tag) &&
-         (linebuf7_idx_q == linebuf_next_idx)) ||
+         (linebuf7_tag_q == linebuf_next_tag_q) &&
+         (linebuf7_idx_q == linebuf_next_idx_q)) ||
         (linebuf8_valid_q &&
-         (linebuf8_tag_q == linebuf_next_tag) &&
-         (linebuf8_idx_q == linebuf_next_idx)) ||
+         (linebuf8_tag_q == linebuf_next_tag_q) &&
+         (linebuf8_idx_q == linebuf_next_idx_q)) ||
         (linebuf9_valid_q &&
-         (linebuf9_tag_q == linebuf_next_tag) &&
-         (linebuf9_idx_q == linebuf_next_idx)) ||
+         (linebuf9_tag_q == linebuf_next_tag_q) &&
+         (linebuf9_idx_q == linebuf_next_idx_q)) ||
         (linebuf10_valid_q &&
-         (linebuf10_tag_q == linebuf_next_tag) &&
-         (linebuf10_idx_q == linebuf_next_idx)) ||
+         (linebuf10_tag_q == linebuf_next_tag_q) &&
+         (linebuf10_idx_q == linebuf_next_idx_q)) ||
         (linebuf11_valid_q &&
-         (linebuf11_tag_q == linebuf_next_tag) &&
-         (linebuf11_idx_q == linebuf_next_idx)) ||
+         (linebuf11_tag_q == linebuf_next_tag_q) &&
+         (linebuf11_idx_q == linebuf_next_idx_q)) ||
         (linebuf12_valid_q &&
-         (linebuf12_tag_q == linebuf_next_tag) &&
-         (linebuf12_idx_q == linebuf_next_idx)) ||
+         (linebuf12_tag_q == linebuf_next_tag_q) &&
+         (linebuf12_idx_q == linebuf_next_idx_q)) ||
         (linebuf13_valid_q &&
-         (linebuf13_tag_q == linebuf_next_tag) &&
-         (linebuf13_idx_q == linebuf_next_idx)) ||
+         (linebuf13_tag_q == linebuf_next_tag_q) &&
+         (linebuf13_idx_q == linebuf_next_idx_q)) ||
         (linebuf14_valid_q &&
-         (linebuf14_tag_q == linebuf_next_tag) &&
-         (linebuf14_idx_q == linebuf_next_idx)) ||
+         (linebuf14_tag_q == linebuf_next_tag_q) &&
+         (linebuf14_idx_q == linebuf_next_idx_q)) ||
         (linebuf15_valid_q &&
-         (linebuf15_tag_q == linebuf_next_tag) &&
-         (linebuf15_idx_q == linebuf_next_idx));
+         (linebuf15_tag_q == linebuf_next_tag_q) &&
+         (linebuf15_idx_q == linebuf_next_idx_q));
     wire linebuf_holds_next2_w =
         (linebuf_valid_q &&
-         (linebuf_tag_q == linebuf_next2_tag) &&
-         (linebuf_idx_q == linebuf_next2_idx)) ||
+         (linebuf_tag_q == linebuf_next2_tag_q) &&
+         (linebuf_idx_q == linebuf_next2_idx_q)) ||
         (linebuf1_valid_q &&
-         (linebuf1_tag_q == linebuf_next2_tag) &&
-         (linebuf1_idx_q == linebuf_next2_idx)) ||
+         (linebuf1_tag_q == linebuf_next2_tag_q) &&
+         (linebuf1_idx_q == linebuf_next2_idx_q)) ||
         (linebuf2_valid_q &&
-         (linebuf2_tag_q == linebuf_next2_tag) &&
-         (linebuf2_idx_q == linebuf_next2_idx)) ||
+         (linebuf2_tag_q == linebuf_next2_tag_q) &&
+         (linebuf2_idx_q == linebuf_next2_idx_q)) ||
         (linebuf3_valid_q &&
-         (linebuf3_tag_q == linebuf_next2_tag) &&
-         (linebuf3_idx_q == linebuf_next2_idx)) ||
+         (linebuf3_tag_q == linebuf_next2_tag_q) &&
+         (linebuf3_idx_q == linebuf_next2_idx_q)) ||
         (linebuf4_valid_q &&
-         (linebuf4_tag_q == linebuf_next2_tag) &&
-         (linebuf4_idx_q == linebuf_next2_idx)) ||
+         (linebuf4_tag_q == linebuf_next2_tag_q) &&
+         (linebuf4_idx_q == linebuf_next2_idx_q)) ||
         (linebuf5_valid_q &&
-         (linebuf5_tag_q == linebuf_next2_tag) &&
-         (linebuf5_idx_q == linebuf_next2_idx)) ||
+         (linebuf5_tag_q == linebuf_next2_tag_q) &&
+         (linebuf5_idx_q == linebuf_next2_idx_q)) ||
         (linebuf6_valid_q &&
-         (linebuf6_tag_q == linebuf_next2_tag) &&
-         (linebuf6_idx_q == linebuf_next2_idx)) ||
+         (linebuf6_tag_q == linebuf_next2_tag_q) &&
+         (linebuf6_idx_q == linebuf_next2_idx_q)) ||
         (linebuf7_valid_q &&
-         (linebuf7_tag_q == linebuf_next2_tag) &&
-         (linebuf7_idx_q == linebuf_next2_idx)) ||
+         (linebuf7_tag_q == linebuf_next2_tag_q) &&
+         (linebuf7_idx_q == linebuf_next2_idx_q)) ||
         (linebuf8_valid_q &&
-         (linebuf8_tag_q == linebuf_next2_tag) &&
-         (linebuf8_idx_q == linebuf_next2_idx)) ||
+         (linebuf8_tag_q == linebuf_next2_tag_q) &&
+         (linebuf8_idx_q == linebuf_next2_idx_q)) ||
         (linebuf9_valid_q &&
-         (linebuf9_tag_q == linebuf_next2_tag) &&
-         (linebuf9_idx_q == linebuf_next2_idx)) ||
+         (linebuf9_tag_q == linebuf_next2_tag_q) &&
+         (linebuf9_idx_q == linebuf_next2_idx_q)) ||
         (linebuf10_valid_q &&
-         (linebuf10_tag_q == linebuf_next2_tag) &&
-         (linebuf10_idx_q == linebuf_next2_idx)) ||
+         (linebuf10_tag_q == linebuf_next2_tag_q) &&
+         (linebuf10_idx_q == linebuf_next2_idx_q)) ||
         (linebuf11_valid_q &&
-         (linebuf11_tag_q == linebuf_next2_tag) &&
-         (linebuf11_idx_q == linebuf_next2_idx)) ||
+         (linebuf11_tag_q == linebuf_next2_tag_q) &&
+         (linebuf11_idx_q == linebuf_next2_idx_q)) ||
         (linebuf12_valid_q &&
-         (linebuf12_tag_q == linebuf_next2_tag) &&
-         (linebuf12_idx_q == linebuf_next2_idx)) ||
+         (linebuf12_tag_q == linebuf_next2_tag_q) &&
+         (linebuf12_idx_q == linebuf_next2_idx_q)) ||
         (linebuf13_valid_q &&
-         (linebuf13_tag_q == linebuf_next2_tag) &&
-         (linebuf13_idx_q == linebuf_next2_idx)) ||
+         (linebuf13_tag_q == linebuf_next2_tag_q) &&
+         (linebuf13_idx_q == linebuf_next2_idx_q)) ||
         (linebuf14_valid_q &&
-         (linebuf14_tag_q == linebuf_next2_tag) &&
-         (linebuf14_idx_q == linebuf_next2_idx)) ||
+         (linebuf14_tag_q == linebuf_next2_tag_q) &&
+         (linebuf14_idx_q == linebuf_next2_idx_q)) ||
         (linebuf15_valid_q &&
-         (linebuf15_tag_q == linebuf_next2_tag) &&
-         (linebuf15_idx_q == linebuf_next2_idx));
+         (linebuf15_tag_q == linebuf_next2_tag_q) &&
+         (linebuf15_idx_q == linebuf_next2_idx_q));
     wire lookahead_probe_next_w = !linebuf_holds_next_w && !pfbuf_holds_next_w;
     wire lookahead_probe_next2_w =
         !lookahead_probe_next_w &&
         !linebuf_holds_next2_w && !pfbuf_holds_next2_w;
     assign lookahead_probe_addr_w =
-        lookahead_probe_next_w ? linebuf_next_addr : linebuf_next2_addr;
+        lookahead_probe_next_w ? linebuf_next_addr_q : linebuf_next2_addr_q;
     assign lookahead_probe_idx_w =
-        lookahead_probe_next_w ? linebuf_next_idx : linebuf_next2_idx;
+        lookahead_probe_next_w ? linebuf_next_idx_q : linebuf_next2_idx_q;
     wire l2_pf_resp_accept_w = l2_pf_resp_valid_i &&
                                 (state_q != ST_CACOP) &&
                                 !stale_l2_resp_pending_q;
@@ -2547,6 +2555,12 @@ module cpu_l1_icache #(
             linebuf_valid_q      <= 1'b0;
             linebuf_tag_q        <= {TAG_WIDTH{1'b0}};
             linebuf_idx_q        <= {INDEX_WIDTH{1'b0}};
+            linebuf_next_addr_q  <= {XLEN{1'b0}};
+            linebuf_next_tag_q   <= {TAG_WIDTH{1'b0}};
+            linebuf_next_idx_q   <= {INDEX_WIDTH{1'b0}};
+            linebuf_next2_addr_q <= {XLEN{1'b0}};
+            linebuf_next2_tag_q  <= {TAG_WIDTH{1'b0}};
+            linebuf_next2_idx_q  <= {INDEX_WIDTH{1'b0}};
             linebuf_data_q[0]    <= 32'h0;
             linebuf_data_q[1]    <= 32'h0;
             linebuf_data_q[2]    <= 32'h0;
@@ -3210,10 +3224,10 @@ module cpu_l1_icache #(
 
                         if (prefetch_can_start_w) begin
                             l2_req_valid_o       <= 1'b1;
-                            l2_req_addr_o        <= linebuf_next_addr;
+                            l2_req_addr_o        <= linebuf_next_addr_q;
                             l2_req_is_prefetch_o <= 1'b1;
                             pf_inflight_q        <= 1'b1;
-                            pf_addr_q            <= linebuf_next_addr;
+                            pf_addr_q            <= linebuf_next_addr_q;
                         end
                     end
                 end
@@ -3281,6 +3295,12 @@ module cpu_l1_icache #(
                             resp_wait_miss_q[resp_i] <= 1'b0;
                         end
                         linebuf_valid_q  <= 1'b0;
+                        linebuf_next_addr_q <= {XLEN{1'b0}};
+                        linebuf_next_tag_q  <= {TAG_WIDTH{1'b0}};
+                        linebuf_next_idx_q  <= {INDEX_WIDTH{1'b0}};
+                        linebuf_next2_addr_q <= {XLEN{1'b0}};
+                        linebuf_next2_tag_q  <= {TAG_WIDTH{1'b0}};
+                        linebuf_next2_idx_q  <= {INDEX_WIDTH{1'b0}};
                         linebuf1_valid_q <= 1'b0;
                         linebuf2_valid_q <= 1'b0;
                         linebuf3_valid_q <= 1'b0;
