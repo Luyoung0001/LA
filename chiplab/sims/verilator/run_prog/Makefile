@@ -122,6 +122,10 @@ ifeq ('${RUN_C}', 'y')
 CFLAGS += -DRUN_C
 endif
 
+ifneq ($(filter nscscc_perf/%,$(soft_list)),)
+CFLAGS += -DNSCSCC_PERF
+endif
+
 ifeq ('${RUN_FUNC}', 'y')
 CFLAGS += -DRUN_FUNC
 endif 
@@ -264,10 +268,21 @@ soft_compile:
 	@echo "============================================================================================================="
 	@for soft in ${soft_compile_list}; \
 	do 	\
-	make -C ${CHIPLAB_HOME}/software/examples/$${soft} || exit "$$?";\
-	rm -rf ./obj/$${soft}_obj;	\
-	mkdir -p ./obj/$${soft}_obj;  \
-	mv ${CHIPLAB_HOME}/software/examples/$${soft}/obj ./obj/$${soft}_obj;	\
+	case "$${soft}" in \
+	nscscc_perf/*) \
+		bench=$${soft#nscscc_perf/}; \
+		make -C ${CHIPLAB_HOME}/software/examples/nscscc_perf $${bench} || exit "$$?"; \
+		rm -rf ./obj/$${soft}_obj; \
+		mkdir -p ./obj/$${soft}_obj/obj; \
+		cp -a ${CHIPLAB_HOME}/software/examples/nscscc_perf/obj/$${bench}/. ./obj/$${soft}_obj/obj/; \
+		;; \
+	*) \
+		make -C ${CHIPLAB_HOME}/software/examples/$${soft} || exit "$$?"; \
+		rm -rf ./obj/$${soft}_obj;	\
+		mkdir -p ./obj/$${soft}_obj;  \
+		mv ${CHIPLAB_HOME}/software/examples/$${soft}/obj ./obj/$${soft}_obj; \
+		;; \
+	esac; \
 	mkdir -p ./log/$${soft}_log;	\
 	done 
 

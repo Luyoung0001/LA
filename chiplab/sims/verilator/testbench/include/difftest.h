@@ -17,7 +17,9 @@
 /* commit inst group history length */
 #define DEBUG_GROUP_TRACE_SIZE 16
 
-#ifdef RUN_FUNC
+#ifdef NSCSCC_PERF
+#define END_PC 0x1c000200 // nscscc_perf jumps to test_finish after PASS/FAIL
+#elif defined RUN_FUNC
 #define END_PC 0x1c000130 // 0x1c000130 is common end_pc for func
 #elif defined RUN_C
 #define END_PC 0x1c000548 // 0x1c000548 is common end_pc for C

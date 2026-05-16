@@ -40,13 +40,15 @@ int main(int argc, char** argv)
 	}
 
 	char str_bin[256];
-	char str_coe[256], str_mif[256];
+	char str_coe[256], str_mif[256], str_vlog[256];
 	strncpy(str_bin, argv[2], 256);
 	strncpy(str_coe, argv[2], 256);
 	strncpy(str_mif, argv[2], 256);
+	strncpy(str_vlog, argv[2], 256);
 	strncat(str_bin, argv[1], 256);
 	strncat(str_coe, "axi_ram.coe", 256);
 	strncat(str_mif, "axi_ram.mif", 256);
+	strncat(str_vlog, "rom.vlog", 256);
 	//printf("%s\n%s\n%s\n%s\n%s\n%s\n", str_bin, str_data, str_inst_coe, str_inst_mif, str_data_coe, str_data_mif);
 
 	int i,j,k;
@@ -76,6 +78,20 @@ int main(int argc, char** argv)
 		break;
 	     }
             binary_out(out,mem);
+        }
+	fclose(in);
+	fclose(out);
+
+    in = fopen(str_bin, "rb");
+    out = fopen(str_vlog, "w");
+
+    fprintf(out, "@1c000000\n");
+	while(!feof(in)) {
+	    if(fread(mem,1,1,in)!=1) {
+	        fprintf(out, "%02x\n", mem[0]);
+		break;
+	     }
+	    fprintf(out, "%02x\n", mem[0]);
         }
 	fclose(in);
 	fclose(out);

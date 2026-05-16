@@ -114,21 +114,33 @@ SYNTH_LOG = $(LOG_DIR)/synth_timing_log.txt
 
 CHIPLAB_HOME = $(CPU_HOME)/chiplab
 CHIPLAB_RUN_DIR = $(CHIPLAB_HOME)/sims/verilator/run_prog
-CHIPLAB_SOFTWARE_TARGETS = func/% fireye/% c_prg/% my_program memset dhrystone coremark hello_world linux rtthread lacc
+CHIPLAB_SOFTWARE_TARGETS = func/% fireye/% c_prg/% nscscc_perf/% my_program memset dhrystone coremark hello_world linux rtthread lacc
 CHIPLAB_AVAILABLE_SOFTWARE = func/func_lab3 func/func_lab4 func/func_lab6 func/func_lab7 \
 	func/func_lab8 func/func_lab9 func/func_lab14 func/func_lab15 func/func_lab19 \
 	func/func_advance fireye/A0 fireye/B2 fireye/C0 fireye/D1 fireye/I2 \
 	c_prg/memcmp c_prg/inner_product c_prg/lookup_table c_prg/loop_induction \
 	c_prg/minmax_sequence c_prg/product_sequence my_program memset dhrystone \
-	coremark hello_world linux rtthread lacc
+	coremark hello_world linux rtthread lacc \
+	nscscc_perf/bitcount nscscc_perf/bubble_sort nscscc_perf/coremark \
+	nscscc_perf/crc32 nscscc_perf/dhrystone nscscc_perf/quick_sort \
+	nscscc_perf/select_sort nscscc_perf/sha nscscc_perf/stream_copy \
+	nscscc_perf/stringsearch nscscc_perf/fireye_A0 nscscc_perf/fireye_B2 \
+	nscscc_perf/fireye_C0 nscscc_perf/fireye_D1 nscscc_perf/fireye_I2 \
+	nscscc_perf/inner_product nscscc_perf/lookup_table \
+	nscscc_perf/loop_induction nscscc_perf/my_memcmp \
+	nscscc_perf/minmax_sequence nscscc_perf/allbench
 CHIPLAB_FUNC_TESTS ?= func/func_lab3,func/func_lab4,func/func_lab6,func/func_lab7,\
 	func/func_lab8,func/func_lab9,func/func_lab14,func/func_lab15,\
 	func/func_lab19,func/func_advance
 CHIPLAB_FUNC_SMOKE ?= func/func_lab3
-CHIPLAB_PERF_TESTS ?= dhrystone,coremark,fireye/A0,fireye/B2,fireye/C0,fireye/D1,\
-	fireye/I2,c_prg/memcmp,c_prg/inner_product,c_prg/lookup_table,\
-	c_prg/loop_induction,c_prg/minmax_sequence,c_prg/product_sequence,memset
-CHIPLAB_PERF_SMOKE ?= dhrystone
+CHIPLAB_PERF_TESTS ?= nscscc_perf/bitcount,nscscc_perf/bubble_sort,nscscc_perf/coremark,\
+	nscscc_perf/crc32,nscscc_perf/dhrystone,nscscc_perf/quick_sort,\
+	nscscc_perf/select_sort,nscscc_perf/sha,nscscc_perf/stream_copy,\
+	nscscc_perf/stringsearch,nscscc_perf/fireye_A0,nscscc_perf/fireye_B2,\
+	nscscc_perf/fireye_C0,nscscc_perf/fireye_D1,nscscc_perf/fireye_I2,\
+	nscscc_perf/inner_product,nscscc_perf/lookup_table,\
+	nscscc_perf/loop_induction,nscscc_perf/my_memcmp,nscscc_perf/minmax_sequence
+CHIPLAB_PERF_SMOKE ?= nscscc_perf/dhrystone
 CHIPLAB_SMOKE_OPTS ?= --disable-trace-comp --disable-simu-trace
 CHIPLAB_SOFTWARE_GOALS = $(filter $(CHIPLAB_SOFTWARE_TARGETS),$(MAKECMDGOALS))
 CHIPLAB_OPTION_GOALS = $(filter --%,$(MAKECMDGOALS))

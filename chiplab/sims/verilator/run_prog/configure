@@ -13,6 +13,14 @@ echo "  --run software        	set software list(use ',' select multiple softwar
                                 my_program memset dhrystone coremark linux rtthread
                                 c_prg/memcmp c_prg/inner_product c_prg/lookup_table
                                 c_prg/loop_induction c_prg/minmax_sequence c_prg/product_sequence
+                                nscscc_perf/bitcount nscscc_perf/bubble_sort nscscc_perf/coremark
+                                nscscc_perf/crc32 nscscc_perf/dhrystone nscscc_perf/quick_sort
+                                nscscc_perf/select_sort nscscc_perf/sha nscscc_perf/stream_copy
+                                nscscc_perf/stringsearch nscscc_perf/fireye_A0 nscscc_perf/fireye_B2
+                                nscscc_perf/fireye_C0 nscscc_perf/fireye_D1 nscscc_perf/fireye_I2
+                                nscscc_perf/inner_product nscscc_perf/lookup_table
+                                nscscc_perf/loop_induction nscscc_perf/my_memcmp
+                                nscscc_perf/minmax_sequence nscscc_perf/allbench
 
 
      " 
@@ -469,6 +477,22 @@ do
             mkdir -p ./log/
             ;;
         lacc)
+            RUN_FUNC=n
+            RUN_C=y
+            DEAD_CLOCK_EN=n
+            OUTPUT_PC_INFO=n
+            OUTPUT_UART_INFO=y
+            mkdir -p ./obj/
+            mkdir -p ./log/
+            ;;
+        nscscc_perf/bitcount|nscscc_perf/bubble_sort|nscscc_perf/coremark|\
+        nscscc_perf/crc32|nscscc_perf/dhrystone|nscscc_perf/quick_sort|\
+        nscscc_perf/select_sort|nscscc_perf/sha|nscscc_perf/stream_copy|\
+        nscscc_perf/stringsearch|nscscc_perf/fireye_A0|nscscc_perf/fireye_B2|\
+        nscscc_perf/fireye_C0|nscscc_perf/fireye_D1|nscscc_perf/fireye_I2|\
+        nscscc_perf/inner_product|nscscc_perf/lookup_table|\
+        nscscc_perf/loop_induction|nscscc_perf/my_memcmp|\
+        nscscc_perf/minmax_sequence|nscscc_perf/allbench)
             RUN_FUNC=n
             RUN_C=y
             DEAD_CLOCK_EN=n
