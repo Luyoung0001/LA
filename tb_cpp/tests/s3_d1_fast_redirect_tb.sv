@@ -23,6 +23,7 @@ module s3_d1_fast_redirect_tb;
     logic out_pred_taken;
     logic out_use_imm;
     logic out_is_branch;
+    logic [3:0] out_branch_type;
     logic out_is_load;
     logic out_is_store;
     logic out_is_muldiv;
@@ -99,6 +100,7 @@ module s3_d1_fast_redirect_tb;
         .out_imm(out_imm),
         .out_use_imm(out_use_imm),
         .out_is_branch(out_is_branch),
+        .out_branch_type(out_branch_type),
         .out_is_load(out_is_load),
         .out_is_store(out_is_store),
         .out_is_muldiv(out_is_muldiv),
@@ -206,6 +208,7 @@ module s3_d1_fast_redirect_tb;
         `check("D1 fast redirect fires for unpredicted B", fast_redirect_valid);
         `check32("D1 fast redirect target for B", fast_redirect_pc, PC0 + 32'd64);
         `check("D1 marks B as predicted taken", out_pred_taken);
+        `check32("D1 encodes B branch type", {28'b0, out_branch_type}, 32'd2);
         `check32("D1 stores B predicted target", out_pred_target, PC0 + 32'd64);
         tick();
         `check("D1 fast redirect is a pulse", !fast_redirect_valid);
@@ -213,6 +216,7 @@ module s3_d1_fast_redirect_tb;
         issue_inst(PC0 + 32'd4, encode_b_like(6'h15, 32'sd128), 1'b1, PC0 + 32'd132);
         `check("D1 does not redirect already-correct BL", !fast_redirect_valid);
         `check("D1 keeps BL predicted taken", out_pred_taken);
+        `check32("D1 encodes BL branch type", {28'b0, out_branch_type}, 32'd3);
         `check32("D1 keeps BL target", out_pred_target, PC0 + 32'd132);
 
         issue_inst(PC0 + 32'd8, encode_b_like(6'h14, -32'sd16), 1'b1, PC0 + 32'd4);
@@ -222,6 +226,7 @@ module s3_d1_fast_redirect_tb;
 
         issue_inst(PC0 + 32'd12, encode_beq(32'sd32), 1'b0, 32'd0);
         `check("D1 does not fast redirect conditional branch", !fast_redirect_valid);
+        `check32("D1 encodes BEQ branch type", {28'b0, out_branch_type}, 32'd4);
         `check("D1 preserves conditional branch prediction", !out_pred_taken);
 
         issue_exception_inst(PC0 + 32'd16, encode_b_like(6'h14, 32'sd32));

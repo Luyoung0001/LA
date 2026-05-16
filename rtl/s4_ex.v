@@ -20,6 +20,7 @@ module s4_ex (
     input  wire [31:0] in_imm,
     input  wire        in_use_imm,
     input  wire        in_is_branch,
+    input  wire [3:0]  in_branch_type,
     input  wire        in_is_load,
     input  wire        in_is_store,
     input  wire        in_is_muldiv,
@@ -191,6 +192,10 @@ module s4_ex (
     wire        unused_timer_64;
     wire        branch_take_w;
     wire [31:0] branch_target_w;
+    wire        branch_is_jirl_w;
+    wire        branch_is_b_w;
+    wire        branch_is_bl_w;
+    wire        branch_is_cond_w;
     wire        control_flow_w;
     wire        actual_taken_w;
     wire [31:0] actual_next_pc_w;
@@ -363,14 +368,19 @@ module s4_ex (
     assign mod_signed_w   = (op2_forwarded == 32'b0) ? op1_forwarded : divider_rem_w;
     assign mod_unsigned_w = (op2_forwarded == 32'b0) ? op1_forwarded : divider_rem_w;
 `endif
-    assign branch_take_w = inst_b | inst_bl | inst_jirl |
-                           (inst_beq && (op1_forwarded == op2_forwarded)) |
-                           (inst_bne && (op1_forwarded != op2_forwarded)) |
-                           (inst_blt && ($signed(op1_forwarded) < $signed(op2_forwarded))) |
-                           (inst_bge && ($signed(op1_forwarded) >= $signed(op2_forwarded))) |
-                           (inst_bltu && (op1_forwarded < op2_forwarded)) |
-                           (inst_bgeu && (op1_forwarded >= op2_forwarded));
-    assign branch_target_w = inst_jirl ? (op1_forwarded + in_imm) : (in_pc + in_imm);
+    assign branch_is_jirl_w = (in_branch_type == 4'd1);
+    assign branch_is_b_w    = (in_branch_type == 4'd2);
+    assign branch_is_bl_w   = (in_branch_type == 4'd3);
+    assign branch_is_cond_w = (in_branch_type >= 4'd4);
+    assign branch_take_w =
+        branch_is_jirl_w | branch_is_b_w | branch_is_bl_w |
+        ((in_branch_type == 4'd4) && (op1_forwarded == op2_forwarded)) |
+        ((in_branch_type == 4'd5) && (op1_forwarded != op2_forwarded)) |
+        ((in_branch_type == 4'd6) && ($signed(op1_forwarded) < $signed(op2_forwarded))) |
+        ((in_branch_type == 4'd7) && ($signed(op1_forwarded) >= $signed(op2_forwarded))) |
+        ((in_branch_type == 4'd8) && (op1_forwarded < op2_forwarded)) |
+        ((in_branch_type == 4'd9) && (op1_forwarded >= op2_forwarded));
+    assign branch_target_w = branch_is_jirl_w ? (op1_forwarded + in_imm) : (in_pc + in_imm);
     assign control_flow_w = in_valid && in_is_branch;
     assign actual_taken_w = branch_take_w;
     assign actual_next_pc_w = actual_taken_w ? branch_target_w : (in_pc + 32'd4);
@@ -444,7 +454,7 @@ module s4_ex (
             ex_result = mod_signed_w;
         end else if (inst_mod_wu) begin
             ex_result = mod_unsigned_w;
-        end else if (inst_bl || inst_jirl) begin
+        end else if (branch_is_bl_w || branch_is_jirl_w) begin
             ex_result = in_pc + 32'd4;
         end else if (inst_rdcntvl_w) begin
             ex_result = 32'b0;
@@ -547,8 +557,8 @@ module s4_ex (
             branch_mispredict   <= redirect_miss_w;
 `ifdef PERF_MONI
             bpu_perf_valid          <= control_flow_w;
-            bpu_perf_is_branch      <= control_flow_w && !(inst_b || inst_bl || inst_jirl);
-            bpu_perf_is_jump        <= control_flow_w && (inst_b || inst_bl || inst_jirl);
+            bpu_perf_is_branch      <= control_flow_w && branch_is_cond_w;
+            bpu_perf_is_jump        <= control_flow_w && !branch_is_cond_w;
             bpu_perf_pc             <= in_pc;
             bpu_perf_pred_taken     <= in_pred_taken;
             bpu_perf_actual_taken   <= actual_taken_w;
@@ -556,13 +566,13 @@ module s4_ex (
             bpu_perf_direction_miss <= direction_miss_w;
             bpu_perf_target_miss    <= target_miss_w;
             bpu_perf_exu_flush      <= redirect_miss_w;
-            bpu_perf_is_direct_jump   <= control_flow_w && (inst_b || inst_bl);
-            bpu_perf_is_jirl          <= control_flow_w && inst_jirl &&
+            bpu_perf_is_direct_jump   <= control_flow_w && (branch_is_b_w || branch_is_bl_w);
+            bpu_perf_is_jirl          <= control_flow_w && branch_is_jirl_w &&
                                          (in_inst[4:0] == 5'h01);
-            bpu_perf_is_ret_jirl      <= control_flow_w && inst_jirl &&
+            bpu_perf_is_ret_jirl      <= control_flow_w && branch_is_jirl_w &&
                                          (in_inst[4:0] == 5'h00) &&
                                          (in_inst[9:5] == 5'h01);
-            bpu_perf_is_indirect_jirl <= control_flow_w && inst_jirl &&
+            bpu_perf_is_indirect_jirl <= control_flow_w && branch_is_jirl_w &&
                                          (in_inst[4:0] == 5'h00) &&
                                          (in_inst[9:5] != 5'h01);
 `endif

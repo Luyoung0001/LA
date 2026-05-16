@@ -36,6 +36,7 @@ module s3_d1 (
     output reg  [31:0] out_imm,
     output reg         out_use_imm,
     output reg         out_is_branch,
+    output reg  [3:0]  out_branch_type,
     output reg         out_is_load,
     output reg         out_is_store,
     output reg         out_is_muldiv,
@@ -154,6 +155,7 @@ module s3_d1 (
     wire [31:0] out_imm_w;
     wire        out_use_imm_w;
     wire        out_is_branch_w;
+    wire [3:0]  out_branch_type_w;
     wire        out_is_load_w;
     wire        out_is_store_w;
     wire        out_is_muldiv_w;
@@ -288,6 +290,16 @@ module s3_d1 (
 
     assign out_is_branch_w = inst_jirl | inst_b | inst_bl | inst_beq | inst_bne |
                              inst_blt | inst_bge | inst_bltu | inst_bgeu;
+    assign out_branch_type_w =
+        inst_jirl ? 4'd1 :
+        inst_b    ? 4'd2 :
+        inst_bl   ? 4'd3 :
+        inst_beq  ? 4'd4 :
+        inst_bne  ? 4'd5 :
+        inst_blt  ? 4'd6 :
+        inst_bge  ? 4'd7 :
+        inst_bltu ? 4'd8 :
+        inst_bgeu ? 4'd9 : 4'd0;
     assign out_is_load_w   = inst_ld_b | inst_ld_h | inst_ld_w | inst_ld_bu | inst_ld_hu |
                              inst_cacop;
     assign out_is_store_w  = inst_st_b | inst_st_h | inst_st_w;
@@ -370,6 +382,7 @@ module s3_d1 (
             out_imm        <= 32'b0;
             out_use_imm    <= 1'b0;
             out_is_branch  <= 1'b0;
+            out_branch_type <= 4'd0;
             out_is_load    <= 1'b0;
             out_is_store   <= 1'b0;
             out_is_muldiv  <= 1'b0;
@@ -407,6 +420,7 @@ module s3_d1 (
                     out_imm        <= out_imm_w;
                     out_use_imm    <= out_use_imm_w;
                     out_is_branch  <= out_is_branch_w;
+                    out_branch_type <= out_branch_type_w;
                     out_is_load    <= out_is_load_w;
                     out_is_store   <= out_is_store_w;
                     out_is_muldiv  <= out_is_muldiv_w;

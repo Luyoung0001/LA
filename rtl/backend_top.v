@@ -105,6 +105,7 @@ module backend_top #(
     wire [31:0] rrd_out_imm_w;
     wire rrd_out_use_imm_w;
     wire rrd_out_is_branch_w;
+    wire [3:0] rrd_out_branch_type_w;
     wire rrd_out_is_load_w;
     wire rrd_out_is_store_w;
     wire rrd_out_is_muldiv_w;
@@ -518,6 +519,7 @@ module backend_top #(
         .out_imm      (rrd_out_imm_w),
         .out_use_imm  (rrd_out_use_imm_w),
         .out_is_branch(rrd_out_is_branch_w),
+        .out_branch_type(rrd_out_branch_type_w),
         .out_is_load  (rrd_out_is_load_w),
         .out_is_store (rrd_out_is_store_w),
         .out_is_muldiv(rrd_out_is_muldiv_w),
@@ -601,6 +603,7 @@ module backend_top #(
         .in_imm        (rrd_out_imm_w),
         .in_use_imm    (rrd_out_use_imm_w),
         .in_is_branch  (rrd_out_is_branch_w),
+        .in_branch_type(rrd_out_branch_type_w),
         .in_is_load    (rrd_out_is_load_w),
         .in_is_store   (rrd_out_is_store_w),
         .in_is_muldiv  (rrd_out_is_muldiv_w),
