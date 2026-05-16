@@ -129,17 +129,9 @@ CHIPLAB_AVAILABLE_SOFTWARE = func/func_lab3 func/func_lab4 func/func_lab6 func/f
 	nscscc_perf/inner_product nscscc_perf/lookup_table \
 	nscscc_perf/loop_induction nscscc_perf/my_memcmp \
 	nscscc_perf/minmax_sequence nscscc_perf/allbench
-CHIPLAB_FUNC_TESTS ?= func/func_lab3,func/func_lab4,func/func_lab6,func/func_lab7,\
-	func/func_lab8,func/func_lab9,func/func_lab14,func/func_lab15,\
-	func/func_lab19,func/func_advance
+CHIPLAB_FUNC_TESTS ?= func/func_lab3,func/func_lab4,func/func_lab6,func/func_lab7,func/func_lab8,func/func_lab9,func/func_lab14,func/func_lab15,func/func_lab19,func/func_advance
 CHIPLAB_FUNC_SMOKE ?= func/func_lab3
-CHIPLAB_PERF_TESTS ?= nscscc_perf/bitcount,nscscc_perf/bubble_sort,nscscc_perf/coremark,\
-	nscscc_perf/crc32,nscscc_perf/dhrystone,nscscc_perf/quick_sort,\
-	nscscc_perf/select_sort,nscscc_perf/sha,nscscc_perf/stream_copy,\
-	nscscc_perf/stringsearch,nscscc_perf/fireye_A0,nscscc_perf/fireye_B2,\
-	nscscc_perf/fireye_C0,nscscc_perf/fireye_D1,nscscc_perf/fireye_I2,\
-	nscscc_perf/inner_product,nscscc_perf/lookup_table,\
-	nscscc_perf/loop_induction,nscscc_perf/my_memcmp,nscscc_perf/minmax_sequence
+CHIPLAB_PERF_TESTS ?= nscscc_perf/bitcount,nscscc_perf/bubble_sort,nscscc_perf/coremark,nscscc_perf/crc32,nscscc_perf/dhrystone,nscscc_perf/quick_sort,nscscc_perf/select_sort,nscscc_perf/sha,nscscc_perf/stream_copy,nscscc_perf/stringsearch,nscscc_perf/fireye_A0,nscscc_perf/fireye_B2,nscscc_perf/fireye_C0,nscscc_perf/fireye_D1,nscscc_perf/fireye_I2,nscscc_perf/inner_product,nscscc_perf/lookup_table,nscscc_perf/loop_induction,nscscc_perf/my_memcmp,nscscc_perf/minmax_sequence
 CHIPLAB_PERF_SMOKE ?= nscscc_perf/dhrystone
 CHIPLAB_SMOKE_OPTS ?= --disable-trace-comp --disable-simu-trace
 CHIPLAB_SOFTWARE_GOALS = $(filter $(CHIPLAB_SOFTWARE_TARGETS),$(MAKECMDGOALS))
@@ -151,6 +143,7 @@ CHIPLAB_CONFIG_ARGS ?= $(if $(CHIPLAB_RUN),--run $(CHIPLAB_RUN),) $(CHIPLAB_FORW
 CHIPLAB_VFLAGS = $(strip $(PERF_MONI_FLAGS) $(L2_PREFETCH_FLAGS) $(MDU_FLAGS) $(CONFIG_FLAGS))
 CHIPLAB_VFLAGS_ENV = $(if $(CHIPLAB_VFLAGS),VFLAGS="$(CHIPLAB_VFLAGS)",)
 CHIPLAB_MAKE_ARGS ?=
+CHIPLAB_MDU_COLLECT_ARG = MDU_COLLECT=$(MDU_COLLECT)
 CHIPLAB_CPU ?= $(CPU_SELECT)
 CHIPLAB_SIM_DIR = $(CPU_HOME)/mycpu_env/myCPU/sim
 CHIPLAB_RTL_SRCS = $(filter-out $(RTL_DIR)/mycpu_top.v $(RTL_DIR)/verilator_top.v $(RTL_DIR)/verilator_top_la500.v,$(wildcard $(RTL_DIR)/*.v $(RTL_DIR)/*.vh))
@@ -247,23 +240,23 @@ chiplab-configure:
 
 chiplab-run: chiplab-configure
 	@$(MAKE) chiplab-sync-rtl
-	$(CHIPLAB_VFLAGS_ENV) $(MAKE) -C $(CHIPLAB_RUN_DIR) CHIPLAB_HOME=$(CHIPLAB_HOME) CHIPLAB_CPU=$(CHIPLAB_CPU) CHIPLAB_BUILD_JOBS=$(CHIPLAB_BUILD_JOBS) $(CHIPLAB_MAKE_ARGS)
+	$(CHIPLAB_VFLAGS_ENV) $(MAKE) -C $(CHIPLAB_RUN_DIR) CHIPLAB_HOME=$(CHIPLAB_HOME) CHIPLAB_CPU=$(CHIPLAB_CPU) CHIPLAB_BUILD_JOBS=$(CHIPLAB_BUILD_JOBS) $(CHIPLAB_MDU_COLLECT_ARG) $(CHIPLAB_MAKE_ARGS)
 
 chiplab-smoke: chiplab-configure
 	@$(MAKE) chiplab-sync-rtl
-	$(CHIPLAB_VFLAGS_ENV) $(MAKE) -C $(CHIPLAB_RUN_DIR) CHIPLAB_HOME=$(CHIPLAB_HOME) CHIPLAB_CPU=$(CHIPLAB_CPU) CHIPLAB_BUILD_JOBS=$(CHIPLAB_BUILD_JOBS) compile soft $(CHIPLAB_MAKE_ARGS)
+	$(CHIPLAB_VFLAGS_ENV) $(MAKE) -C $(CHIPLAB_RUN_DIR) CHIPLAB_HOME=$(CHIPLAB_HOME) CHIPLAB_CPU=$(CHIPLAB_CPU) CHIPLAB_BUILD_JOBS=$(CHIPLAB_BUILD_JOBS) $(CHIPLAB_MDU_COLLECT_ARG) compile soft $(CHIPLAB_MAKE_ARGS)
 
 chiplab-func-smoke:
-	$(MAKE) chiplab-run RUN=$(CHIPLAB_FUNC_SMOKE) CHIPLAB_OPTS="$(CHIPLAB_SMOKE_OPTS) $(CHIPLAB_OPTS)" CHIPLAB_MAKE_ARGS="$(CHIPLAB_MAKE_ARGS)"
+	$(MAKE) chiplab-run RUN="$(CHIPLAB_FUNC_SMOKE)" CHIPLAB_OPTS="$(CHIPLAB_SMOKE_OPTS) $(CHIPLAB_OPTS)" CHIPLAB_MAKE_ARGS="$(CHIPLAB_MAKE_ARGS)"
 
 chiplab-perf-smoke:
-	$(MAKE) chiplab-run RUN=$(CHIPLAB_PERF_SMOKE) CHIPLAB_OPTS="$(CHIPLAB_SMOKE_OPTS) $(CHIPLAB_OPTS)" CHIPLAB_MAKE_ARGS="$(CHIPLAB_MAKE_ARGS)"
+	$(MAKE) chiplab-run RUN="$(CHIPLAB_PERF_SMOKE)" CHIPLAB_OPTS="$(CHIPLAB_SMOKE_OPTS) $(CHIPLAB_OPTS)" CHIPLAB_MAKE_ARGS="$(CHIPLAB_MAKE_ARGS)"
 
 chiplab-func:
-	$(MAKE) chiplab-run RUN=$(CHIPLAB_FUNC_TESTS) CHIPLAB_OPTS="$(CHIPLAB_OPTS)" CHIPLAB_MAKE_ARGS="$(CHIPLAB_MAKE_ARGS)"
+	$(MAKE) chiplab-run RUN="$(CHIPLAB_FUNC_TESTS)" CHIPLAB_OPTS="$(CHIPLAB_OPTS)" CHIPLAB_MAKE_ARGS="$(CHIPLAB_MAKE_ARGS)"
 
 chiplab-perf:
-	$(MAKE) chiplab-run RUN=$(CHIPLAB_PERF_TESTS) CHIPLAB_OPTS="$(CHIPLAB_OPTS)" CHIPLAB_MAKE_ARGS="$(CHIPLAB_MAKE_ARGS)"
+	$(MAKE) chiplab-run RUN="$(CHIPLAB_PERF_TESTS)" CHIPLAB_OPTS="$(CHIPLAB_OPTS)" CHIPLAB_MAKE_ARGS="$(CHIPLAB_MAKE_ARGS)"
 
 chiplab-test-smoke: chiplab-func-smoke chiplab-perf-smoke
 
@@ -293,6 +286,8 @@ help:
 	@echo "                      # run one short Chiplab performance/application test without trace files"
 	@echo "  make chiplab-func   # run grouped Chiplab function tests"
 	@echo "  make chiplab-perf   # run grouped Chiplab performance/application tests"
+	@echo "  make chiplab-perf MDU_COLLECT=1"
+	@echo "                      # collect retired mul/div/mod operands to mdu_collect.txt"
 	@echo "  make configure RUN=coremark CPU=LA500"
 	@echo "                      # run Chiplab with reference openLA500 core"
 	@echo "  make chiplab-list   # list software names accepted by the wrapper"

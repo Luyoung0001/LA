@@ -142,6 +142,10 @@ ifeq ('${MEM_TRACE}', 'y')
 CFLAGS += -DMEM_TRACE 
 endif 
 
+ifeq ('${MDU_COLLECT}', '1')
+CFLAGS += -DMDU_COLLECT
+endif
+
 ifeq ('${OUTPUT_PC_INFO}', 'y')
 CFLAGS += -DOUTPUT_PC_INFO
 endif
@@ -313,6 +317,9 @@ simulation_run_prog:
 	@echo "RUN simulation..."
 	@echo "============================================================================================================="
 	@echo "============================================================================================================="
+ifeq ('${MDU_COLLECT}', '1')
+	@rm -f ./log/mdu_collect.txt
+endif
 ifeq ('${TRACE_COMP}', 'y')
 	@for soft in ${soft_list}; \
 	do 	\
@@ -326,6 +333,11 @@ ifeq ('${TRACE_COMP}', 'y')
 	mv ./tmp/uart_output.txt ./log/$${soft}_log/;	\
 	mv ./tmp/uart_output.txt.real ./log/$${soft}_log/;	\
 	mv ./tmp/mem_trace.txt ./log/$${soft}_log/;         \
+	if [ -f ./tmp/mdu_collect.txt ]; then \
+		mkdir -p ./log/$${soft}_log; \
+		cp ./tmp/mdu_collect.txt ./log/$${soft}_log/; \
+		cat ./tmp/mdu_collect.txt >> ./log/mdu_collect.txt; \
+	fi; \
 	mv ./tmp/logs/*.${WAVEFILE} ./log/$${soft}_log/;	\
 	rm -rf ./tmp;    \
 	done 
@@ -342,6 +354,10 @@ else
 	mv ./tmp/uart_output.txt ./log/$${soft}_log/;	\
 	mv ./tmp/uart_output.txt.real ./log/$${soft}_log/;	\
 	mv ./tmp/mem_trace.txt ./log/$${soft}_log/;         \
+	if [ -f ./tmp/mdu_collect.txt ]; then \
+		cp ./tmp/mdu_collect.txt ./log/$${soft}_log/; \
+		cat ./tmp/mdu_collect.txt >> ./log/mdu_collect.txt; \
+	fi; \
 	mv ./tmp/logs/*.${WAVEFILE} ./log/$${soft}_log/;	\
 	rm -rf ./tmp; \
 	done 

@@ -1,4 +1,5 @@
 #include <sys/mman.h>
+#include <cstring>
 #include "difftest.h"
 
 std::chrono::nanoseconds nemu_nano_seconds = std::chrono::nanoseconds(0);
@@ -43,6 +44,50 @@ static int dead_clock = 0;
 #endif
 extern long long inst_total;
 
+#ifdef MDU_COLLECT
+static const char* decode_mdu_name(uint32_t inst) {
+    uint32_t op_31_26 = (inst >> 26) & 0x3f;
+    uint32_t op_25_22 = (inst >> 22) & 0x0f;
+    uint32_t op_21_20 = (inst >> 20) & 0x03;
+    uint32_t op_19_15 = (inst >> 15) & 0x1f;
+
+    if (op_31_26 != 0x00 || op_25_22 != 0x0) {
+        return NULL;
+    }
+    if (op_21_20 == 0x1) {
+        if (op_19_15 == 0x18) return "mul.w";
+        if (op_19_15 == 0x19) return "mulh.w";
+        if (op_19_15 == 0x1a) return "mulh.wu";
+    }
+    if (op_21_20 == 0x2) {
+        if (op_19_15 == 0x00) return "div.w";
+        if (op_19_15 == 0x01) return "mod.w";
+        if (op_19_15 == 0x02) return "div.wu";
+        if (op_19_15 == 0x03) return "mod.wu";
+    }
+    return NULL;
+}
+
+void Difftest::collect_mdu_commit(const instr_commit_t& commit) {
+    const char *op_name = decode_mdu_name(commit.inst);
+    if (op_name && mdu_collect_file) {
+        uint32_t rj = (commit.inst >> 5) & 0x1f;
+        uint32_t rk = (commit.inst >> 10) & 0x1f;
+        uint32_t src1 = mdu_shadow_gpr[rj];
+        uint32_t src2 = mdu_shadow_gpr[rk];
+        uint32_t result = (uint32_t)commit.wdata;
+
+        fprintf(mdu_collect_file, "0x%08x %s 0x%08x = 0x%08x\n",
+                src1, op_name, src2, result);
+    }
+
+    if (commit.wen && commit.wdest != 0) {
+        mdu_shadow_gpr[commit.wdest & 0x1f] = (uint32_t)commit.wdata;
+    }
+    mdu_shadow_gpr[0] = 0;
+}
+#endif
+
 int Difftest::step(vluint64_t &main_time) {
     // progress = false;
     idx_commit = 0;
@@ -83,6 +128,9 @@ int Difftest::step(vluint64_t &main_time) {
 #endif
 #endif
         // fflush(NULL);
+#ifdef MDU_COLLECT
+        collect_mdu_commit(dut.commit[idx_commit]);
+#endif
         idx_commit++;
     }
 
@@ -335,9 +383,22 @@ void Difftest::display() {
 
 Difftest::Difftest(int coreid): coreid(coreid) {
     proxy = new DIFF_PROXY(coreid);
+#ifdef MDU_COLLECT
+    std::memset(mdu_shadow_gpr, 0, sizeof(mdu_shadow_gpr));
+    mdu_collect_file = fopen("mdu_collect.txt", coreid == 0 ? "w" : "a");
+    if (mdu_collect_file == NULL) {
+        printf("mdu_collect.txt open error!!!!\n");
+    }
+#endif
 }
 
 Difftest::~Difftest() {
+#ifdef MDU_COLLECT
+    if (mdu_collect_file != NULL) {
+        fclose(mdu_collect_file);
+        mdu_collect_file = NULL;
+    }
+#endif
     delete proxy;
     proxy = NULL;
 }

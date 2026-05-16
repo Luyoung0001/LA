@@ -183,6 +183,13 @@ private:
     /* nemu execute one instruction */
     void do_instr_commit(int index);
 
+#ifdef MDU_COLLECT
+    FILE *mdu_collect_file = NULL;
+    uint32_t mdu_shadow_gpr[32] = {0};
+
+    void collect_mdu_commit(const instr_commit_t& commit);
+#endif
+
 public:
 
     /* Trigger a difftest checking produre */
