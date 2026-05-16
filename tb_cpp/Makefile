@@ -65,6 +65,7 @@ TESTS := \
 	s3_d1_fast_redirect_tb \
 	s3_frontend_if2_registered_tb \
 	s3_frontend_if2_tb \
+	s4_ex_forwarding_tb \
 	s4_id0_stage_ctrl_tb \
 	s4_id0_event_packet_tb \
 	s4_backend_id0_tb \
@@ -387,6 +388,7 @@ SRC_s3_if2_event_packet_tb    := $(RTL_DIR)/s3_if2_event_packet.v
 SRC_s3_d1_fast_redirect_tb    := $(RTL_DIR)/s3_d1.v
 SRC_s3_frontend_if2_registered_tb := $(RTL_DIR)/s3_if2_accept_ctrl.v $(RTL_DIR)/s3_if2_event_packet.v $(RTL_DIR)/s3_frontend_if2.v
 SRC_s3_frontend_if2_tb        := $(RTL_DIR)/s3_if2_accept_ctrl.v $(RTL_DIR)/s3_if2_event_packet.v $(RTL_DIR)/s3_frontend_if2.v
+SRC_s4_ex_forwarding_tb       := $(RTL_DIR)/s4_ex.v
 SRC_s4_id0_stage_ctrl_tb      := $(RTL_DIR)/s4_id0_stage_ctrl.v
 SRC_s4_id0_event_packet_tb    := $(RTL_DIR)/s4_id0_event_packet.v
 SRC_s4_backend_id0_tb         := $(RTL_DIR)/s4_id0_stage_ctrl.v $(RTL_DIR)/s4_id0_event_packet.v $(RTL_DIR)/s4_backend_id0.v

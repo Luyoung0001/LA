@@ -31,6 +31,8 @@ module s3_d1 (
     output reg         out_pred_taken,
     output reg  [31:0] out_pred_target,
     output reg  [4:0]  out_rd,
+    output reg  [4:0]  out_src1,
+    output reg  [4:0]  out_src2,
     output reg  [31:0] out_op1,
     output reg  [31:0] out_op2,
     output reg  [31:0] out_imm,
@@ -377,6 +379,8 @@ module s3_d1 (
             out_pred_taken <= 1'b0;
             out_pred_target <= 32'b0;
             out_rd         <= 5'b0;
+            out_src1       <= 5'b0;
+            out_src2       <= 5'b0;
             out_op1        <= 32'b0;
             out_op2        <= 32'b0;
             out_imm        <= 32'b0;
@@ -415,6 +419,8 @@ module s3_d1 (
                     out_pred_taken <= direct_jump_w ? 1'b1 : in_pred_taken;
                     out_pred_target <= direct_jump_w ? direct_jump_target_w : in_pred_target;
                     out_rd         <= out_rd_w;
+                    out_src1       <= rf_raddr1_w;
+                    out_src2       <= rf_raddr2_w;
                     out_op1        <= rf_rdata1_w;
                     out_op2        <= rf_rdata2_w;
                     out_imm        <= out_imm_w;

@@ -38,6 +38,8 @@ module s3_d1_fast_redirect_tb;
     logic [4:0] m1_load_rd;
     logic [4:0] dbg_reg_num;
     logic [4:0] out_rd;
+    logic [4:0] out_src1;
+    logic [4:0] out_src2;
     logic [5:0] in_exception_ecode;
     logic [5:0] out_exception_ecode;
     logic [8:0] in_exception_esubcode;
@@ -95,6 +97,8 @@ module s3_d1_fast_redirect_tb;
         .out_pred_taken(out_pred_taken),
         .out_pred_target(out_pred_target),
         .out_rd(out_rd),
+        .out_src1(out_src1),
+        .out_src2(out_src2),
         .out_op1(out_op1),
         .out_op2(out_op2),
         .out_imm(out_imm),
@@ -133,6 +137,18 @@ module s3_d1_fast_redirect_tb;
         begin
             offs16 = byte_offset[17:2];
             encode_beq = {6'h16, offs16, 5'd0, 5'd0};
+        end
+    endfunction
+
+    function automatic [31:0] encode_beq_regs(
+        input [4:0] rj_in,
+        input [4:0] rd_in,
+        input signed [31:0] byte_offset
+    );
+        reg [15:0] offs16;
+        begin
+            offs16 = byte_offset[17:2];
+            encode_beq_regs = {6'h16, offs16, rj_in, rd_in};
         end
     endfunction
 
@@ -228,6 +244,10 @@ module s3_d1_fast_redirect_tb;
         `check("D1 does not fast redirect conditional branch", !fast_redirect_valid);
         `check32("D1 encodes BEQ branch type", {28'b0, out_branch_type}, 32'd4);
         `check("D1 preserves conditional branch prediction", !out_pred_taken);
+
+        issue_inst(PC0 + 32'd20, encode_beq_regs(5'd7, 5'd9, 32'sd16), 1'b0, 32'd0);
+        `check32("D1 latches BEQ src1", {27'b0, out_src1}, 32'd7);
+        `check32("D1 latches BEQ src2", {27'b0, out_src2}, 32'd9);
 
         issue_exception_inst(PC0 + 32'd16, encode_b_like(6'h14, 32'sd32));
         `check("D1 does not fast redirect exception packet", !fast_redirect_valid);

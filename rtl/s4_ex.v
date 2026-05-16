@@ -15,6 +15,8 @@ module s4_ex (
     input  wire        in_pred_taken,
     input  wire [31:0] in_pred_target,
     input  wire [4:0]  in_rd,
+    input  wire [4:0]  in_src1,
+    input  wire [4:0]  in_src2,
     input  wire [31:0] in_op1,
     input  wire [31:0] in_op2,
     input  wire [31:0] in_imm,
@@ -148,9 +150,6 @@ module s4_ex (
     wire inst_rdcntvl_w;
     wire inst_rdcntvh_w;
     wire inst_cacop;
-    wire src2_is_rd;
-    wire [4:0] src1_addr;
-    wire [4:0] src2_addr;
     wire [31:0] op1_forwarded;
     wire [31:0] op2_forwarded;
     wire signed [31:0] op1_signed;
@@ -286,21 +285,16 @@ module s4_ex (
                             (rk == 5'h19) && (in_inst[9:5] == 5'h00);
     assign inst_cacop   = (op_31_26 == 6'h01) && (op_25_22 == 4'h8);
 
-    assign src2_is_rd = inst_beq | inst_bne | inst_blt | inst_bge | inst_bltu | inst_bgeu |
-                        inst_st_b | inst_st_h | inst_st_w | inst_csrwr | inst_csrxchg;
-    assign src1_addr = in_inst[9:5];
-    assign src2_addr = src2_is_rd ? in_inst[4:0] : in_inst[14:10];
-
-    assign op1_forwarded = (forward_ex1_valid && (forward_ex1_waddr != 5'b0) && (forward_ex1_waddr == src1_addr)) ? forward_ex1_wdata :
-                           (forward_ex2_valid && (forward_ex2_waddr != 5'b0) && (forward_ex2_waddr == src1_addr)) ? forward_ex2_wdata :
-                           (forward_mem_valid && (forward_mem_waddr != 5'b0) && (forward_mem_waddr == src1_addr)) ? forward_mem_wdata :
-                           (forward_wb_valid  && (forward_wb_waddr  != 5'b0) && (forward_wb_waddr  == src1_addr)) ? forward_wb_wdata  :
+    assign op1_forwarded = (forward_ex1_valid && (forward_ex1_waddr != 5'b0) && (forward_ex1_waddr == in_src1)) ? forward_ex1_wdata :
+                           (forward_ex2_valid && (forward_ex2_waddr != 5'b0) && (forward_ex2_waddr == in_src1)) ? forward_ex2_wdata :
+                           (forward_mem_valid && (forward_mem_waddr != 5'b0) && (forward_mem_waddr == in_src1)) ? forward_mem_wdata :
+                           (forward_wb_valid  && (forward_wb_waddr  != 5'b0) && (forward_wb_waddr  == in_src1)) ? forward_wb_wdata  :
                            in_op1;
 
-    assign op2_forwarded = (forward_ex1_valid && (forward_ex1_waddr != 5'b0) && (forward_ex1_waddr == src2_addr)) ? forward_ex1_wdata :
-                           (forward_ex2_valid && (forward_ex2_waddr != 5'b0) && (forward_ex2_waddr == src2_addr)) ? forward_ex2_wdata :
-                           (forward_mem_valid && (forward_mem_waddr != 5'b0) && (forward_mem_waddr == src2_addr)) ? forward_mem_wdata :
-                           (forward_wb_valid  && (forward_wb_waddr  != 5'b0) && (forward_wb_waddr  == src2_addr)) ? forward_wb_wdata  :
+    assign op2_forwarded = (forward_ex1_valid && (forward_ex1_waddr != 5'b0) && (forward_ex1_waddr == in_src2)) ? forward_ex1_wdata :
+                           (forward_ex2_valid && (forward_ex2_waddr != 5'b0) && (forward_ex2_waddr == in_src2)) ? forward_ex2_wdata :
+                           (forward_mem_valid && (forward_mem_waddr != 5'b0) && (forward_mem_waddr == in_src2)) ? forward_mem_wdata :
+                           (forward_wb_valid  && (forward_wb_waddr  != 5'b0) && (forward_wb_waddr  == in_src2)) ? forward_wb_wdata  :
                            in_op2;
     assign op1_signed = op1_forwarded;
     assign op2_signed = op2_forwarded;

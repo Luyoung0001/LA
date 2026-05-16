@@ -100,6 +100,8 @@ module backend_top #(
     wire rrd_out_pred_taken_w;
     wire [31:0] rrd_out_pred_target_w;
     wire [4:0] rrd_out_rd_w;
+    wire [4:0] rrd_out_src1_w;
+    wire [4:0] rrd_out_src2_w;
     wire [31:0] rrd_out_op1_w;
     wire [31:0] rrd_out_op2_w;
     wire [31:0] rrd_out_imm_w;
@@ -514,6 +516,8 @@ module backend_top #(
         .out_pred_taken(rrd_out_pred_taken_w),
         .out_pred_target(rrd_out_pred_target_w),
         .out_rd       (rrd_out_rd_w),
+        .out_src1     (rrd_out_src1_w),
+        .out_src2     (rrd_out_src2_w),
         .out_op1      (rrd_out_op1_w),
         .out_op2      (rrd_out_op2_w),
         .out_imm      (rrd_out_imm_w),
@@ -598,6 +602,8 @@ module backend_top #(
         .in_pred_taken (rrd_out_pred_taken_w),
         .in_pred_target(rrd_out_pred_target_w),
         .in_rd         (rrd_out_rd_w),
+        .in_src1       (rrd_out_src1_w),
+        .in_src2       (rrd_out_src2_w),
         .in_op1        (rrd_out_op1_w),
         .in_op2        (rrd_out_op2_w),
         .in_imm        (rrd_out_imm_w),
