@@ -12,6 +12,7 @@ module dcache_stub (
     // AXI-side request/response channel (all-miss forwarding for now)
     output reg         axi_req_valid,
     output reg         axi_req_write,
+    output wire        axi_req_uncached,
     output reg  [31:0] axi_req_addr,
     output reg  [31:0] axi_req_wdata,
     output reg  [3:0]  axi_req_wstrb,
@@ -23,6 +24,7 @@ module dcache_stub (
     reg waiting_resp;
 
     assign req_ready = ~axi_req_valid & ~waiting_resp;
+    assign axi_req_uncached = 1'b1;
 
     always @(posedge clk) begin
         if (reset) begin

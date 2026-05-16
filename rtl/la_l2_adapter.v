@@ -12,6 +12,7 @@ module la_l2_adapter #(
 
     input  wire        dcache_req_valid,
     input  wire        dcache_req_write,
+    input  wire        dcache_req_uncached,
     input  wire [31:0] dcache_req_addr,
     input  wire [31:0] dcache_req_wdata,
     input  wire [3:0]  dcache_req_wstrb,
@@ -128,6 +129,7 @@ module la_l2_adapter #(
     reg [1:0]  i_word_sel_r;
     reg        d_pending_r;
     reg        d_pending_write_r;
+    reg        d_pending_uncached_r;
     reg [1:0]  d_word_sel_r;
 
     wire icache_accept_w = l2_l1i_req_valid_w && l2_l1i_req_ready_w;
@@ -158,6 +160,7 @@ module la_l2_adapter #(
          (!d_pending_write_r && l2_l1d_resp_valid_w));
     assign dcache_resp_rdata =
         d_pending_write_r ? 32'b0 :
+        d_pending_uncached_r ? l2_l1d_resp_data0_w :
         (d_word_sel_r == 2'd0) ? l2_l1d_resp_data0_w :
         (d_word_sel_r == 2'd1) ? l2_l1d_resp_data1_w :
         (d_word_sel_r == 2'd2) ? l2_l1d_resp_data2_w :
@@ -191,6 +194,7 @@ module la_l2_adapter #(
             i_word_sel_r      <= 2'b0;
             d_pending_r       <= 1'b0;
             d_pending_write_r <= 1'b0;
+            d_pending_uncached_r <= 1'b0;
             d_word_sel_r      <= 2'b0;
         end else begin
             if (icache_accept_w) begin
@@ -203,14 +207,17 @@ module la_l2_adapter #(
             if (dcache_read_accept_w) begin
                 d_pending_r       <= 1'b1;
                 d_pending_write_r <= 1'b0;
+                d_pending_uncached_r <= dcache_req_uncached;
                 d_word_sel_r      <= dcache_req_addr[3:2];
             end else if (dcache_write_accept_w) begin
                 d_pending_r       <= 1'b1;
                 d_pending_write_r <= 1'b1;
+                d_pending_uncached_r <= 1'b0;
                 d_word_sel_r      <= dcache_req_addr[3:2];
             end else if (dcache_resp_valid) begin
                 d_pending_r       <= 1'b0;
                 d_pending_write_r <= 1'b0;
+                d_pending_uncached_r <= 1'b0;
             end
         end
     end
@@ -246,7 +253,7 @@ module la_l2_adapter #(
         .l1d_rd_valid_i       (l2_l1d_rd_valid_w),
         .l1d_rd_addr_i        (dcache_req_addr),
         .l1d_rd_size_i        (2'b10),
-        .l1d_rd_uncached_i    (1'b0),
+        .l1d_rd_uncached_i    (dcache_req_uncached),
         .l1d_rd_ready_o       (l2_l1d_rd_ready_w),
         .l1d_resp_valid_o     (l2_l1d_resp_valid_w),
         .l1d_resp_data_o_0    (l2_l1d_resp_data0_w),

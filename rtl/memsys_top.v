@@ -97,6 +97,7 @@ module memsys_top #(
 
     wire        dcache_axi_req_valid_w;
     wire        dcache_axi_req_write_w;
+    wire        dcache_axi_req_uncached_w;
     wire [31:0] dcache_axi_req_addr_w;
     wire [31:0] dcache_axi_req_wdata_w;
     wire [3:0]  dcache_axi_req_wstrb_w;
@@ -224,6 +225,7 @@ module memsys_top #(
                 .resp_rdata    (dmem_resp_rdata),
                 .axi_req_valid (dcache_axi_req_valid_w),
                 .axi_req_write (dcache_axi_req_write_w),
+                .axi_req_uncached(dcache_axi_req_uncached_w),
                 .axi_req_addr  (dcache_axi_req_addr_w),
                 .axi_req_wdata (dcache_axi_req_wdata_w),
                 .axi_req_wstrb (dcache_axi_req_wstrb_w),
@@ -245,6 +247,7 @@ module memsys_top #(
                 .resp_rdata    (dmem_resp_rdata),
                 .axi_req_valid (dcache_axi_req_valid_w),
                 .axi_req_write (dcache_axi_req_write_w),
+                .axi_req_uncached(dcache_axi_req_uncached_w),
                 .axi_req_addr  (dcache_axi_req_addr_w),
                 .axi_req_wdata (dcache_axi_req_wdata_w),
                 .axi_req_wstrb (dcache_axi_req_wstrb_w),
@@ -284,6 +287,7 @@ module memsys_top #(
                 .icache_resp_data   (l2_icache_resp_data_w),
                 .dcache_req_valid   (dcache_axi_req_valid_w),
                 .dcache_req_write   (dcache_axi_req_write_w),
+                .dcache_req_uncached(dcache_axi_req_uncached_w),
                 .dcache_req_addr    (dcache_axi_req_addr_w),
                 .dcache_req_wdata   (dcache_axi_req_wdata_w),
                 .dcache_req_wstrb   (dcache_axi_req_wstrb_w),

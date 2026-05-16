@@ -13,6 +13,7 @@ module la_l1d_adapter (
 
     output wire        axi_req_valid,
     output wire        axi_req_write,
+    output wire        axi_req_uncached,
     output wire [31:0] axi_req_addr,
     output wire [31:0] axi_req_wdata,
     output wire [3:0]  axi_req_wstrb,
@@ -40,7 +41,10 @@ module la_l1d_adapter (
     wire [1:0]  dc_size_w  = req_write ? store_size_r : 2'b10;
     wire [31:0] dc_addr_w  = req_write ? {req_addr[31:2], store_lsb_r} : req_addr;
     wire [31:0] dc_wdata_w = store_data_raw_r;
-    wire        dc_uncached_w = (req_addr[31] == 1'b1);
+    wire        mmio_addr_w = (req_addr[31:16] == 16'h1fe0) ||
+                              (req_addr[28:16] == 13'h1faf) ||
+                              (req_addr[28:16] == 13'h1fd0);
+    wire        dc_uncached_w = req_addr[31] || mmio_addr_w;
 
     wire        dcache_resp_valid_w;
     wire [31:0] dcache_resp_data_w;
@@ -102,6 +106,7 @@ module la_l1d_adapter (
 
     assign axi_req_valid = rd_axi_valid_r || wr_axi_valid_r;
     assign axi_req_write = wr_sel;
+    assign axi_req_uncached = rd_axi_valid_r && rd_uncached_r;
     assign axi_req_addr  = rd_axi_valid_r ? (rd_base_r + {28'b0, rd_word_r, 2'b00}) : wr_addr_r;
     assign axi_req_wdata = wr_data_r;
     assign axi_req_wstrb = rd_axi_valid_r ? 4'b0 : wr_strb_r;
@@ -123,7 +128,7 @@ module la_l1d_adapter (
                     if (rd_accept) begin
                         rd_base_r <= aligned_rd_addr;
                         rd_uncached_r <= l2_rd_uncached_w;
-                        rd_word_r <= l2_rd_uncached_w ? l2_rd_addr_w[3:2] : 2'b0;
+                        rd_word_r <= 2'b0;
                         rd_axi_valid_r <= 1'b1;
                         rd_state_r <= RD_REQ;
                     end
