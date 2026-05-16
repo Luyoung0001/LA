@@ -121,11 +121,20 @@ CHIPLAB_AVAILABLE_SOFTWARE = func/func_lab3 func/func_lab4 func/func_lab6 func/f
 	c_prg/memcmp c_prg/inner_product c_prg/lookup_table c_prg/loop_induction \
 	c_prg/minmax_sequence c_prg/product_sequence my_program memset dhrystone \
 	coremark hello_world linux rtthread lacc
+CHIPLAB_FUNC_TESTS ?= func/func_lab3,func/func_lab4,func/func_lab6,func/func_lab7,\
+	func/func_lab8,func/func_lab9,func/func_lab14,func/func_lab15,\
+	func/func_lab19,func/func_advance
+CHIPLAB_FUNC_SMOKE ?= func/func_lab3
+CHIPLAB_PERF_TESTS ?= dhrystone,coremark,fireye/A0,fireye/B2,fireye/C0,fireye/D1,\
+	fireye/I2,c_prg/memcmp,c_prg/inner_product,c_prg/lookup_table,\
+	c_prg/loop_induction,c_prg/minmax_sequence,c_prg/product_sequence,memset
+CHIPLAB_PERF_SMOKE ?= dhrystone
+CHIPLAB_SMOKE_OPTS ?= --disable-trace-comp --disable-simu-trace
 CHIPLAB_SOFTWARE_GOALS = $(filter $(CHIPLAB_SOFTWARE_TARGETS),$(MAKECMDGOALS))
 CHIPLAB_OPTION_GOALS = $(filter --%,$(MAKECMDGOALS))
 CHIPLAB_FORWARD_OPTS = $(filter-out --run,$(CHIPLAB_OPTION_GOALS))
 CHIPLAB_RUN ?= $(if $(RUN),$(RUN),$(if $(RUN_SOFTWARE),$(RUN_SOFTWARE),$(firstword $(CHIPLAB_SOFTWARE_GOALS))))
-CHIPLAB_OPTS ?=
+CHIPLAB_OPTS ?= --disable-trace-comp --disable-simu-trace
 CHIPLAB_CONFIG_ARGS ?= $(if $(CHIPLAB_RUN),--run $(CHIPLAB_RUN),) $(CHIPLAB_FORWARD_OPTS) $(CHIPLAB_OPTS)
 CHIPLAB_VFLAGS = $(strip $(PERF_MONI_FLAGS) $(L2_PREFETCH_FLAGS) $(MDU_FLAGS) $(CONFIG_FLAGS))
 CHIPLAB_VFLAGS_ENV = $(if $(CHIPLAB_VFLAGS),VFLAGS="$(CHIPLAB_VFLAGS)",)
@@ -232,6 +241,20 @@ chiplab-smoke: chiplab-configure
 	@$(MAKE) chiplab-sync-rtl
 	$(CHIPLAB_VFLAGS_ENV) $(MAKE) -C $(CHIPLAB_RUN_DIR) CHIPLAB_HOME=$(CHIPLAB_HOME) CHIPLAB_CPU=$(CHIPLAB_CPU) CHIPLAB_BUILD_JOBS=$(CHIPLAB_BUILD_JOBS) compile soft $(CHIPLAB_MAKE_ARGS)
 
+chiplab-func-smoke:
+	$(MAKE) chiplab-run RUN=$(CHIPLAB_FUNC_SMOKE) CHIPLAB_OPTS="$(CHIPLAB_SMOKE_OPTS) $(CHIPLAB_OPTS)" CHIPLAB_MAKE_ARGS="$(CHIPLAB_MAKE_ARGS)"
+
+chiplab-perf-smoke:
+	$(MAKE) chiplab-run RUN=$(CHIPLAB_PERF_SMOKE) CHIPLAB_OPTS="$(CHIPLAB_SMOKE_OPTS) $(CHIPLAB_OPTS)" CHIPLAB_MAKE_ARGS="$(CHIPLAB_MAKE_ARGS)"
+
+chiplab-func:
+	$(MAKE) chiplab-run RUN=$(CHIPLAB_FUNC_TESTS) CHIPLAB_OPTS="$(CHIPLAB_OPTS)" CHIPLAB_MAKE_ARGS="$(CHIPLAB_MAKE_ARGS)"
+
+chiplab-perf:
+	$(MAKE) chiplab-run RUN=$(CHIPLAB_PERF_TESTS) CHIPLAB_OPTS="$(CHIPLAB_OPTS)" CHIPLAB_MAKE_ARGS="$(CHIPLAB_MAKE_ARGS)"
+
+chiplab-test-smoke: chiplab-func-smoke chiplab-perf-smoke
+
 help:
 	@echo "Usage:"
 	@echo "  make all EXP=6      # run test + dynamic difftest simulation"
@@ -252,6 +275,12 @@ help:
 	@echo "                      # configure and run Chiplab Verilator simulation"
 	@echo "  make chiplab-smoke RUN=hello_world"
 	@echo "                      # compile Chiplab Verilator + software without running simulation"
+	@echo "  make chiplab-func-smoke"
+	@echo "                      # run one short Chiplab function test without trace files"
+	@echo "  make chiplab-perf-smoke"
+	@echo "                      # run one short Chiplab performance/application test without trace files"
+	@echo "  make chiplab-func   # run grouped Chiplab function tests"
+	@echo "  make chiplab-perf   # run grouped Chiplab performance/application tests"
 	@echo "  make configure RUN=coremark CPU=LA500"
 	@echo "                      # run Chiplab with reference openLA500 core"
 	@echo "  make chiplab-list   # list software names accepted by the wrapper"
@@ -274,4 +303,4 @@ my_program memset dhrystone coremark hello_world linux rtthread lacc:
 --%:
 	@:
 
-.PHONY: test simu build run all fmax synth_timing synth_timing_clean clean runall docs help mycpu-sync-rtl configure chiplab-list chiplab-sync-rtl chiplab-configure chiplab-run chiplab-smoke
+.PHONY: test simu build run all fmax synth_timing synth_timing_clean clean runall docs help mycpu-sync-rtl configure chiplab-list chiplab-sync-rtl chiplab-configure chiplab-run chiplab-smoke chiplab-func-smoke chiplab-perf-smoke chiplab-func chiplab-perf chiplab-test-smoke

@@ -337,6 +337,34 @@ assign     uart0_dcd_i = UART_DCD;
 assign     uart0_dsr_i = UART_DSR;
 assign     uart0_ri_i  = UART_RI ;
 
+wire        cpu_ws_valid;
+wire [31:0] cpu_debug0_wb_pc;
+wire [3 :0] cpu_debug0_wb_rf_wen;
+wire [4 :0] cpu_debug0_wb_rf_wnum;
+wire [31:0] cpu_debug0_wb_rf_wdata;
+wire [31:0] cpu_debug0_wb_inst;
+wire        cpu_debug0_excp_valid;
+wire [5 :0] cpu_debug0_excp_ecode;
+wire [10:0] cpu_debug0_intr_no;
+wire        cpu_debug0_ertn_valid;
+
+assign debug0_wb_pc       = cpu_debug0_wb_pc;
+assign debug0_wb_rf_wdata = cpu_debug0_wb_rf_wdata;
+assign debug0_wb_rf_wen   = |cpu_debug0_wb_rf_wen;
+assign debug0_wb_rf_wnum  = cpu_debug0_wb_rf_wnum;
+
+`ifdef CPU_2CMT
+wire [31:0] cpu_debug1_wb_pc;
+wire [3 :0] cpu_debug1_wb_rf_wen;
+wire [4 :0] cpu_debug1_wb_rf_wnum;
+wire [31:0] cpu_debug1_wb_rf_wdata;
+
+assign debug1_wb_pc       = cpu_debug1_wb_pc;
+assign debug1_wb_rf_wdata = cpu_debug1_wb_rf_wdata;
+assign debug1_wb_rf_wen   = |cpu_debug1_wb_rf_wen;
+assign debug1_wb_rf_wnum  = cpu_debug1_wb_rf_wnum;
+`endif
+
 core_top cpu
 (
     .intrpt            (interrupt         ),// I, 8  
@@ -383,22 +411,59 @@ core_top cpu
     .break_point       (1'b0              ),
     .infor_flag        (1'b0              ),
     .reg_num           (5'b0              ),
-    .ws_valid          (                  ),
+    .ws_valid          (cpu_ws_valid      ),
     .rf_rdata          (                  )
     
     ,
-    .debug0_wb_pc      (debug0_wb_pc      ),// O, 64 
-    .debug0_wb_rf_wen  (debug0_wb_rf_wen  ),// O, 1  
-    .debug0_wb_rf_wnum (debug0_wb_rf_wnum ),// O, 5  
-    .debug0_wb_rf_wdata(debug0_wb_rf_wdata) // O, 64 
+    .debug0_wb_pc      (cpu_debug0_wb_pc      ),// O, 32
+    .debug0_wb_rf_wen  (cpu_debug0_wb_rf_wen  ),// O, 4
+    .debug0_wb_rf_wnum (cpu_debug0_wb_rf_wnum ),// O, 5
+    .debug0_wb_rf_wdata(cpu_debug0_wb_rf_wdata),// O, 32
+    .debug0_wb_inst    (cpu_debug0_wb_inst    ),// O, 32
+    .debug0_excp_valid (cpu_debug0_excp_valid ),// O, 1
+    .debug0_excp_ecode (cpu_debug0_excp_ecode ),// O, 6
+    .debug0_intr_no    (cpu_debug0_intr_no    ),// O, 11
+    .debug0_ertn_valid (cpu_debug0_ertn_valid ) // O, 1
     `ifdef CPU_2CMT
     ,
-    .debug1_wb_pc      (debug1_wb_pc      ),// O, 64 
-    .debug1_wb_rf_wen  (debug1_wb_rf_wen  ),// O, 1  
-    .debug1_wb_rf_wnum (debug1_wb_rf_wnum ),// O, 5  
-    .debug1_wb_rf_wdata(debug1_wb_rf_wdata) // O, 64 
+    .debug1_wb_pc      (cpu_debug1_wb_pc      ),// O, 32
+    .debug1_wb_rf_wen  (cpu_debug1_wb_rf_wen  ),// O, 4
+    .debug1_wb_rf_wnum (cpu_debug1_wb_rf_wnum ),// O, 5
+    .debug1_wb_rf_wdata(cpu_debug1_wb_rf_wdata) // O, 32
     `endif
 );
+
+`ifdef DIFFTEST_EN
+DifftestInstrCommit difftest_instr_commit0 (
+    .clock          (aclk),
+    .coreid         (8'd0),
+    .index          (8'd0),
+    .valid          (cpu_ws_valid),
+    .pc             ({32'b0, cpu_debug0_wb_pc}),
+    .instr          (cpu_debug0_wb_inst),
+    .skip           (1'b0),
+    .is_TLBFILL     (1'b0),
+    .TLBFILL_index  (5'b0),
+    .is_CNTinst     (1'b0),
+    .timer_64_value (64'b0),
+    .wen            (|cpu_debug0_wb_rf_wen),
+    .wdest          ({3'b0, cpu_debug0_wb_rf_wnum}),
+    .wdata          ({32'b0, cpu_debug0_wb_rf_wdata}),
+    .csr_rstat      (1'b0),
+    .csr_data       (32'b0)
+);
+
+DifftestExcpEvent difftest_excp_event0 (
+    .clock          (aclk),
+    .coreid         (8'd0),
+    .excp_valid     (cpu_debug0_excp_valid),
+    .eret           (cpu_debug0_ertn_valid),
+    .intrNo         ({21'b0, cpu_debug0_intr_no}),
+    .cause          ({26'b0, cpu_debug0_excp_ecode}),
+    .exceptionPC    ({32'b0, cpu_debug0_wb_pc}),
+    .exceptionInst  (cpu_debug0_wb_inst)
+);
+`endif
 
 soc_axi_delay_rand
 #(
