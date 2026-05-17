@@ -146,6 +146,18 @@ ifeq ('${MDU_COLLECT}', '1')
 CFLAGS += -DMDU_COLLECT
 endif
 
+ifeq ('${PERF_IC}', '1')
+CFLAGS += -DPERF_IC
+endif
+
+ifeq ('${PERF_DC}', '1')
+CFLAGS += -DPERF_DC
+endif
+
+ifeq ('${PERF_BPU}', '1')
+CFLAGS += -DPERF_BPU
+endif
+
 ifeq ('${OUTPUT_PC_INFO}', 'y')
 CFLAGS += -DOUTPUT_PC_INFO
 endif

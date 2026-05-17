@@ -9,6 +9,9 @@ FPGA_PART ?= xc7a200tfbg676-1
 SYNTH_TOP ?= core_top
 RTL_LOG ?= 0
 PERF_MONI ?= 0
+PERF_IC ?= 0
+PERF_DC ?= 0
+PERF_BPU ?= 0
 L2_PREFETCH ?= 1
 MDU ?= 0
 TRACE ?= 0
@@ -28,6 +31,9 @@ IPC_CASE ?= set1a_alu
 BENCH_REPEAT ?= 512
 BENCH_UNROLL ?= 16
 PERF_MONI_FLAGS = $(if $(filter 1 yes true on,$(PERF_MONI)),-DPERF_MONI,)
+PERF_IC_FLAGS = $(if $(filter 1 yes true on,$(PERF_IC)),-DPERF_IC,)
+PERF_DC_FLAGS = $(if $(filter 1 yes true on,$(PERF_DC)),-DPERF_DC,)
+PERF_BPU_FLAGS = $(if $(filter 1 yes true on,$(PERF_BPU)),-DPERF_BPU -DPERF_MONI,)
 L2_PREFETCH_FLAGS = $(if $(filter 0 no false off,$(L2_PREFETCH)),-DCPU_DISABLE_L2_PREFETCH,)
 MDU_FLAGS = $(if $(filter 1 yes true on,$(MDU)),-DMDU=1,)
 TRACE_BUILD_FLAGS = $(if $(filter 1 yes true on,$(TRACE) $(PERF_MONI)),--trace-fst,)
@@ -72,8 +78,8 @@ else
 VSRC_project_rtl = $(VSRC_project_la_rtl)
 VSRC_sim_top = $(RTL_DIR)/verilator_top.v
 SIM_MODELS = $(VSRC_mycpu_env_sim)
-SV_FLAGS = -I$(VSRC_dpic) -I$(RTL_DIR) $(PERF_MONI_FLAGS) $(L2_PREFETCH_FLAGS) $(MDU_FLAGS) $(CONFIG_FLAGS)
-CPP_DEFINES = $(PERF_MONI_FLAGS) $(TRACE_CPP_FLAGS)
+SV_FLAGS = -I$(VSRC_dpic) -I$(RTL_DIR) $(PERF_MONI_FLAGS) $(PERF_IC_FLAGS) $(PERF_DC_FLAGS) $(PERF_BPU_FLAGS) $(L2_PREFETCH_FLAGS) $(MDU_FLAGS) $(CONFIG_FLAGS)
+CPP_DEFINES = $(PERF_MONI_FLAGS) $(PERF_IC_FLAGS) $(PERF_DC_FLAGS) $(PERF_BPU_FLAGS) $(TRACE_CPP_FLAGS)
 endif
 
 DPIC_C_SRC = $(CPU_HOME)/mycpu_env/myCPU/DPIC_C/src/*.cpp
@@ -140,10 +146,11 @@ CHIPLAB_FORWARD_OPTS = $(filter-out --run,$(CHIPLAB_OPTION_GOALS))
 CHIPLAB_RUN ?= $(if $(RUN),$(RUN),$(if $(RUN_SOFTWARE),$(RUN_SOFTWARE),$(firstword $(CHIPLAB_SOFTWARE_GOALS))))
 CHIPLAB_OPTS ?= --disable-trace-comp --disable-simu-trace
 CHIPLAB_CONFIG_ARGS ?= $(if $(CHIPLAB_RUN),--run $(CHIPLAB_RUN),) $(CHIPLAB_FORWARD_OPTS) $(CHIPLAB_OPTS)
-CHIPLAB_VFLAGS = $(strip $(PERF_MONI_FLAGS) $(L2_PREFETCH_FLAGS) $(MDU_FLAGS) $(CONFIG_FLAGS))
+CHIPLAB_VFLAGS = $(strip $(PERF_MONI_FLAGS) $(PERF_IC_FLAGS) $(PERF_DC_FLAGS) $(PERF_BPU_FLAGS) $(L2_PREFETCH_FLAGS) $(MDU_FLAGS) $(CONFIG_FLAGS))
 CHIPLAB_VFLAGS_ENV = $(if $(CHIPLAB_VFLAGS),VFLAGS="$(CHIPLAB_VFLAGS)",)
 CHIPLAB_MAKE_ARGS ?=
 CHIPLAB_MDU_COLLECT_ARG = MDU_COLLECT=$(MDU_COLLECT)
+CHIPLAB_PERF_ARGS = PERF_IC=$(PERF_IC) PERF_DC=$(PERF_DC) PERF_BPU=$(PERF_BPU)
 CHIPLAB_CPU ?= $(CPU_SELECT)
 CHIPLAB_SIM_DIR = $(CPU_HOME)/mycpu_env/myCPU/sim
 CHIPLAB_RTL_SRCS = $(filter-out $(RTL_DIR)/mycpu_top.v $(RTL_DIR)/verilator_top.v $(RTL_DIR)/verilator_top_la500.v,$(wildcard $(RTL_DIR)/*.v $(RTL_DIR)/*.vh))
@@ -240,11 +247,11 @@ chiplab-configure:
 
 chiplab-run: chiplab-configure
 	@$(MAKE) chiplab-sync-rtl
-	$(CHIPLAB_VFLAGS_ENV) $(MAKE) -C $(CHIPLAB_RUN_DIR) CHIPLAB_HOME=$(CHIPLAB_HOME) CHIPLAB_CPU=$(CHIPLAB_CPU) CHIPLAB_BUILD_JOBS=$(CHIPLAB_BUILD_JOBS) $(CHIPLAB_MDU_COLLECT_ARG) $(CHIPLAB_MAKE_ARGS)
+	$(CHIPLAB_VFLAGS_ENV) $(MAKE) -C $(CHIPLAB_RUN_DIR) CHIPLAB_HOME=$(CHIPLAB_HOME) CHIPLAB_CPU=$(CHIPLAB_CPU) CHIPLAB_BUILD_JOBS=$(CHIPLAB_BUILD_JOBS) $(CHIPLAB_MDU_COLLECT_ARG) $(CHIPLAB_PERF_ARGS) $(CHIPLAB_MAKE_ARGS)
 
 chiplab-smoke: chiplab-configure
 	@$(MAKE) chiplab-sync-rtl
-	$(CHIPLAB_VFLAGS_ENV) $(MAKE) -C $(CHIPLAB_RUN_DIR) CHIPLAB_HOME=$(CHIPLAB_HOME) CHIPLAB_CPU=$(CHIPLAB_CPU) CHIPLAB_BUILD_JOBS=$(CHIPLAB_BUILD_JOBS) $(CHIPLAB_MDU_COLLECT_ARG) compile soft $(CHIPLAB_MAKE_ARGS)
+	$(CHIPLAB_VFLAGS_ENV) $(MAKE) -C $(CHIPLAB_RUN_DIR) CHIPLAB_HOME=$(CHIPLAB_HOME) CHIPLAB_CPU=$(CHIPLAB_CPU) CHIPLAB_BUILD_JOBS=$(CHIPLAB_BUILD_JOBS) $(CHIPLAB_MDU_COLLECT_ARG) $(CHIPLAB_PERF_ARGS) compile soft $(CHIPLAB_MAKE_ARGS)
 
 chiplab-func-smoke:
 	$(MAKE) chiplab-run RUN="$(CHIPLAB_FUNC_SMOKE)" CHIPLAB_OPTS="$(CHIPLAB_SMOKE_OPTS) $(CHIPLAB_OPTS)" CHIPLAB_MAKE_ARGS="$(CHIPLAB_MAKE_ARGS)"
@@ -278,6 +285,8 @@ help:
 	@echo "                      # run timing flow with custom options"
 	@echo "  make configure RUN=hello_world"
 	@echo "                      # configure and run Chiplab Verilator simulation"
+	@echo "  make configure RUN=coremark PERF_IC=1 PERF_DC=1 PERF_BPU=1"
+	@echo "                      # print Chiplab ICache/DCache/BPU performance counters"
 	@echo "  make chiplab-smoke RUN=hello_world"
 	@echo "                      # compile Chiplab Verilator + software without running simulation"
 	@echo "  make chiplab-func-smoke"
