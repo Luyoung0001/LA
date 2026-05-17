@@ -139,13 +139,17 @@ CHIPLAB_FUNC_TESTS ?= func/func_lab3,func/func_lab4,func/func_lab6,func/func_lab
 CHIPLAB_FUNC_SMOKE ?= func/func_lab3
 CHIPLAB_PERF_TESTS ?= nscscc_perf/bitcount,nscscc_perf/bubble_sort,nscscc_perf/coremark,nscscc_perf/crc32,nscscc_perf/dhrystone,nscscc_perf/quick_sort,nscscc_perf/select_sort,nscscc_perf/sha,nscscc_perf/stream_copy,nscscc_perf/stringsearch,nscscc_perf/fireye_A0,nscscc_perf/fireye_B2,nscscc_perf/fireye_C0,nscscc_perf/fireye_D1,nscscc_perf/fireye_I2,nscscc_perf/inner_product,nscscc_perf/lookup_table,nscscc_perf/loop_induction,nscscc_perf/my_memcmp,nscscc_perf/minmax_sequence
 CHIPLAB_PERF_SMOKE ?= nscscc_perf/dhrystone
+CHIPLAB_LIGHTSSS ?= 1
+CHIPLAB_LIGHTSSS_OPTS ?= --dump-fst --fork-interval 1000 --slot-size 2 --wait-interval 5
+CHIPLAB_LIGHTSSS_MAKE_ARGS = $(if $(filter 1 yes true on,$(CHIPLAB_LIGHTSSS)),FORK_CHILD=1,)
 CHIPLAB_SMOKE_OPTS ?= --disable-trace-comp --disable-simu-trace
 CHIPLAB_SOFTWARE_GOALS = $(filter $(CHIPLAB_SOFTWARE_TARGETS),$(MAKECMDGOALS))
 CHIPLAB_OPTION_GOALS = $(filter --%,$(MAKECMDGOALS))
 CHIPLAB_FORWARD_OPTS = $(filter-out --run,$(CHIPLAB_OPTION_GOALS))
 CHIPLAB_RUN ?= $(if $(RUN),$(RUN),$(if $(RUN_SOFTWARE),$(RUN_SOFTWARE),$(firstword $(CHIPLAB_SOFTWARE_GOALS))))
 CHIPLAB_OPTS ?= --disable-trace-comp --disable-simu-trace
-CHIPLAB_CONFIG_ARGS ?= $(if $(CHIPLAB_RUN),--run $(CHIPLAB_RUN),) $(CHIPLAB_FORWARD_OPTS) $(CHIPLAB_OPTS)
+CHIPLAB_EFFECTIVE_OPTS = $(CHIPLAB_OPTS) $(if $(filter 1 yes true on,$(CHIPLAB_LIGHTSSS)),$(CHIPLAB_LIGHTSSS_OPTS),)
+CHIPLAB_CONFIG_ARGS ?= $(if $(CHIPLAB_RUN),--run $(CHIPLAB_RUN),) $(CHIPLAB_FORWARD_OPTS) $(CHIPLAB_EFFECTIVE_OPTS)
 CHIPLAB_VFLAGS = $(strip $(PERF_MONI_FLAGS) $(PERF_IC_FLAGS) $(PERF_DC_FLAGS) $(PERF_BPU_FLAGS) $(L2_PREFETCH_FLAGS) $(MDU_FLAGS) $(CONFIG_FLAGS))
 CHIPLAB_VFLAGS_ENV = $(if $(CHIPLAB_VFLAGS),VFLAGS="$(CHIPLAB_VFLAGS)",)
 CHIPLAB_MAKE_ARGS ?=
@@ -247,11 +251,11 @@ chiplab-configure:
 
 chiplab-run: chiplab-configure
 	@$(MAKE) chiplab-sync-rtl
-	$(CHIPLAB_VFLAGS_ENV) $(MAKE) -C $(CHIPLAB_RUN_DIR) CHIPLAB_HOME=$(CHIPLAB_HOME) CHIPLAB_CPU=$(CHIPLAB_CPU) CHIPLAB_BUILD_JOBS=$(CHIPLAB_BUILD_JOBS) $(CHIPLAB_MDU_COLLECT_ARG) $(CHIPLAB_PERF_ARGS) $(CHIPLAB_MAKE_ARGS)
+	$(CHIPLAB_VFLAGS_ENV) $(MAKE) -C $(CHIPLAB_RUN_DIR) CHIPLAB_HOME=$(CHIPLAB_HOME) CHIPLAB_CPU=$(CHIPLAB_CPU) CHIPLAB_BUILD_JOBS=$(CHIPLAB_BUILD_JOBS) $(CHIPLAB_MDU_COLLECT_ARG) $(CHIPLAB_PERF_ARGS) $(CHIPLAB_LIGHTSSS_MAKE_ARGS) $(CHIPLAB_MAKE_ARGS)
 
 chiplab-smoke: chiplab-configure
 	@$(MAKE) chiplab-sync-rtl
-	$(CHIPLAB_VFLAGS_ENV) $(MAKE) -C $(CHIPLAB_RUN_DIR) CHIPLAB_HOME=$(CHIPLAB_HOME) CHIPLAB_CPU=$(CHIPLAB_CPU) CHIPLAB_BUILD_JOBS=$(CHIPLAB_BUILD_JOBS) $(CHIPLAB_MDU_COLLECT_ARG) $(CHIPLAB_PERF_ARGS) compile soft $(CHIPLAB_MAKE_ARGS)
+	$(CHIPLAB_VFLAGS_ENV) $(MAKE) -C $(CHIPLAB_RUN_DIR) CHIPLAB_HOME=$(CHIPLAB_HOME) CHIPLAB_CPU=$(CHIPLAB_CPU) CHIPLAB_BUILD_JOBS=$(CHIPLAB_BUILD_JOBS) $(CHIPLAB_MDU_COLLECT_ARG) $(CHIPLAB_PERF_ARGS) $(CHIPLAB_LIGHTSSS_MAKE_ARGS) compile soft $(CHIPLAB_MAKE_ARGS)
 
 chiplab-func-smoke:
 	$(MAKE) chiplab-run RUN="$(CHIPLAB_FUNC_SMOKE)" CHIPLAB_OPTS="$(CHIPLAB_SMOKE_OPTS) $(CHIPLAB_OPTS)" CHIPLAB_MAKE_ARGS="$(CHIPLAB_MAKE_ARGS)"
@@ -287,6 +291,8 @@ help:
 	@echo "                      # configure and run Chiplab Verilator simulation"
 	@echo "  make configure RUN=coremark PERF_IC=1 PERF_DC=1 PERF_BPU=1"
 	@echo "                      # print Chiplab ICache/DCache/BPU performance counters"
+	@echo "  make configure RUN=linux CHIPLAB_LIGHTSSS=0"
+	@echo "                      # disable default Chiplab lightSSS fork waveform mode"
 	@echo "  make chiplab-smoke RUN=hello_world"
 	@echo "                      # compile Chiplab Verilator + software without running simulation"
 	@echo "  make chiplab-func-smoke"
