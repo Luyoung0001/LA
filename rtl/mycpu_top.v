@@ -87,6 +87,21 @@ module core_top #(
     output wire        bpu_perf_is_ret_jirl,
     output wire        bpu_perf_is_indirect_jirl,
 `endif
+`ifdef PERF_IC
+    output wire        perf_ic_access,
+    output wire        perf_ic_hit,
+    output wire        perf_ic_miss,
+    output wire        perf_ic_refill,
+`endif
+`ifdef PERF_DC
+    output wire        perf_dc_access,
+    output wire        perf_dc_read,
+    output wire        perf_dc_write,
+    output wire        perf_dc_hit,
+    output wire        perf_dc_miss,
+    output wire        perf_dc_refill,
+    output wire        perf_dc_evict,
+`endif
 
     output wire [31:0] debug1_wb_pc,
     output wire [3:0]  debug1_wb_rf_wen,
@@ -384,6 +399,23 @@ module core_top #(
         .bresp             (bresp),
         .bvalid            (bvalid),
         .bready            (bready)
+`ifdef PERF_IC
+        ,
+        .perf_ic_access    (perf_ic_access),
+        .perf_ic_hit       (perf_ic_hit),
+        .perf_ic_miss      (perf_ic_miss),
+        .perf_ic_refill    (perf_ic_refill)
+`endif
+`ifdef PERF_DC
+        ,
+        .perf_dc_access    (perf_dc_access),
+        .perf_dc_read      (perf_dc_read),
+        .perf_dc_write     (perf_dc_write),
+        .perf_dc_hit       (perf_dc_hit),
+        .perf_dc_miss      (perf_dc_miss),
+        .perf_dc_refill    (perf_dc_refill),
+        .perf_dc_evict     (perf_dc_evict)
+`endif
     );
 
     assign ws_valid           = commit_ws_valid_w;
@@ -499,6 +531,23 @@ module mycpu_top (
     output wire [3:0]  debug1_wb_rf_we,
     output wire [4:0]  debug1_wb_rf_wnum,
     output wire [31:0] debug1_wb_rf_wdata
+`ifdef PERF_IC
+    ,
+    output wire        perf_ic_access,
+    output wire        perf_ic_hit,
+    output wire        perf_ic_miss,
+    output wire        perf_ic_refill
+`endif
+`ifdef PERF_DC
+    ,
+    output wire        perf_dc_access,
+    output wire        perf_dc_read,
+    output wire        perf_dc_write,
+    output wire        perf_dc_hit,
+    output wire        perf_dc_miss,
+    output wire        perf_dc_refill,
+    output wire        perf_dc_evict
+`endif
 );
 
     wire [31:0] debug_wb_inst_unused;
@@ -597,6 +646,23 @@ module mycpu_top (
         .debug1_wb_rf_wen   (debug1_wb_rf_we),
         .debug1_wb_rf_wnum  (debug1_wb_rf_wnum),
         .debug1_wb_rf_wdata (debug1_wb_rf_wdata)
+`ifdef PERF_IC
+        ,
+        .perf_ic_access     (perf_ic_access),
+        .perf_ic_hit        (perf_ic_hit),
+        .perf_ic_miss       (perf_ic_miss),
+        .perf_ic_refill     (perf_ic_refill)
+`endif
+`ifdef PERF_DC
+        ,
+        .perf_dc_access     (perf_dc_access),
+        .perf_dc_read       (perf_dc_read),
+        .perf_dc_write      (perf_dc_write),
+        .perf_dc_hit        (perf_dc_hit),
+        .perf_dc_miss       (perf_dc_miss),
+        .perf_dc_refill     (perf_dc_refill),
+        .perf_dc_evict      (perf_dc_evict)
+`endif
     );
 
 endmodule

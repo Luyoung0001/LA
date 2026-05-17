@@ -92,6 +92,13 @@ module cpu_l1_icache #(
     input  wire [XLEN-1:0] l2_pf_resp_data_i_1,
     input  wire [XLEN-1:0] l2_pf_resp_data_i_2,
     input  wire [XLEN-1:0] l2_pf_resp_data_i_3
+`ifdef PERF_IC
+    ,
+    output wire            perf_ic_access,
+    output wire            perf_ic_hit,
+    output wire            perf_ic_miss,
+    output wire            perf_ic_refill
+`endif
 );
 
     localparam INDEX_WIDTH    = $clog2(NUM_LINES);                 // 7
@@ -2011,6 +2018,14 @@ module cpu_l1_icache #(
         replay_lookup_fire_w ? resp_addr_q[resp_rd_ptr_q] : req_addr_i;
     wire [RESP_PTR_W-1:0] lookup_issue_slot_w =
         replay_lookup_fire_w ? resp_rd_ptr_q : req_resp_slot_w;
+
+`ifdef PERF_IC
+    assign perf_ic_access = req_fastbuf_fire_w || lookup_hit_complete_w ||
+                            lookup_miss_w;
+    assign perf_ic_hit    = req_fastbuf_fire_w || lookup_hit_complete_w;
+    assign perf_ic_miss   = lookup_miss_w;
+    assign perf_ic_refill = miss_complete_w;
+`endif
 
     wire [XLEN-1:0] linebuf_base_addr =
         {linebuf_tag_q, linebuf_idx_q, {OFFSET_WIDTH{1'b0}}};

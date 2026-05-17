@@ -20,6 +20,16 @@ module la_l1d_adapter (
     input  wire        axi_req_ready,
     input  wire        axi_resp_valid,
     input  wire [31:0] axi_resp_rdata
+`ifdef PERF_DC
+    ,
+    output wire        perf_dc_access,
+    output wire        perf_dc_read,
+    output wire        perf_dc_write,
+    output wire        perf_dc_hit,
+    output wire        perf_dc_miss,
+    output wire        perf_dc_refill,
+    output wire        perf_dc_evict
+`endif
 );
 
     // Decode store size and byte offset from wstrb.
@@ -82,6 +92,16 @@ module la_l1d_adapter (
         .l2_wr_valid_o(l2_wr_valid_w), .l2_wr_addr_o(l2_wr_addr_w),
         .l2_wr_data_o(l2_wr_data_w), .l2_wr_strb_o(l2_wr_strb_w),
         .l2_wr_ready_i(l2_wr_ready_w), .l2_wr_done_i(l2_wr_done_r)
+`ifdef PERF_DC
+        ,
+        .perf_dc_access(perf_dc_access),
+        .perf_dc_read  (perf_dc_read),
+        .perf_dc_write (perf_dc_write),
+        .perf_dc_hit   (perf_dc_hit),
+        .perf_dc_miss  (perf_dc_miss),
+        .perf_dc_refill(perf_dc_refill),
+        .perf_dc_evict (perf_dc_evict)
+`endif
     );
 
     // L2 read/write → AXI adapter (line fill + store writeback)

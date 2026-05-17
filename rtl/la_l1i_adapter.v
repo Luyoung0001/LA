@@ -17,6 +17,13 @@ module la_l1i_adapter (
     input  wire        axi_req_ready,
     input  wire        axi_resp_valid,
     input  wire [31:0] axi_resp_data
+`ifdef PERF_IC
+    ,
+    output wire        perf_ic_access,
+    output wire        perf_ic_hit,
+    output wire        perf_ic_miss,
+    output wire        perf_ic_refill
+`endif
 );
 
     localparam [1:0] FILL_IDLE = 2'd0;
@@ -144,6 +151,13 @@ module la_l1i_adapter (
         .l2_pf_resp_addr_i(32'b0),
         .l2_pf_resp_data_i_0(32'b0), .l2_pf_resp_data_i_1(32'b0),
         .l2_pf_resp_data_i_2(32'b0), .l2_pf_resp_data_i_3(32'b0)
+`ifdef PERF_IC
+        ,
+        .perf_ic_access(perf_ic_access),
+        .perf_ic_hit   (perf_ic_hit),
+        .perf_ic_miss  (perf_ic_miss),
+        .perf_ic_refill(perf_ic_refill)
+`endif
     );
 
     always @(posedge clk) begin

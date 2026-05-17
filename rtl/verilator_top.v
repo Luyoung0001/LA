@@ -46,6 +46,21 @@ module verilator_top(
     wire        bpu_perf_is_ret_jirl/* verilator public */;
     wire        bpu_perf_is_indirect_jirl/* verilator public */;
 `endif
+`ifdef PERF_IC
+    wire        perf_ic_access/* verilator public */;
+    wire        perf_ic_hit/* verilator public */;
+    wire        perf_ic_miss/* verilator public */;
+    wire        perf_ic_refill/* verilator public */;
+`endif
+`ifdef PERF_DC
+    wire        perf_dc_access/* verilator public */;
+    wire        perf_dc_read/* verilator public */;
+    wire        perf_dc_write/* verilator public */;
+    wire        perf_dc_hit/* verilator public */;
+    wire        perf_dc_miss/* verilator public */;
+    wire        perf_dc_refill/* verilator public */;
+    wire        perf_dc_evict/* verilator public */;
+`endif
     // wire debug_wb_is_csr_wr_o/* verilator public */;
     // wire debug_has_refetch_excp_o/* verilator public */;
     // wire [31:0] csr_crmd_diff/* verilator public */;
@@ -227,6 +242,23 @@ module verilator_top(
                       .bpu_perf_is_jirl(bpu_perf_is_jirl),
                       .bpu_perf_is_ret_jirl(bpu_perf_is_ret_jirl),
                       .bpu_perf_is_indirect_jirl(bpu_perf_is_indirect_jirl)
+`endif
+`ifdef PERF_IC
+                      ,
+                      .perf_ic_access     (perf_ic_access),
+                      .perf_ic_hit        (perf_ic_hit),
+                      .perf_ic_miss       (perf_ic_miss),
+                      .perf_ic_refill     (perf_ic_refill)
+`endif
+`ifdef PERF_DC
+                      ,
+                      .perf_dc_access     (perf_dc_access),
+                      .perf_dc_read       (perf_dc_read),
+                      .perf_dc_write      (perf_dc_write),
+                      .perf_dc_hit        (perf_dc_hit),
+                      .perf_dc_miss       (perf_dc_miss),
+                      .perf_dc_refill     (perf_dc_refill),
+                      .perf_dc_evict      (perf_dc_evict)
 `endif
 	                //   .debug_wb_is_csr_wr_o (debug_wb_is_csr_wr_o),
                 //   .debug_has_refetch_excp_o(debug_has_refetch_excp_o),

@@ -57,6 +57,16 @@ module cpu_l1_dcache #(
     output wire [3:0]      l2_wr_strb_o,
     input  wire            l2_wr_ready_i,
     input  wire            l2_wr_done_i
+`ifdef PERF_DC
+    ,
+    output wire            perf_dc_access,
+    output wire            perf_dc_read,
+    output wire            perf_dc_write,
+    output wire            perf_dc_hit,
+    output wire            perf_dc_miss,
+    output wire            perf_dc_refill,
+    output wire            perf_dc_evict
+`endif
 );
 
     localparam INDEX_WIDTH    = $clog2(NUM_LINES);                 // 7
@@ -257,6 +267,10 @@ module cpu_l1_dcache #(
     wire cached_store_complete_w =
         (state_q == ST_STORE) && !req_uncached_q && storeq_has_space_w;
     assign store_en = cached_store_complete_w && cache_hit;
+    wire cached_load_miss_w =
+        (state_q == ST_LOAD_CHK) && !req_uncached_q && !cache_hit &&
+        !load_wait_store_order_w;
+    wire refill_evict_w = refill_en && tag_bram_rd[replace_way_q][TAG_WIDTH];
 
     wire uncached_wr_valid_w =
         (state_q == ST_STORE) && req_uncached_q && !store_issued_q &&
@@ -288,6 +302,23 @@ module cpu_l1_dcache #(
         (lk_word_off == 2'd0) ? l2_resp_data_i_0 :
         (lk_word_off == 2'd1) ? l2_resp_data_i_1 :
         (lk_word_off == 2'd2) ? l2_resp_data_i_2 : l2_resp_data_i_3;
+
+`ifdef PERF_DC
+    wire perf_dc_cached_load_lookup_w =
+        (state_q == ST_LOAD_CHK) && !req_uncached_q && !load_wait_store_order_w;
+    wire perf_dc_cached_store_lookup_w =
+        (state_q == ST_STORE) && !req_uncached_q && storeq_has_space_w;
+    assign perf_dc_access = perf_dc_cached_load_lookup_w ||
+                            perf_dc_cached_store_lookup_w;
+    assign perf_dc_read   = perf_dc_cached_load_lookup_w;
+    assign perf_dc_write  = perf_dc_cached_store_lookup_w;
+    assign perf_dc_hit    = load_hit_resp_w ||
+                            (perf_dc_cached_store_lookup_w && cache_hit);
+    assign perf_dc_miss   = cached_load_miss_w ||
+                            (perf_dc_cached_store_lookup_w && !cache_hit);
+    assign perf_dc_refill = refill_en;
+    assign perf_dc_evict  = refill_evict_w;
+`endif
 
     genvar gw, gb;
     generate

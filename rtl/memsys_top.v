@@ -69,6 +69,23 @@ module memsys_top #(
     input  wire [1:0]  bresp,
     input  wire        bvalid,
     output wire        bready
+`ifdef PERF_IC
+    ,
+    output wire        perf_ic_access,
+    output wire        perf_ic_hit,
+    output wire        perf_ic_miss,
+    output wire        perf_ic_refill
+`endif
+`ifdef PERF_DC
+    ,
+    output wire        perf_dc_access,
+    output wire        perf_dc_read,
+    output wire        perf_dc_write,
+    output wire        perf_dc_hit,
+    output wire        perf_dc_miss,
+    output wire        perf_dc_refill,
+    output wire        perf_dc_evict
+`endif
 );
 
     localparam [2:0] AXI_IDLE = 3'd0;
@@ -171,6 +188,33 @@ module memsys_top #(
     reg [31:0] dwr_wdata_r;
     reg [3:0]  dwr_wstrb_r;
 
+`ifdef PERF_IC
+    wire l1i_perf_ic_access_w;
+    wire l1i_perf_ic_hit_w;
+    wire l1i_perf_ic_miss_w;
+    wire l1i_perf_ic_refill_w;
+    assign perf_ic_access = (L1I_ENABLE != 0) ? l1i_perf_ic_access_w : 1'b0;
+    assign perf_ic_hit    = (L1I_ENABLE != 0) ? l1i_perf_ic_hit_w    : 1'b0;
+    assign perf_ic_miss   = (L1I_ENABLE != 0) ? l1i_perf_ic_miss_w   : 1'b0;
+    assign perf_ic_refill = (L1I_ENABLE != 0) ? l1i_perf_ic_refill_w : 1'b0;
+`endif
+`ifdef PERF_DC
+    wire l1d_perf_dc_access_w;
+    wire l1d_perf_dc_read_w;
+    wire l1d_perf_dc_write_w;
+    wire l1d_perf_dc_hit_w;
+    wire l1d_perf_dc_miss_w;
+    wire l1d_perf_dc_refill_w;
+    wire l1d_perf_dc_evict_w;
+    assign perf_dc_access = (L1D_ENABLE != 0) ? l1d_perf_dc_access_w : 1'b0;
+    assign perf_dc_read   = (L1D_ENABLE != 0) ? l1d_perf_dc_read_w   : 1'b0;
+    assign perf_dc_write  = (L1D_ENABLE != 0) ? l1d_perf_dc_write_w  : 1'b0;
+    assign perf_dc_hit    = (L1D_ENABLE != 0) ? l1d_perf_dc_hit_w    : 1'b0;
+    assign perf_dc_miss   = (L1D_ENABLE != 0) ? l1d_perf_dc_miss_w   : 1'b0;
+    assign perf_dc_refill = (L1D_ENABLE != 0) ? l1d_perf_dc_refill_w : 1'b0;
+    assign perf_dc_evict  = (L1D_ENABLE != 0) ? l1d_perf_dc_evict_w  : 1'b0;
+`endif
+
     generate
         if (L1I_ENABLE != 0) begin : gen_l1i_enabled
             la_l1i_adapter u_l1i_adapter (
@@ -190,8 +234,21 @@ module memsys_top #(
                 .axi_req_ready (icache_axi_req_ready_w),
                 .axi_resp_valid(icache_axi_resp_valid_w),
                 .axi_resp_data (icache_axi_resp_data_w)
+`ifdef PERF_IC
+                ,
+                .perf_ic_access(l1i_perf_ic_access_w),
+                .perf_ic_hit   (l1i_perf_ic_hit_w),
+                .perf_ic_miss  (l1i_perf_ic_miss_w),
+                .perf_ic_refill(l1i_perf_ic_refill_w)
+`endif
             );
         end else begin : gen_l1i_disabled
+`ifdef PERF_IC
+            assign l1i_perf_ic_access_w = 1'b0;
+            assign l1i_perf_ic_hit_w    = 1'b0;
+            assign l1i_perf_ic_miss_w   = 1'b0;
+            assign l1i_perf_ic_refill_w = 1'b0;
+`endif
             icache_stub u_icache_stub (
                 .clk           (clk),
                 .reset         (reset),
@@ -232,8 +289,27 @@ module memsys_top #(
                 .axi_req_ready (dcache_axi_req_ready_w),
                 .axi_resp_valid(dcache_axi_resp_valid_w),
                 .axi_resp_rdata(dcache_axi_resp_data_w)
+`ifdef PERF_DC
+                ,
+                .perf_dc_access(l1d_perf_dc_access_w),
+                .perf_dc_read  (l1d_perf_dc_read_w),
+                .perf_dc_write (l1d_perf_dc_write_w),
+                .perf_dc_hit   (l1d_perf_dc_hit_w),
+                .perf_dc_miss  (l1d_perf_dc_miss_w),
+                .perf_dc_refill(l1d_perf_dc_refill_w),
+                .perf_dc_evict (l1d_perf_dc_evict_w)
+`endif
             );
         end else begin : gen_l1d_disabled
+`ifdef PERF_DC
+            assign l1d_perf_dc_access_w = 1'b0;
+            assign l1d_perf_dc_read_w   = 1'b0;
+            assign l1d_perf_dc_write_w  = 1'b0;
+            assign l1d_perf_dc_hit_w    = 1'b0;
+            assign l1d_perf_dc_miss_w   = 1'b0;
+            assign l1d_perf_dc_refill_w = 1'b0;
+            assign l1d_perf_dc_evict_w  = 1'b0;
+`endif
             dcache_stub u_dcache_stub (
                 .clk           (clk),
                 .reset         (reset),
