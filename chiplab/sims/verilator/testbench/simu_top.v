@@ -47,6 +47,43 @@ module simu_top
     output [  4             :0] debug1_wb_rf_wnum ,
     output [CPU_WIDTH-1     :0] debug1_wb_rf_wdata
     `endif
+
+    `ifdef PERF_BPU
+    ,
+    output                      bpu_perf_valid,
+    output                      bpu_perf_is_branch,
+    output                      bpu_perf_is_jump,
+    output [31:0]               bpu_perf_pc,
+    output                      bpu_perf_pred_taken,
+    output                      bpu_perf_actual_taken,
+    output                      bpu_perf_correct,
+    output                      bpu_perf_direction_miss,
+    output                      bpu_perf_target_miss,
+    output                      bpu_perf_exu_flush,
+    output                      bpu_perf_is_direct_jump,
+    output                      bpu_perf_is_jirl,
+    output                      bpu_perf_is_ret_jirl,
+    output                      bpu_perf_is_indirect_jirl
+    `endif
+
+    `ifdef PERF_IC
+    ,
+    output                      perf_ic_access,
+    output                      perf_ic_hit,
+    output                      perf_ic_miss,
+    output                      perf_ic_refill
+    `endif
+
+    `ifdef PERF_DC
+    ,
+    output                      perf_dc_access,
+    output                      perf_dc_read,
+    output                      perf_dc_write,
+    output                      perf_dc_hit,
+    output                      perf_dc_miss,
+    output                      perf_dc_refill,
+    output                      perf_dc_evict
+    `endif
     
     ,
 
@@ -108,6 +145,43 @@ soc_top #(
     .debug0_wb_rf_wen  (debug0_wb_rf_wen  ),// O, 4  
     .debug0_wb_rf_wnum (debug0_wb_rf_wnum ),// O, 5  
     .debug0_wb_rf_wdata(debug0_wb_rf_wdata) // O, 64 
+
+    `ifdef PERF_BPU
+    ,
+    .bpu_perf_valid     (bpu_perf_valid),
+    .bpu_perf_is_branch (bpu_perf_is_branch),
+    .bpu_perf_is_jump   (bpu_perf_is_jump),
+    .bpu_perf_pc        (bpu_perf_pc),
+    .bpu_perf_pred_taken(bpu_perf_pred_taken),
+    .bpu_perf_actual_taken(bpu_perf_actual_taken),
+    .bpu_perf_correct   (bpu_perf_correct),
+    .bpu_perf_direction_miss(bpu_perf_direction_miss),
+    .bpu_perf_target_miss(bpu_perf_target_miss),
+    .bpu_perf_exu_flush (bpu_perf_exu_flush),
+    .bpu_perf_is_direct_jump(bpu_perf_is_direct_jump),
+    .bpu_perf_is_jirl(bpu_perf_is_jirl),
+    .bpu_perf_is_ret_jirl(bpu_perf_is_ret_jirl),
+    .bpu_perf_is_indirect_jirl(bpu_perf_is_indirect_jirl)
+    `endif
+
+    `ifdef PERF_IC
+    ,
+    .perf_ic_access    (perf_ic_access),
+    .perf_ic_hit       (perf_ic_hit),
+    .perf_ic_miss      (perf_ic_miss),
+    .perf_ic_refill    (perf_ic_refill)
+    `endif
+
+    `ifdef PERF_DC
+    ,
+    .perf_dc_access    (perf_dc_access),
+    .perf_dc_read      (perf_dc_read),
+    .perf_dc_write     (perf_dc_write),
+    .perf_dc_hit       (perf_dc_hit),
+    .perf_dc_miss      (perf_dc_miss),
+    .perf_dc_refill    (perf_dc_refill),
+    .perf_dc_evict     (perf_dc_evict)
+    `endif
 
     `ifdef CPU_2CMT
     ,

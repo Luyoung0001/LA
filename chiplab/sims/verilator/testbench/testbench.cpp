@@ -2,6 +2,16 @@
 #include "testbench.h"
 #include <chrono>
 
+#if defined(PERF_IC) || defined(PERF_DC) || defined(PERF_BPU)
+namespace {
+
+double percent(unsigned long long value, unsigned long long total) {
+    return total == 0 ? 0.0 : 100.0 * (double)value / (double)total;
+}
+
+}  // namespace
+#endif
+
 CpuTestbench::CpuTestbench(int argc, char **argv, char **env, vluint64_t *main_time) : CpuTool(nullptr) {
     m_trace = NULL;
     this->parse_args(argc, argv, env);
@@ -84,6 +94,136 @@ void CpuTestbench::display_exit_cause(vluint64_t& main_time,int emask) {
         fprintf(stderr,"Reached fork forwar(error point + 10 clk).\n");
     }
 }
+
+#if defined(PERF_IC) || defined(PERF_DC) || defined(PERF_BPU)
+void CpuTestbench::sample_perf() {
+#ifdef PERF_IC
+    perf_ic_access += top->perf_ic_access;
+    perf_ic_hit    += top->perf_ic_hit;
+    perf_ic_miss   += top->perf_ic_miss;
+    perf_ic_refill += top->perf_ic_refill;
+#endif
+
+#ifdef PERF_DC
+    perf_dc_access += top->perf_dc_access;
+    perf_dc_read   += top->perf_dc_read;
+    perf_dc_write  += top->perf_dc_write;
+    perf_dc_hit    += top->perf_dc_hit;
+    perf_dc_miss   += top->perf_dc_miss;
+    perf_dc_refill += top->perf_dc_refill;
+    perf_dc_evict  += top->perf_dc_evict;
+#endif
+
+#ifdef PERF_BPU
+    if (top->bpu_perf_valid) {
+        bool is_branch = top->bpu_perf_is_branch;
+        bool is_jump = top->bpu_perf_is_jump;
+        bool is_direct_jump = top->bpu_perf_is_direct_jump;
+        bool is_jirl = top->bpu_perf_is_jirl;
+        bool is_ret_jirl = top->bpu_perf_is_ret_jirl;
+        bool is_indirect_jirl = top->bpu_perf_is_indirect_jirl;
+        bool correct = top->bpu_perf_correct;
+        bool direction_miss = top->bpu_perf_direction_miss;
+        bool target_miss = top->bpu_perf_target_miss;
+
+        perf_bpu_resolve++;
+        perf_bpu_branch += is_branch;
+        perf_bpu_jump += is_jump;
+        perf_bpu_pred_taken += top->bpu_perf_pred_taken;
+        perf_bpu_actual_taken += top->bpu_perf_actual_taken;
+        perf_bpu_correct += correct;
+        perf_bpu_wrong += !correct;
+        perf_bpu_direction_miss += direction_miss;
+        perf_bpu_target_miss += target_miss;
+        perf_bpu_exu_flush += top->bpu_perf_exu_flush;
+
+        perf_bpu_branch_correct += is_branch && correct;
+        perf_bpu_jump_correct += is_jump && correct;
+        perf_bpu_branch_direction_miss += is_branch && direction_miss;
+        perf_bpu_jump_direction_miss += is_jump && direction_miss;
+        perf_bpu_branch_target_miss += is_branch && target_miss;
+        perf_bpu_jump_target_miss += is_jump && target_miss;
+
+        perf_bpu_direct_jump += is_direct_jump;
+        perf_bpu_direct_jump_correct += is_direct_jump && correct;
+        perf_bpu_direct_jump_direction_miss += is_direct_jump && direction_miss;
+        perf_bpu_direct_jump_target_miss += is_direct_jump && target_miss;
+
+        perf_bpu_jirl += is_jirl;
+        perf_bpu_jirl_correct += is_jirl && correct;
+        perf_bpu_jirl_direction_miss += is_jirl && direction_miss;
+        perf_bpu_jirl_target_miss += is_jirl && target_miss;
+
+        perf_bpu_ret_jirl += is_ret_jirl;
+        perf_bpu_ret_jirl_correct += is_ret_jirl && correct;
+        perf_bpu_ret_jirl_direction_miss += is_ret_jirl && direction_miss;
+        perf_bpu_ret_jirl_target_miss += is_ret_jirl && target_miss;
+
+        perf_bpu_indirect_jirl += is_indirect_jirl;
+        perf_bpu_indirect_jirl_correct += is_indirect_jirl && correct;
+        perf_bpu_indirect_jirl_direction_miss += is_indirect_jirl && direction_miss;
+        perf_bpu_indirect_jirl_target_miss += is_indirect_jirl && target_miss;
+    }
+#endif
+}
+
+void CpuTestbench::print_perf() const {
+#ifdef PERF_IC
+    printf("Biloong ICache:\n");
+    printf("  access=%llu hit=%llu miss=%llu refill=%llu hit_rate=%.2f%%\n",
+           perf_ic_access, perf_ic_hit, perf_ic_miss, perf_ic_refill,
+           percent(perf_ic_hit, perf_ic_access));
+#endif
+
+#ifdef PERF_DC
+    printf("Biloong DCache:\n");
+    printf("  access=%llu read=%llu write=%llu hit=%llu miss=%llu refill=%llu evict=%llu hit_rate=%.2f%% read_rate=%.2f%% write_rate=%.2f%%\n",
+           perf_dc_access, perf_dc_read, perf_dc_write, perf_dc_hit,
+           perf_dc_miss, perf_dc_refill, perf_dc_evict,
+           percent(perf_dc_hit, perf_dc_access),
+           percent(perf_dc_read, perf_dc_access),
+           percent(perf_dc_write, perf_dc_access));
+#endif
+
+#ifdef PERF_BPU
+    printf("Biloong BPU:\n");
+    printf("  resolve=%llu branch=%llu jump=%llu correct=%llu wrong=%llu accuracy=%.2f%% pred_taken=%llu actual_taken=%llu\n",
+           perf_bpu_resolve, perf_bpu_branch, perf_bpu_jump,
+           perf_bpu_correct, perf_bpu_wrong,
+           percent(perf_bpu_correct, perf_bpu_resolve),
+           perf_bpu_pred_taken, perf_bpu_actual_taken);
+    printf("  miss: direction=%llu target=%llu exu_flush=%llu\n",
+           perf_bpu_direction_miss, perf_bpu_target_miss,
+           perf_bpu_exu_flush);
+    printf("  branch: total=%llu correct=%llu accuracy=%.2f%% direction_miss=%llu target_miss=%llu\n",
+           perf_bpu_branch, perf_bpu_branch_correct,
+           percent(perf_bpu_branch_correct, perf_bpu_branch),
+           perf_bpu_branch_direction_miss, perf_bpu_branch_target_miss);
+    printf("  jump: total=%llu correct=%llu accuracy=%.2f%% direction_miss=%llu target_miss=%llu\n",
+           perf_bpu_jump, perf_bpu_jump_correct,
+           percent(perf_bpu_jump_correct, perf_bpu_jump),
+           perf_bpu_jump_direction_miss, perf_bpu_jump_target_miss);
+    printf("  direct_jump: total=%llu correct=%llu accuracy=%.2f%% direction_miss=%llu target_miss=%llu\n",
+           perf_bpu_direct_jump, perf_bpu_direct_jump_correct,
+           percent(perf_bpu_direct_jump_correct, perf_bpu_direct_jump),
+           perf_bpu_direct_jump_direction_miss,
+           perf_bpu_direct_jump_target_miss);
+    printf("  jirl: total=%llu correct=%llu accuracy=%.2f%% direction_miss=%llu target_miss=%llu\n",
+           perf_bpu_jirl, perf_bpu_jirl_correct,
+           percent(perf_bpu_jirl_correct, perf_bpu_jirl),
+           perf_bpu_jirl_direction_miss, perf_bpu_jirl_target_miss);
+    printf("  ret_jirl: total=%llu correct=%llu accuracy=%.2f%% direction_miss=%llu target_miss=%llu\n",
+           perf_bpu_ret_jirl, perf_bpu_ret_jirl_correct,
+           percent(perf_bpu_ret_jirl_correct, perf_bpu_ret_jirl),
+           perf_bpu_ret_jirl_direction_miss, perf_bpu_ret_jirl_target_miss);
+    printf("  indirect_jirl: total=%llu correct=%llu accuracy=%.2f%% direction_miss=%llu target_miss=%llu\n",
+           perf_bpu_indirect_jirl, perf_bpu_indirect_jirl_correct,
+           percent(perf_bpu_indirect_jirl_correct, perf_bpu_indirect_jirl),
+           perf_bpu_indirect_jirl_direction_miss,
+           perf_bpu_indirect_jirl_target_miss);
+#endif
+}
+#endif
 
 long long inst_total = 0;
 
@@ -252,6 +392,9 @@ void CpuTestbench::simulate(vluint64_t& main_time) {
     printf("total clock \t\tis %lld\n", clock_total);
     printf("total instruction \tis %lld\n", inst_total);
     printf("instruction per cycle\tis %lf\n", (double) inst_total / clock_total);
+#if defined(PERF_IC) || defined(PERF_DC) || defined(PERF_BPU)
+    print_perf();
+#endif
     printf("simulation time \tis %lf s\n", std::chrono::nanoseconds(end-start).count() / 1000000000.0);
     printf("difftest time \t\tis %lf s\n", diff_nano_seconds.count() / 1000000000.0);
     printf("nemu_step time \t\tis %lf s\n", nemu_nano_seconds.count() / 1000000000.0);

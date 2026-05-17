@@ -23,6 +23,40 @@ module soc_top#(
     output wire [4 :0]          debug1_wb_rf_wnum ,
     `endif
 
+    `ifdef PERF_BPU
+    output wire                 bpu_perf_valid,
+    output wire                 bpu_perf_is_branch,
+    output wire                 bpu_perf_is_jump,
+    output wire [31:0]          bpu_perf_pc,
+    output wire                 bpu_perf_pred_taken,
+    output wire                 bpu_perf_actual_taken,
+    output wire                 bpu_perf_correct,
+    output wire                 bpu_perf_direction_miss,
+    output wire                 bpu_perf_target_miss,
+    output wire                 bpu_perf_exu_flush,
+    output wire                 bpu_perf_is_direct_jump,
+    output wire                 bpu_perf_is_jirl,
+    output wire                 bpu_perf_is_ret_jirl,
+    output wire                 bpu_perf_is_indirect_jirl,
+    `endif
+
+    `ifdef PERF_IC
+    output wire                 perf_ic_access,
+    output wire                 perf_ic_hit,
+    output wire                 perf_ic_miss,
+    output wire                 perf_ic_refill,
+    `endif
+
+    `ifdef PERF_DC
+    output wire                 perf_dc_access,
+    output wire                 perf_dc_read,
+    output wire                 perf_dc_write,
+    output wire                 perf_dc_hit,
+    output wire                 perf_dc_miss,
+    output wire                 perf_dc_refill,
+    output wire                 perf_dc_evict,
+    `endif
+
     //------gpio----------------
     output [15:0] led,
     output [1 :0] led_rg0,
@@ -424,6 +458,96 @@ core_top cpu
     .debug0_excp_ecode (cpu_debug0_excp_ecode ),// O, 6
     .debug0_intr_no    (cpu_debug0_intr_no    ),// O, 11
     .debug0_ertn_valid (cpu_debug0_ertn_valid ) // O, 1
+    `ifdef PERF_MONI
+    ,
+    .bpu_perf_valid     (
+`ifdef PERF_BPU
+        bpu_perf_valid
+`endif
+    ),
+    .bpu_perf_is_branch (
+`ifdef PERF_BPU
+        bpu_perf_is_branch
+`endif
+    ),
+    .bpu_perf_is_jump   (
+`ifdef PERF_BPU
+        bpu_perf_is_jump
+`endif
+    ),
+    .bpu_perf_pc        (
+`ifdef PERF_BPU
+        bpu_perf_pc
+`endif
+    ),
+    .bpu_perf_pred_taken(
+`ifdef PERF_BPU
+        bpu_perf_pred_taken
+`endif
+    ),
+    .bpu_perf_actual_taken(
+`ifdef PERF_BPU
+        bpu_perf_actual_taken
+`endif
+    ),
+    .bpu_perf_correct   (
+`ifdef PERF_BPU
+        bpu_perf_correct
+`endif
+    ),
+    .bpu_perf_direction_miss(
+`ifdef PERF_BPU
+        bpu_perf_direction_miss
+`endif
+    ),
+    .bpu_perf_target_miss(
+`ifdef PERF_BPU
+        bpu_perf_target_miss
+`endif
+    ),
+    .bpu_perf_exu_flush (
+`ifdef PERF_BPU
+        bpu_perf_exu_flush
+`endif
+    ),
+    .bpu_perf_is_direct_jump(
+`ifdef PERF_BPU
+        bpu_perf_is_direct_jump
+`endif
+    ),
+    .bpu_perf_is_jirl(
+`ifdef PERF_BPU
+        bpu_perf_is_jirl
+`endif
+    ),
+    .bpu_perf_is_ret_jirl(
+`ifdef PERF_BPU
+        bpu_perf_is_ret_jirl
+`endif
+    ),
+    .bpu_perf_is_indirect_jirl(
+`ifdef PERF_BPU
+        bpu_perf_is_indirect_jirl
+`endif
+    )
+    `endif
+    `ifdef PERF_IC
+    ,
+    .perf_ic_access    (perf_ic_access),
+    .perf_ic_hit       (perf_ic_hit),
+    .perf_ic_miss      (perf_ic_miss),
+    .perf_ic_refill    (perf_ic_refill)
+    `endif
+    `ifdef PERF_DC
+    ,
+    .perf_dc_access    (perf_dc_access),
+    .perf_dc_read      (perf_dc_read),
+    .perf_dc_write     (perf_dc_write),
+    .perf_dc_hit       (perf_dc_hit),
+    .perf_dc_miss      (perf_dc_miss),
+    .perf_dc_refill    (perf_dc_refill),
+    .perf_dc_evict     (perf_dc_evict)
+    `endif
     `ifdef CPU_2CMT
     ,
     .debug1_wb_pc      (cpu_debug1_wb_pc      ),// O, 32

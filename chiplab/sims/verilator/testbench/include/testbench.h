@@ -47,6 +47,63 @@ public:
     unsigned int div_val_2 = 0;
     unsigned int div_val_3 = 0;
 
+#if defined(PERF_IC) || defined(PERF_DC) || defined(PERF_BPU)
+    void sample_perf();
+    void print_perf() const;
+#endif
+
+#ifdef PERF_IC
+    unsigned long long perf_ic_access = 0;
+    unsigned long long perf_ic_hit = 0;
+    unsigned long long perf_ic_miss = 0;
+    unsigned long long perf_ic_refill = 0;
+#endif
+
+#ifdef PERF_DC
+    unsigned long long perf_dc_access = 0;
+    unsigned long long perf_dc_read = 0;
+    unsigned long long perf_dc_write = 0;
+    unsigned long long perf_dc_hit = 0;
+    unsigned long long perf_dc_miss = 0;
+    unsigned long long perf_dc_refill = 0;
+    unsigned long long perf_dc_evict = 0;
+#endif
+
+#ifdef PERF_BPU
+    unsigned long long perf_bpu_resolve = 0;
+    unsigned long long perf_bpu_branch = 0;
+    unsigned long long perf_bpu_jump = 0;
+    unsigned long long perf_bpu_pred_taken = 0;
+    unsigned long long perf_bpu_actual_taken = 0;
+    unsigned long long perf_bpu_correct = 0;
+    unsigned long long perf_bpu_wrong = 0;
+    unsigned long long perf_bpu_direction_miss = 0;
+    unsigned long long perf_bpu_target_miss = 0;
+    unsigned long long perf_bpu_exu_flush = 0;
+    unsigned long long perf_bpu_branch_correct = 0;
+    unsigned long long perf_bpu_jump_correct = 0;
+    unsigned long long perf_bpu_branch_direction_miss = 0;
+    unsigned long long perf_bpu_jump_direction_miss = 0;
+    unsigned long long perf_bpu_branch_target_miss = 0;
+    unsigned long long perf_bpu_jump_target_miss = 0;
+    unsigned long long perf_bpu_direct_jump = 0;
+    unsigned long long perf_bpu_direct_jump_correct = 0;
+    unsigned long long perf_bpu_direct_jump_direction_miss = 0;
+    unsigned long long perf_bpu_direct_jump_target_miss = 0;
+    unsigned long long perf_bpu_jirl = 0;
+    unsigned long long perf_bpu_jirl_correct = 0;
+    unsigned long long perf_bpu_jirl_direction_miss = 0;
+    unsigned long long perf_bpu_jirl_target_miss = 0;
+    unsigned long long perf_bpu_ret_jirl = 0;
+    unsigned long long perf_bpu_ret_jirl_correct = 0;
+    unsigned long long perf_bpu_ret_jirl_direction_miss = 0;
+    unsigned long long perf_bpu_ret_jirl_target_miss = 0;
+    unsigned long long perf_bpu_indirect_jirl = 0;
+    unsigned long long perf_bpu_indirect_jirl_correct = 0;
+    unsigned long long perf_bpu_indirect_jirl_direction_miss = 0;
+    unsigned long long perf_bpu_indirect_jirl_target_miss = 0;
+#endif
+
     /*  */
     void save_model(vluint64_t main_time, const char* top_filename);
     void restore_model(vluint64_t* main_time, const char* top_filename);
@@ -75,6 +132,12 @@ public:
         auto end = std::chrono::steady_clock::now();
         std::chrono::nanoseconds elapsed_seconds = std::chrono::nanoseconds(end-start);
         total_nano_seconds += elapsed_seconds;
+
+#if defined(PERF_IC) || defined(PERF_DC) || defined(PERF_BPU)
+        if (top->aclk && top->aresetn) {
+            sample_perf();
+        }
+#endif
 
 #if defined(DUMP_VCD) || defined(DUMP_FST)
         char waveform_name[128];
